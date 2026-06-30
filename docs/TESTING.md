@@ -2,6 +2,17 @@
 
 This document is the manual test plan for combat robot v2. **It is not optional** — the BLE layer, in particular, has not been tested against any specific 8BitDo model, and there are several known unknowns.
 
+## Before you start — run the host test suite
+
+```bash
+pip install -r tests/requirements.txt
+pytest tests/
+# or
+bash tests/pre_flash_check.sh
+```
+
+If a test fails (especially the schematic pinout check), **resolve it before flashing**. The tests are designed to catch the kinds of regressions that would silently break a combat robot mid-fight.
+
 ## Required hardware
 
 - ESP32-C3 DevKit M02 (or your target board)

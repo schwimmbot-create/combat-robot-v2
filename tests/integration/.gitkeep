@@ -1,0 +1,10 @@
+# Reserved for on-target Unity tests (when hardware is available).
+
+These would use ESP-IDF's Unity test framework running on a real ESP32.
+
+Planned tests:
+- test_pair_8bitdo: connect to a real 8BitDo, verify state updates
+- test_motor_drive: command a motor, verify PWM output via scope
+- test_battery_monitor: simulate voltage divider, verify shutdown
+- test_wifi_ap_fallback: kill STA, verify AP starts
+- test_ota_upload: upload a fake firmware, verify reboot

@@ -65,7 +65,22 @@ After `pio run`, look in `.pio/build/esp32-c3-devkitc-02/`:
 
 All use the same source; pin defines in `myrobot/include/Constants.h` are C3-specific and may need tweaking per board.
 
-## Common build errors
+## Before you flash — run the test suite
+
+```bash
+# Install test deps (one-time)
+pip install -r tests/requirements.txt
+
+# Run all host-side tests
+pytest tests/
+
+# Or use the pre-flash script (recommended)
+bash tests/pre_flash_check.sh
+```
+
+Tests catch: API drift, schema mismatches between HTML and C++, accidental edits to ported files, the schematic pinout mismatch, and more. **If a test fails, do not flash.**
+
+See `tests/README.md` for what's covered.
 
 ### `fatal error: nimble/nimble_port.h: No such file or directory`
 The NimBLE managed component hasn't been fetched. Run `pio run` again to let PIO resolve it, or manually `pio pkg install -l "espressif/nimble@~1.5.0"`.

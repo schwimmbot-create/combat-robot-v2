@@ -5,6 +5,13 @@ build/
 .cmake-build-debug/
 cmake-build-*/
 
+# Test artifacts
+.pytest_cache/
+htmlcov/
+.coverage
+test-results.xml
+*.cover
+
 # ESP-IDF
 sdkconfig
 sdkconfig.old
