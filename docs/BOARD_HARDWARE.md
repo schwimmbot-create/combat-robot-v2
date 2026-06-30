@@ -1,6 +1,6 @@
 # Board Hardware Reference
 
-This document captures everything we know about the **ESP32-C3-MINI-1-H4 (4MB)** robot controller board hardware across both revisions. It is the source of truth for firmware pin assignments, board variants, and known unknowns.
+This document captures everything we know about the **ESP32-C3-MINI-1-H4 (4MB)** robot controller board hardware across both revisions. It is the source of truth for firmware pin assignments, board variants, motor driver topology, and known unknowns.
 
 > **This is a living document.** When you find a discrepancy, fix it here AND in the code, then re-run the test suite to confirm nothing else broke.
 
@@ -10,14 +10,16 @@ This document captures everything we know about the **ESP32-C3-MINI-1-H4 (4MB)**
 
 The project supports (or aims to support) two board revisions:
 
-| Rev | File | Status | Notes |
-|---|---|---|---|
-| **v2** (current production) | `ProPrj_Generic_Robot_Controller_ver2_temp_2026-06-30.epro` | **In use.** v1.3 firmware runs on this. | Has 2 motor driver ICs (U2, U3) directly on the board. |
-| **v3** (next rev) | `ProPrj_Generic_Robot_Controller_ver2_2025-08-17.epro` | Designed, not yet fabricated. | Same MCU. Changes to motor control topology (see Section 5). |
+| Rev | Schematic source | Status | Motor drivers | Spare header | Notes |
+|---|---|---|---|---|---|
+| **v2** (current production) | `hardware/board-v2-rev1-schematic.epro` (from `ProPrj_Generic_Robot_Controller_ver2_temp_2026-06-30.epro`) | **In use.** v1.3 firmware runs on this. | 2× DRV8871 + 2× "TS2306A" (aux switch) | None (just motor outputs P1, P2) | 2 brushed DC motors max |
+| **v3** (next rev) | `hardware/board-v3-rev1-schematic.epro` (from `ProPrj_Generic_Robot_Controller_ver2_2025-08-17.epro`) | Designed, not yet fabricated. | 4× DRV8871DDAR | **CN5** (WAFER-SH1.0-5PLB, 5 signal + 2 GND) | 4 brushed DC motors **or** 2 BLDC via CN5 breakout |
 
 **Both boards use the same MCU:** ESP32-C3-MINI-1-H4 (4MB flash) at designator U1.
 
 **Both boards have the same USB connector, ESD protection, and basic power architecture** (verified by component designator match: D1=USBLC6-2P6, USB1=MICRO 180°JB, C1-C5=decoupling caps).
+
+> **Schematic files are stored in `hardware/`** with versioned names. See Section 10 for the file inventory.
 
 ---
 
@@ -116,22 +118,84 @@ The v3 schematic source uses geometry-based connectivity but I extracted the pin
 | 31 | GPIO21 (TXD0) | MOTOR2_IN1 | via R8 220Ω |
 | (28) | GPIO19 | DP | USB D+ (inferred) |
 
-> **The v2 and v3 boards appear to have IDENTICAL pin assignments.** This is consistent with the v3 .epro file's title "Generic_Robot_Controller_ver2_2025-08-17" — it's the same board, perhaps a minor revision. The user's clarification that v3 hasn't been fabricated yet suggests v3 has changes not yet visible in the schematic, but the schematic I have IS the v3 design as of 2025-08-17.
+> **The v2 and v3 boards appear to have IDENTICAL pin assignments** for the GPIO-to-net mapping. Both boards expose the same motor control signals (MOTOR1_IN1/IN2, MOTOR2_IN1/IN2) on the same GPIOs. The differences are in the *downstream* motor driver topology (see Section 4).
 
 ---
 
-## 4. The User's Pinout Confusion
+## 4. Motor Driver Topology (THE BIG DIFFERENCE)
 
-The user described their hardware as "ESP32-C3 Mini" with a particular pinout that I initially got wrong. Here's what I now know:
+This is the key hardware difference between v2 and v3, and what the user is asking about.
 
-- **The user is correct** — it's an ESP32-C3-MINI-1 (4MB).
-- **The original v1.3 `Constants.h`** had pin defines that don't match either board (e.g. `ESC_1_PIN = 4` — but GPIO4 is SERVO1, not a motor).
-- **This means v1.3 firmware was likely running with incorrect pin assignments**, and either:
-  - (a) The user never noticed because the SERVO/MOTOR features they were testing happened to work with the wrong pins
-  - (b) There's a different board revision I'm not seeing that matches the v1.3 Constants.h
-  - (c) Some pins map "by accident" to the same function
+### v2 board: 2 motor drivers, 2 motors, no BLDC breakout
 
-**The correct pinout (for both v2 and v3 boards) should be what the schematic shows, not the v1.3 Constants.h values.**
+The v2 board has only **2 brushed DC motor drivers**:
+
+| Component | Designator | Function |
+|---|---|---|
+| U5 | DRV8871DDAR | Motor 1A driver (left motor) |
+| U6 | DRV8871DDAR | Motor 2A driver (right motor) |
+| P1 | PH-2A connector | Motor 1A output (to brushed DC motor) |
+| P2 | PH-2A connector | Motor 2A output (to brushed DC motor) |
+
+Plus on the MCU page: **2× "TS2306A 240GF MSM 9" components (U2, U3)** — these are likely auxiliary power switches (probably the 5V eFuse control circuits or similar), not motor drivers.
+
+**v2 has 2 brushed DC motors, period. No BLDC breakout.**
+
+### v3 board: 4 motor drivers, 4 brushed DC motors, **PLUS CN5 BLDC breakout**
+
+The v3 board has **4 brushed DC motor drivers** AND a **CN5 spare output header** that exposes the same motor control signals for external use:
+
+| Component | Designator | Function |
+|---|---|---|
+| U7 | DRV8871DDAR | Motor 1A driver (left motor, brushed DC) |
+| U8 | DRV8871DDAR | Motor 1B driver (right motor? or second motor on same axis) |
+| U9 | DRV8871DDAR | Motor 2A driver |
+| U10 | DRV8871DDAR | Motor 2B driver |
+| P1, P2, P3, P4 | PH-2A connectors | Motor 1A, 1B, 2A, 2B outputs |
+| **CN5** | WAFER-SH1.0-5PLB (7-pad JST-SH) | **Spare output header** |
+
+### CN5 Pinout (v3 board, BLDC breakout)
+
+The 7 pads of CN5 are arranged with the motor control signals in the middle and grounds on the outside:
+
+| Pin | Signal | Notes |
+|---|---|---|
+| 1 | GND | |
+| 2 | MOTOR1_IN1 | DRV8871 input signal (replicated from U7/U8) |
+| 3 | MOTOR1_IN2 | |
+| 4 | MOTOR2_IN2 | |
+| 5 | MOTOR2_IN1 | |
+| 6 | GND | |
+| 7 | GND | (extra ground for shielding) |
+
+**Annotation on the schematic (yellow box):** "Spare output header for motor pins. Protected by 220Ohms"
+
+### What CN5 is for
+
+The CN5 signals are **the same net as the DRV8871 inputs** — so they're not independent outputs. They're a parallel tap on the same control lines, with 220Ω series resistors for protection.
+
+**Use cases for CN5:**
+
+1. **Connect an external BLDC ESC** instead of using the on-board DRV8871s. You'd:
+   - Disconnect the brushed DC motor from the DRV8871 output (P1/P2/P3/P4)
+   - Connect the BLDC ESC signal input to MOTOR1_IN1/IN2 (or MOTOR2_IN1/IN2) on CN5
+   - The DRV8871 will be idle (no motor = no current draw) but the ESP32 still drives the same control lines
+   - The BLDC ESC treats the IN1/IN2 lines as a standard RC servo PWM input (PWM frequency, 1-2ms pulse)
+
+2. **Connect an external brushed DC driver** (more powerful than the on-board DRV8871) that has its own IN1/IN2 input pins.
+
+3. **Connect a logic analyzer or scope** for debugging the motor control signals.
+
+### Important caveats for CN5 use
+
+- **CN5 signals are NOT independently controlled.** They share the same ESP32 GPIOs as the on-board DRV8871s. If the firmware sends "drive motor 1 forward at 50%," the same signal goes to both the DRV8871 (which drives a brushed DC motor) AND any external device connected to CN5.
+- **The 220Ω series resistors** on CN5 are there to protect the ESP32 GPIO from shorts on the external wiring. The DRV8871 inputs go through different series resistors (R3, R4, R5, R8 = 220Ω on the schematic). Both sets of resistors feed the same net, so the ESP32 sees the parallel combination of all paths.
+- **Voltage levels:** The CN5 signals are 3.3V CMOS logic, which is compatible with most modern ESCs (which accept 3.3V or 5V logic). Older ESCs that require 5V TTL logic levels may not work reliably.
+- **PWM frequency:** The DRV8871 expects 0-200 kHz PWM on its INx pins. Most RC ESCs expect 50 Hz servo PWM. **The same GPIO cannot drive both at the same time** without conflicts. You'd need to choose:
+  - Drive brushed DC motors via on-board DRV8871s (firmware sets `DRIVE_MOTOR_PWM_FREQ = 20000`)
+  - Drive BLDC ESCs via CN5 (firmware sets `ESC_PWM_FREQ = 50`)
+
+  This is a firmware mode selection, not a hardware constraint.
 
 ---
 
@@ -139,54 +203,34 @@ The user described their hardware as "ESP32-C3 Mini" with a particular pinout th
 
 The user wants one source code that runs on both v2 and v3 hardware. This requires a **board abstraction layer**.
 
-### When boards differ
+### What the abstraction needs to handle
 
-From the schematic analysis:
-- **v2 board** has motor drivers (U2, U3) on the MCU page itself, plus headers H1, H2 for motor output. This is the "compact" version.
-- **v3 board** (per the v3 .epro) has motor drivers on a separate page (sheet 3 = Motor Drivers) and uses spare output header CN5 (page 3) for motor control signals.
-
-If v3 is supposed to support a "drum weapon" (per v1.3 firmware `Drum` class), the drum signal isn't visible in the v3 schematic I have. This is a real gap.
+| Difference | v2 board | v3 board | How to handle |
+|---|---|---|---|
+| GPIO → net mapping | Same | Same | Single set of pin defines |
+| Motor driver count | 2 (U5, U6) | 4 (U7-U10) | `NUM_DRIVE_MOTORS` config |
+| Motor output connectors | 2 (P1, P2) | 4 (P1-P4) | Auto-derived from `NUM_DRIVE_MOTORS` |
+| Spare output header (CN5) | None | Yes (7 pins) | `HAS_SPARE_HEADER` config; gates firmware features that use it |
+| Drum motor | **Unknown** — see Section 7 | **Unknown** | TBD |
 
 ### The abstraction design
 
-A clean way to handle board differences is to introduce a `board_config.h` that maps logical names to physical pins:
+A clean way to handle board differences is to introduce a `board_config.h` that maps logical names to physical pins and capabilities:
 
 ```c
-// board_config.h
-// Selects board revision at compile time.
-//   pio run -e esp32-c3-devkitc-02 -D BOARD_REV=2   (v2 board, current)
-//   pio run -e esp32-c3-devkitc-02 -D BOARD_REV=3   (v3 board, future)
-
-#if !defined(BOARD_REV) || BOARD_REV == 2
-    // v2 board (current production)
-    #define BOARD_NAME "Generic Robot Controller v2"
-    #define PIN_MOTOR1_IN1    0   // GPIO0
-    #define PIN_MOTOR1_IN2    1   // GPIO1
-    #define PIN_MOTOR2_IN1    21  // TXD0/GPIO21
-    #define PIN_MOTOR2_IN2    10  // GPIO10
-    #define PIN_SERVO1        4   // GPIO4
-    #define PIN_SERVO2        5   // GPIO5
-    #define PIN_DRUM_PWM      ??? // Drum motor pin — UNKNOWN on v2 (see Section 7)
-    #define PIN_BATT_MEAS     3   // GPIO3 (ADC)
-    #define PIN_MODE_BUTTON   6   // GPIO6
-    #define PIN_DEBUG_LED     7   // GPIO7
-    #define PIN_SDA           2   // GPIO2
-    #define PIN_SCL           8   // GPIO8
-    #define PIN_5V_EXT_EN     20  // RXD0/GPIO20
-    #define PIN_BOOT          9   // GPIO9 (boot button, not user button)
-    #define NUM_DRIVE_MOTORS  2
-    #define HAS_DRUM          0   // v2 has no drum on schematic; check Section 7
+// board_config.h - select at compile time with -DBOARD_REV=N
+#if BOARD_REV == 2
+    #define NUM_DRIVE_MOTORS    2
+    #define HAS_SPARE_HEADER    0
+    #define HAS_DRUM            0
 #elif BOARD_REV == 3
-    // v3 board (not yet fabricated)
-    #define BOARD_NAME "Generic Robot Controller v3"
-    // ... same pinout as v2 (per current schematic) ...
-    #define HAS_DRUM          1   // TBD - depends on actual v3 design
-#else
-    #error "Unknown BOARD_REV. Define as 2 or 3."
+    #define NUM_DRIVE_MOTORS    4
+    #define HAS_SPARE_HEADER    1   // CN5 breakout for BLDC/external driver
+    #define HAS_DRUM            0
 #endif
 ```
 
-Then update the `myrobot` component to use these logical names instead of raw GPIO numbers.
+The pin defines (`PIN_MOTOR1_IN1`, `PIN_SERVO1`, etc.) are the same on both boards — only the *count* and *extras* differ.
 
 ---
 
@@ -206,7 +250,7 @@ The v1.3 `Constants.h` has these pin defines:
 #define BATT_MEAS_PIN    0
 ```
 
-If we map these to schematic functions:
+If we map these to schematic functions (which are the SAME on v2 and v3):
 
 | v1.3 define | Pin | Schematic function | Mismatch? |
 |---|---|---|---|
@@ -242,18 +286,33 @@ The pin defines in v1.3 don't match the v2 or v3 schematic. Either:
 - (b) The user copy-pasted pin numbers from a different project
 - (c) The user never actually verified the v1.3 firmware drove the right pins
 
-**Resolution needed:** Can the user confirm what the v1 board's pinout was, or do we treat v1.3 as "best effort" and write fresh pin maps for v2?
+**Resolution needed:** Can the user confirm what the v1 board's pinout was, or do we treat v1.3 as "best effort" and write fresh pin maps for v2/v3?
 
 ### Q2. Where is the drum motor on v2?
 
-v1.3 has a `Drum` class (drum weapon) with one pin (`ESC_1_PIN = 4`). The v2 schematic shows motor drivers U2, U3 (TS2306A = DRV8871 footprint) and headers H1, H2 — **but no obvious "drum" signal**. The drum might be:
-- (a) Connected via one of the spare output headers (H1, H2)
-- (b) On a daughter board not shown in this schematic
+v1.3 has a `Drum` class (drum weapon) with one pin (`ESC_1_PIN = 4`). The v2 schematic shows:
+- Motor drivers U5, U6 (DRV8871) on the motor driver page
+- Motor outputs P1, P2 (PH-2A connectors)
+- **No CN5** (no spare output header on v2)
+- **No "drum" label** anywhere
+
+The drum might be:
+- (a) Connected to one of the P1/P2 outputs (just labeled as "motor" instead of "drum" in the schematic)
+- (b) On a daughter board not shown in the schematic
 - (c) Not present on v2 hardware (v1.3 drum code is dead code on v2)
 
-**Resolution needed:** Open the robot, look at what's connected to headers H1 and H2.
+**Resolution needed:** Open the robot, look at what's connected to P1 and P2.
 
-### Q3. v2 schematic connectivity extraction
+### Q3. Will the v3 board add a drum?
+
+v3 has 4 motor drivers and CN5. Possible configurations:
+- 4 brushed DC motors (no drum)
+- 2 brushed DC motors + 1 drum (using 2 DRV8871s for the brushed motors and 1 motor control pair on CN5 for the drum)
+- 2 brushed DC motors + BLDC motors via CN5
+
+**Resolution needed:** Confirm v3 design intent. Until then, `HAS_DRUM=0` for both boards.
+
+### Q4. v2 schematic connectivity extraction
 
 The v2 .epro file's schematic uses geometry-based netlist (WIRE records with point sequences). To extract pin-to-net mapping programmatically, I need a spatial matching algorithm:
 - For each ESP32 pin, find which WIRE records have endpoints within tolerance
@@ -263,9 +322,13 @@ The v2 .epro file's schematic uses geometry-based netlist (WIRE records with poi
 
 **Resolution needed:** Either implement the geometry algorithm, OR upload a rendered v2 PDF so I can use vision extraction (like I did for v3).
 
-### Q4. v3 changes
+### Q5. Does v2 have CN5?
 
-The user said "v3 has not been fabricated yet" but the v3 .epro file is the one I have. Is the v3 design final, or are there pending changes (like adding a drum)?
+**No.** I verified by parsing the v2 .epro: there's no "WAFER" or "CN5" component. v2 has only 2 motor drivers and 2 motor output connectors.
+
+### Q6. Where are the v2 "TS2306A" components?
+
+The v2 .epro shows two components with symbol `TS2306A 240GF MSM 9_C2976675` (U2, U3) on the MCU page. These appear to be auxiliary ICs, not motor drivers. Need to investigate their function — could be voltage regulators, eFuse controllers, or something else.
 
 ---
 
@@ -276,34 +339,61 @@ The user said "v3 has not been fabricated yet" but the v3 .epro file is the one 
 | MCU is ESP32-C3-MINI-1-H4 (4MB) | `.epro` source: `ESP32-C3-MINI-1-H4(4MB).1` symbol ref | ✅ Confirmed |
 | v3 schematic pinout (SDA, SCL, BATT_MEAS, MOTOR1_IN1, etc.) | Vision extraction from rendered schematic | ✅ Confirmed |
 | v2 board has same MCU as v3 | Both .epro files have same symbol ref | ✅ Confirmed |
+| v2 has 2 motor drivers (U5, U6 = DRV8871) | v2 .epro parsed, component designators | ✅ Confirmed |
+| v3 has 4 motor drivers (U7-U10 = DRV8871DDAR) | v3 .epro parsed + rendered PDF | ✅ Confirmed |
+| v3 has CN5 spare output header | v3 .epro parsed + rendered PDF | ✅ Confirmed |
+| CN5 pinout (GND, MOTOR1_IN1, MOTOR1_IN2, MOTOR2_IN2, MOTOR2_IN1, GND, GND) | Rendered PDF vision extraction | ✅ Confirmed |
+| v2 has NO CN5 (no spare output header) | v2 .epro parsed, no WAFER/CN5 found | ✅ Confirmed |
 | v2 pinout matches v3 pinout | **Inferred** — both boards use same chip at same position | ⚠️ Inferred |
 | v1.3 `Constants.h` matches the schematic | Direct comparison | ❌ **No match** — v1.3 pin defines are wrong |
 | v1.3 firmware actually worked on v2 hardware | User statement | ❓ Unknown |
 | Drum motor exists on v2 hardware | Not in schematic | ❓ Unknown |
+| v3 firmware will add drum | Pending design | ❓ Unknown |
 
 ---
 
 ## 9. Recommended Next Steps
 
 1. **Open the actual robot and check what's connected.** Specifically:
-   - What wires are soldered to headers H1 and H2?
+   - What wires are soldered to P1, P2?
    - Is there a drum motor? Where is it wired?
-   - Does the BOOT button (GPIO9) on the schematic match a button on the case?
-2. **Render the v2 schematic as a PDF** in EasyEDA Pro so I can extract the pinout the same way I did for v3.
-3. **Implement the geometry-based netlist extraction** for `.epro` files (Q3 above) so future revisions can be analyzed without rendering.
-4. **Create the `board_config.h` abstraction layer** so one firmware targets both v2 and v3 boards.
-5. **Verify the v1.3 firmware's actual behavior** by capturing GPIO outputs while the firmware runs. If a pin labeled "drum" is actually driving a servo, the existing code might be misnamed rather than broken.
+   - Are the BOOT button (GPIO9) and the MODE button (GPIO6) accessible on the case?
+2. **Render the v2 .epro as a PDF** in EasyEDA Pro so I can extract the pinout the same way I did for v3.
+3. **Implement the geometry-based netlist extraction** for `.epro` files (Q4 above) so future revisions can be analyzed without rendering.
+4. **Update `board_config.h`** to include the v3 BLDC breakout (CN5) support, including:
+   - `HAS_SPARE_HEADER` config flag
+   - `PIN_SPARE_HEADER_IN1`, `PIN_SPARE_HEADER_IN2`, etc. for CN5 access
+   - Web UI to configure CN5 use (brushed vs BLDC mode)
+5. **Verify the v1.3 firmware's actual behavior** by capturing GPIO outputs while the firmware runs.
 
 ---
 
 ## 10. File Inventory
 
-| File | What | Where in repo |
+### Hardware source files (in `hardware/`)
+
+| File | What | Description |
+|---|---|---|
+| `board-v2-rev1-schematic.epro` | EasyEDA v2 schematic source | The board the user is actually using. **Current production.** |
+| `board-v2-rev1-pcb-layout.epro2` | EasyEDA v2 PCB layout | PCB design, not schematic |
+| `board-v3-rev1-schematic.epro` | EasyEDA v3 schematic source | Next revision. **Designed, not yet fabricated.** |
+| `board-v3-rev1-rendered.pdf` | Rendered v3 schematic | PDF export used for vision extraction |
+
+### Original attachments (in `../.hermes/desktop-attachments/`)
+
+| Original filename | Saved as |
+|---|---|
+| `ProPrj_Generic_Robot_Controller_ver2_2025-08-17.epro` | `hardware/board-v3-rev1-schematic.epro` |
+| `ProPrj_Generic_Robot_Controller_ver2_temp_2026-06-30.epro` | `hardware/board-v2-rev1-schematic.epro` |
+| `ProPrj_Generic_Robot_Controller_ver2_temp_2026-06-30.epro2` | `hardware/board-v2-rev1-pcb-layout.epro2` |
+| `SCH_Schematic1_1_2026-06-29.pdf` | `hardware/board-v3-rev1-rendered.pdf` |
+
+> **Note on filenames:** The original v3 file is named `ver2_2025-08-17.epro` because it was an internal revision of the v2 board (probably the same board with minor changes, but never fabricated). The original v2 file is named `ver2_temp_2026-06-30.epro` because it was a temporary working copy. I renamed them to disambiguate.
+
+### Firmware source files
+
+| File | What | Where |
 |---|---|---|
 | v1.3 firmware source | Original combat robot code (with Bluepad32) | `esp-idf-arduino-bluepad32-template/combat_robot` branch |
-| v2 board schematic | **The board the user is actually using** | `.hermes/desktop-attachments/ProPrj_Generic_Robot_Controller_ver2_temp_2026-06-30.epro` |
-| v3 board schematic | Next revision, not yet built | `.hermes/desktop-attachments/ProPrj_Generic_Robot_Controller_ver2_2025-08-17.epro` |
-| v3 board PDF | Rendered v3 schematic, used for vision extraction | `.hermes/desktop-attachments/SCH_Schematic1_1_2026-06-29.pdf` |
-| v2 board v2 layout | PCB layout, not schematic | `.hermes/desktop-attachments/ProPrj_Generic_Robot_Controller_ver2_temp_2026-06-30.epro2` |
-
-> **The v2 .epro2 is the PCB layout, NOT a schematic.** I cannot extract pin assignments from a PCB layout alone (footprints have pad positions but not the netlist). The v2 .epro IS the schematic, but its `.esch` files use geometry-based connectivity that I haven't programmatically extracted. To get the v2 pinout definitively, render the v2 .epro as a PDF in EasyEDA Pro and upload that.
+| v2 firmware | NimBLE + web UI rewrite | This project (combat-robot-v2/) |
+| Board abstraction | One firmware, two boards | `components/board_config/include/board_config.h` |

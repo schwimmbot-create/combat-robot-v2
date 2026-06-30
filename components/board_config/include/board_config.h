@@ -62,11 +62,12 @@
 #if BOARD_REV == 2
 
     // v2 board (Generic Robot Controller v2)
-    // .epro: ProPrj_Generic_Robot_Controller_ver2_temp_2026-06-30.epro
+    // Source: hardware/board-v2-rev1-schematic.epro
     //
-    // NOTE: v2 pinout INFERRED from v3 schematic (same chip, same designators
-    // for adjacent components, same U2/U3 = motor drivers). See
-    // docs/BOARD_HARDWARE.md Section 7 for open questions.
+    // v2 has 2 motor drivers (U5, U6 = DRV8871DDAR), 2 motor outputs
+    // (P1, P2 = PH-2A), and NO spare output header.
+    // The "TS2306A" components (U2, U3) on the MCU page are auxiliary ICs
+    // (likely power switches), not motor drivers.
 
     #define BOARD_NAME                "Generic Robot Controller v2"
     #define BOARD_REVISION_STRING     "v2 (current production)"
@@ -99,8 +100,11 @@
     #define PIN_5V_EXT_EN             20   // RXD0  -> TPS259241 eFuse EN
     #define PIN_BOOT_BUTTON           9    // GPIO9  -> BOOT (ESP32 strapping pin)
 
-    // Number of drive motors
+    // Number of drive motors (v2 has 2 motor drivers)
     #define NUM_DRIVE_MOTORS          2
+
+    // v2 has NO CN5 spare output header
+    #define HAS_SPARE_HEADER          0
 
     // Has IMU (LSM6DS3)
     #define HAS_IMU                   1
@@ -111,10 +115,12 @@
 #elif BOARD_REV == 3
 
     // v3 board (next revision, not yet fabricated)
-    // .epro: ProPrj_Generic_Robot_Controller_ver2_2025-08-17.epro
+    // Source: hardware/board-v3-rev1-schematic.epro
     //
-    // Pinout extracted from rendered schematic. Confirmed via vision model
-    // reading the page-by-page schematic images. See docs/BOARD_HARDWARE.md.
+    // v3 has 4 motor drivers (U7-U10 = DRV8871DDAR), 4 motor outputs
+    // (P1-P4 = PH-2A), AND a CN5 spare output header for BLDC/external
+    // drivers. The CN5 pins are TAPS on the same motor control nets as
+    // the DRV8871 inputs (220Ω series protected).
 
     #define BOARD_NAME                "Generic Robot Controller v3"
     #define BOARD_REVISION_STRING     "v3 (designed, not fabricated)"
@@ -146,7 +152,25 @@
     #define PIN_5V_EXT_EN             20   // RXD0  -> 5V_EXT_EN
     #define PIN_BOOT_BUTTON           9    // GPIO9  -> BOOT (strapping)
 
-    #define NUM_DRIVE_MOTORS          2
+    // Number of drive motors (v3 has 4 motor drivers)
+    #define NUM_DRIVE_MOTORS          4
+
+    // v3 HAS CN5 spare output header for BLDC ESCs / external drivers
+    // See docs/BOARD_HARDWARE.md Section 4 for full details.
+    #define HAS_SPARE_HEADER          1
+    #define PIN_SPARE_HEADER_IN1      PIN_MOTOR1_IN1   // CN5 pin 2 (tap of MOTOR1_IN1)
+    #define PIN_SPARE_HEADER_IN2      PIN_MOTOR1_IN2   // CN5 pin 3 (tap of MOTOR1_IN2)
+    #define PIN_SPARE_HEADER_IN3      PIN_MOTOR2_IN2   // CN5 pin 4 (tap of MOTOR2_IN2)
+    #define PIN_SPARE_HEADER_IN4      PIN_MOTOR2_IN1   // CN5 pin 5 (tap of MOTOR2_IN1)
+
+    // BLDC mode uses servo PWM (50 Hz, 1-2ms pulse) on the CN5 pins.
+    // This conflicts with brushed DC mode (20 kHz PWM on the same pins).
+    // The firmware must choose ONE mode at a time.
+    #define SPARE_HEADER_PWM_FREQ_HZ      50      // Standard servo PWM
+    #define SPARE_HEADER_PWM_MIN_US       1000    // Full reverse
+    #define SPARE_HEADER_PWM_MAX_US       2000    // Full forward
+    #define SPARE_HEADER_PWM_NEUTRAL_US   1500    // Stop
+
     #define HAS_IMU                   1
     #define HAS_NEOPIXEL              1
 
@@ -188,6 +212,7 @@ struct BoardInfo {
     bool has_drum;
     bool has_imu;
     bool has_neopixel;
+    bool has_spare_header;       // CN5 breakout for BLDC/external drivers (v3 only)
     int pin_motor1_in1;
     int pin_motor1_in2;
     int pin_motor2_in1;
@@ -203,6 +228,10 @@ struct BoardInfo {
     int pin_scl;
     int pin_5v_ext_en;
     int pin_boot_button;
+    int pin_spare_header_in1;    // CN5 pin 2 (only valid if HAS_SPARE_HEADER)
+    int pin_spare_header_in2;    // CN5 pin 3
+    int pin_spare_header_in3;    // CN5 pin 4
+    int pin_spare_header_in4;    // CN5 pin 5
 };
 
 inline constexpr BoardInfo kBoardInfo = {
@@ -212,6 +241,7 @@ inline constexpr BoardInfo kBoardInfo = {
     HAS_DRUM ? true : false,
     HAS_IMU ? true : false,
     HAS_NEOPIXEL ? true : false,
+    HAS_SPARE_HEADER ? true : false,
     PIN_MOTOR1_IN1,
     PIN_MOTOR1_IN2,
     PIN_MOTOR2_IN1,
@@ -227,6 +257,14 @@ inline constexpr BoardInfo kBoardInfo = {
     PIN_SCL,
     PIN_5V_EXT_EN,
     PIN_BOOT_BUTTON,
+#if HAS_SPARE_HEADER
+    PIN_SPARE_HEADER_IN1,
+    PIN_SPARE_HEADER_IN2,
+    PIN_SPARE_HEADER_IN3,
+    PIN_SPARE_HEADER_IN4,
+#else
+    0, 0, 0, 0,  // Spare header not present on this board
+#endif
 };
 
 // Compile-time diagnostic: when this header is included, log which board
