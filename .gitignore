@@ -1,0 +1,23 @@
+# Build outputs
+.pio/
+build/
+.pioenvs/
+.cmake-build-debug/
+cmake-build-*/
+
+# ESP-IDF
+sdkconfig
+sdkconfig.old
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Distribution
+dist/

@@ -1,0 +1,134 @@
+#
+# ESP32 options
+#
+
+# Re-enable OPTIMIZATION_PERF when these bugs are fixed:
+# https://github.com/espressif/arduino-esp32/issues/9784
+# https://github.com/espressif/arduino-esp32/issues/9607
+#CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+
+CONFIG_ESP32_XTAL_FREQ_AUTO=y
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# ---------------------------------------------------------------------------
+# Bluetooth: NimBLE ONLY (no dual-mode, no classic BT)
+# ---------------------------------------------------------------------------
+# BLE-only on C3 is already the only option (no classic BT radio).
+# We disable dual-mode on ESP32/S3 to save flash + simplify.
+
+CONFIG_BT_ENABLED=y
+CONFIG_BT_CONTROLLER_ONLY=y
+CONFIG_BT_CONTROLLER_ENABLED=y
+CONFIG_BT_HOST_ONLY=n
+
+# Disable classic BT (BR/EDR) — we use BLE only.
+# The C3 is BLE-only natively; this affects ESP32/S3 boards.
+CONFIG_BT_CLASSIC_ENABLED=n
+CONFIG_BT_A2DP_ENABLE=n
+CONFIG_BT_SPP_ENABLED=n
+CONFIG_BT_HID_HOST_ENABLED=n
+CONFIG_BT_HID_DEVICE_ENABLED=n
+CONFIG_BT_L2CAP_ENABLED=n
+
+# NimBLE host (not Bluedroid).
+CONFIG_BT_NIMBLE_ENABLED=y
+CONFIG_BT_NIMBLE_HOST_ONLY=y
+# Enable BLE 5.0 features (2M PHY, coded PHY, etc.) when available.
+CONFIG_BT_BLE_50_FEATURES_SUPPORTED=y
+CONFIG_BT_NIMBLE_USE_ESP_TIMER=y
+
+# BLE connection parameters — tuned for gamepad (low latency).
+CONFIG_BT_NIMBLE_SVC_GAP_DEVICE_NAME="Combat Robot"
+CONFIG_BT_NIMBLE_SVC_GAP_APPEARANCE=0x03C4   # Generic: Joystick
+CONFIG_BT_NIMBLE_SVC_GAP_PPCP_MIN_CONN_INTERVAL=6     # 7.5ms
+CONFIG_BT_NIMBLE_SVC_GAP_PPCP_MAX_CONN_INTERVAL=12    # 15ms
+CONFIG_BT_NIMBLE_SVC_GAP_PPCP_SLAVE_LATENCY=0
+CONFIG_BT_NIMBLE_SVC_GAP_PPCP_SUPERVISION_TIMEOUT=200  # 2s
+
+# How many simultaneous BLE connections to support.
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+
+# Memory tuning — gamepad reports are small but GATT discovery has overhead.
+CONFIG_BT_NIMBLE_ATT_PREFERRED_MTU=255
+CONFIG_BT_NIMBLE_MSYS1_BLOCK_COUNT=12
+CONFIG_BT_NIMBLE_MSYS1_BLOCK_SIZE=128
+CONFIG_BT_NIMBLE_MSYS2_BLOCK_COUNT=24
+CONFIG_BT_NIMBLE_MSYS2_BLOCK_SIZE=256
+CONFIG_BT_NIMBLE_ACL_BUF_COUNT=8
+CONFIG_BT_NIMBLE_ACL_BUF_SIZE=255
+
+# GATT services and security (we're a central, but registering them
+# keeps the host stack happy on init).
+CONFIG_BT_NIMBLE_GATT_SVR_REGISTER_SVC_RSTD=n
+CONFIG_BT_NIMBLE_SM_LEGACY=y
+CONFIG_BT_NIMBLE_SM_SC=y
+CONFIG_BT_NIMBLE_BONDING=y
+CONFIG_BT_NIMBLE_HS_STOP_TIMEOUT_MS=2000
+CONFIG_BT_NIMBLE_WHITELIST=y
+
+# Disable Bluetooth modem sleep; C3 RMT driver conflicts.
+CONFIG_BT_NIMBLE_MODEM_SLEEP=n
+
+# ---------------------------------------------------------------------------
+# WiFi — used by web_config for the HTML UI.
+# ---------------------------------------------------------------------------
+CONFIG_ESP32_WIFI_ENABLED=y
+CONFIG_ESP32_WIFI_IRAM_OPT=n
+CONFIG_ESP32_WIFI_SLP_BEACON_WAIT_MODE=1
+CONFIG_ESP32_WIFI_SLP_COWAIT=n
+CONFIG_ESP32_WIFI_LIGHT_SLEEP_CLK_SRC_INTERNAL=y
+
+CONFIG_ESP_WIFI_ESPNOW_MAX_ENCRYPT_NUM=0
+CONFIG_ESP_WIFI_ENTERPRISE_SUPPORT=n
+
+# ---------------------------------------------------------------------------
+# FreeRTOS
+# ---------------------------------------------------------------------------
+CONFIG_FREERTOS_USE_TRACE_FACILITY=y
+CONFIG_FREERTOS_USE_STATS_FORMATTING_FUNCTIONS=y
+# Needed for ArduinoCore v2.0.5
+CONFIG_FREERTOS_HZ=1000
+CONFIG_FREERTOS_UNICORE=y   # C3 is single-core; lets us pin tasks to core 0
+
+# ---------------------------------------------------------------------------
+# Arduino options
+# ---------------------------------------------------------------------------
+CONFIG_AUTOSTART_ARDUINO=n
+CONFIG_ARDUINO_SELECTIVE_COMPILATION=y
+# Don't pull Arduino's BLE — we use NimBLE directly.
+CONFIG_ARDUINO_SELECTIVE_BLE=n
+CONFIG_ARDUINO_SELECTIVE_BluetoothSerial=n
+# SimpleBLE is referenced by Arduino WiFiProv, leave it.
+# ESP-SR is huge; disable.
+CONFIG_ARDUINO_SELECTIVE_ESP_SR=n
+# WiFi — keep enabled, used by web_config.
+CONFIG_ARDUINO_SELECTIVE_WiFi=y
+# WebServer — replaced by ESPAsyncWebServer.
+CONFIG_ARDUINO_SELECTIVE_WebServer=n
+
+# ---------------------------------------------------------------------------
+# Power management
+# ---------------------------------------------------------------------------
+# Required because RMT (NeoPixel) is incompatible with light sleep on C3.
+CONFIG_PM_ENABLE=y
+CONFIG_PM_POWER_DOWN_PERIPHERAL_IN_LIGHT_SLEEP=y
+# Keep CPU up so RMT timing stays accurate.
+CONFIG_PM_POWER_DOWN_CPU_IN_LIGHT_SLEEP=n
+# Disable tickless idle to prevent light-sleep entry.
+CONFIG_FREERTOS_USE_TICKLESS_IDLE=n
+
+# ---------------------------------------------------------------------------
+# OTA updates via web UI
+# ---------------------------------------------------------------------------
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y
+CONFIG_BOOTLOADER_WDT_ENABLE=y
+CONFIG_ESPTOOLPY_FLASHSIZE_DETECT=y
+
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+CONFIG_LOG_DEFAULT_LEVEL_INFO=y
+CONFIG_LOG_MAXIMUM_LEVEL=4
+CONFIG_LOG_COLORS=y

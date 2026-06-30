@@ -1,0 +1,15 @@
+## IDF Component Manager manifest for ble_gamepad
+## Declares managed-component dependencies that PlatformIO/ESP-IDF
+## will fetch automatically.
+
+dependencies:
+  # NimBLE host stack — pulled from ESP-IDF component registry.
+  # Pinned to a stable version; bump after testing.
+  espressif/nimble:
+    version: "~1.5.0"
+  # Arduino-esp32 is required for ledcAttach, millis(), etc. in myrobot.
+  # Listed here as a managed dep so PIO can resolve it consistently.
+  ## arduino:
+  ##   version: "~3.0.0"
+  ## Note: arduino is pulled by the `arduino` component in the main
+  ## project (via platformio.ini + main/CMakeLists.txt), not here.
