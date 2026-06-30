@@ -12,6 +12,11 @@ htmlcov/
 test-results.xml
 *.cover
 
+# Python bytecode
+__pycache__/
+*.pyc
+*.pyo
+
 # ESP-IDF
 sdkconfig
 sdkconfig.old

@@ -86,39 +86,61 @@ class TestSdkConfig:
             "partitions.csv must have at least one app partition"
 
 
-# ---------- Schematic vs pinout check ----------
+# ---------- Board config check ----------
 
-class TestSchematicVsPinout:
-    """Verify Constants.h pin defines match the schematic (or warn if not).
+class TestBoardConfig:
+    """Verify board_config.h has the schematic-derived pin assignments.
 
-    KNOWN ISSUE: the schematic (.hermes/desktop-attachments/SCH_Schematic1_1_2026-06-29.pdf)
-    is for an ESP32-WROOM-32 module, but the project is configured for ESP32-C3.
-    Some pin assignments differ between these chips (notably TXD0/RXD0 meanings).
-
-    This test FAILS to alert you to this. Don't suppress it without first
-    confirming which board you're actually flashing.
+    The board_config.h file replaces the v1.3 Constants.h pin defines with
+    values extracted from the schematic. These tests verify the new file
+    is consistent with the schematic and free of v1.3's mistakes.
     """
 
-    @pytest.mark.skipif(
-        not (PROJECT_ROOT.parent / ".hermes/desktop-attachments/SCH_Schematic1_1_2026-06-29.pdf").exists(),
-        reason="schematic not in expected location"
-    )
-    def test_schematic_pinout_warning(self):
-        """The schematic shows an ESP32-WROOM-32; the project is configured for C3.
+    def test_board_config_exists(self):
+        path = PROJECT_ROOT / "components/board_config/include/board_config.h"
+        assert path.exists(), "board_config.h missing - the abstraction layer hasn't been created"
 
-        This is a known issue awaiting resolution. See docs/DECISIONS.md
-        "Open questions" section.
+    def test_board_config_supports_v2(self):
+        path = PROJECT_ROOT / "components/board_config/include/board_config.h"
+        text = path.read_text()
+        assert "BOARD_REV == 2" in text, "Must support BOARD_REV=2"
 
-        To make this test pass, EITHER:
-        1. Update Constants.h to use WROOM-32 pin names
-        2. Update sdkconfig to use the right platform
-        3. Confirm you're using a C3 with the WROOM-32 schematic uploaded by mistake
-        """
-        # We expect to fail with a clear message right now.
-        pytest.fail(
-            "Schematic pinout mismatch: schematic is for ESP32-WROOM-32 "
-            "but project targets ESP32-C3. Resolve before flashing. "
-            "See docs/DECISIONS.md 'Open questions' section."
+    def test_board_config_supports_v3(self):
+        path = PROJECT_ROOT / "components/board_config/include/board_config.h"
+        text = path.read_text()
+        assert "BOARD_REV == 3" in text, "Must support BOARD_REV=3 (next rev)"
+
+    def test_motor1_pins_correct_v2(self):
+        """v1.3 had MOTOR1_2_PIN=3 (BATT_MEAS pin!). v2 must have it on GPIO1."""
+        path = PROJECT_ROOT / "components/board_config/include/board_config.h"
+        text = path.read_text()
+        m = re.search(r"#if BOARD_REV == 2.*?#define\s+PIN_MOTOR1_IN2\s+(\d+)", text, re.S)
+        assert m, "PIN_MOTOR1_IN2 not defined in v2 block"
+        assert int(m.group(1)) == 1, (
+            f"PIN_MOTOR1_IN2 should be GPIO1, got GPIO{m.group(1)}. "
+            "v1.3 had this on GPIO3 (which is BATT_MEAS)."
+        )
+
+    def test_battery_adc_correct_v2(self):
+        """v1.3 had BATT_MEAS_PIN=0 (MOTOR1_IN1 pin!). v2 must have it on GPIO3."""
+        path = PROJECT_ROOT / "components/board_config/include/board_config.h"
+        text = path.read_text()
+        m = re.search(r"#if BOARD_REV == 2.*?#define\s+PIN_BATT_MEAS\s+(\d+)", text, re.S)
+        assert m, "PIN_BATT_MEAS not defined in v2 block"
+        assert int(m.group(1)) == 3, (
+            f"PIN_BATT_MEAS should be GPIO3 (the only ADC pin), got GPIO{m.group(1)}. "
+            "v1.3 had this on GPIO0 (which is MOTOR1_IN1)."
+        )
+
+    def test_mode_button_correct_v2(self):
+        """v1.3 had MODE_BUTTON_PIN=5 (SERVO2 pin!). v2 must have it on GPIO6."""
+        path = PROJECT_ROOT / "components/board_config/include/board_config.h"
+        text = path.read_text()
+        m = re.search(r"#if BOARD_REV == 2.*?#define\s+PIN_MODE_BUTTON\s+(\d+)", text, re.S)
+        assert m
+        assert int(m.group(1)) == 6, (
+            f"PIN_MODE_BUTTON should be GPIO6, got GPIO{m.group(1)}. "
+            "v1.3 had this on GPIO5 (which is SERVO2)."
         )
 
 
