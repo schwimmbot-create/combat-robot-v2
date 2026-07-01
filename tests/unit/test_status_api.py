@@ -260,3 +260,56 @@ class TestApiRoutes:
         for url in api_calls:
             if url.startswith("/api/"):
                 assert url in registered, f"JS calls {url} but C++ doesn't register it"
+
+
+# ---------- Board revision endpoints (added with board_detect) ----------
+
+class TestBoardRevEndpoints:
+    """Endpoints for runtime board revision selection via NVS."""
+
+    def test_board_rev_endpoint_registered(self):
+        cpp = WEB_IMPL.read_text()
+        assert '"/api/board/rev"' in cpp, (
+            "/api/board/rev endpoint not registered in web_config.cpp"
+        )
+
+    def test_board_reset_endpoint_registered(self):
+        cpp = WEB_IMPL.read_text()
+        assert '"/api/board/reset"' in cpp
+
+    def test_board_rev_calls_set_override(self):
+        """The endpoint must call board_detect_set_override with the rev."""
+        cpp = WEB_IMPL.read_text()
+        # Find the /api/board/rev handler body
+        m = re.search(
+            r'server->on\("/api/board/rev".*?NULL\s*\);',
+            cpp, re.S
+        )
+        assert m, "/api/board/rev handler not found"
+        handler = m.group(0)
+        assert "board_detect_set_override" in handler, (
+            "/api/board/rev handler should call board_detect_set_override"
+        )
+
+    def test_board_reset_calls_clear_override(self):
+        cpp = WEB_IMPL.read_text()
+        m = re.search(
+            r'server->on\("/api/board/reset".*?NULL\s*\);',
+            cpp, re.S
+        )
+        assert m
+        assert "board_detect_clear_override" in m.group(0)
+
+    def test_board_rev_includes_board_detect_header(self):
+        """web_config.cpp must include board_detect.h to use the API."""
+        cpp = WEB_IMPL.read_text()
+        assert '#include "board_detect.h"' in cpp, (
+            "web_config.cpp must include board_detect.h"
+        )
+
+    def test_web_config_cmake_requires_board_detect(self):
+        """The web_config CMakeLists.txt must require board_detect."""
+        from pathlib import Path
+        cmake_path = Path(__file__).resolve().parent.parent.parent / "components/web_config/CMakeLists.txt"
+        cmake = cmake_path.read_text()
+        assert "board_detect" in cmake

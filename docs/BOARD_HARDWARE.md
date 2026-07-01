@@ -366,60 +366,77 @@ The v2 .epro shows two components with symbol `TS2306A 240GF MSM 9_C2976675` (U2
    - Web UI to configure CN5 use (brushed vs BLDC mode)
 5. **Verify the v1.3 firmware's actual behavior** by capturing GPIO outputs while the firmware runs.
 
-## 11. Runtime board detection
+## 11. Runtime board detection (NVS override only)
 
-The `board_config.h` is currently compile-time only — you set `BOARD_REV=2` or `BOARD_REV=3` at build time. The `board_detect.h/cpp` module (in the same component) adds **runtime detection** so the same compiled binary can run on both boards.
+The `board_config.h` is currently compile-time only — you set `BOARD_REV=2` or `BOARD_REV=3` at build time. The `board_detect.h/cpp` module (in the same component) adds **runtime override via NVS** so the same compiled binary can run on either board without recompiling.
 
-### How it works (3-layer priority)
+### Why NVS-only (not hardware strapping)?
+
+When this was first designed, the user considered:
+- **NVS override** — write board rev to flash via web UI
+- **Hardware strapping** — read 2 GPIO pins at boot to identify the board
+
+We chose **NVS override** because:
+- No board modification required (v3 isn't fabricated yet, we don't know which GPIOs are free)
+- Survives reflash (NVS partition is preserved across OTA updates)
+- One-time setup: ask the user once via the web UI, persist the answer
+- When v3 hardware exists and you have it in hand, the user can use the web UI to flip the rev
+
+If v3 ever needs auto-detection without user interaction, we can add GPIO strapping later as a separate layer.
+
+### How it works
 
 ```
-1. NVS override       (highest priority — user-set via web UI)
+Web UI "Set Board Revision" button
         ↓
-2. Hardware strapping  (2 GPIO pins read at boot)
+POST /api/board/rev {"rev": 3}
         ↓
-3. Compile-time default (-DBOARD_REV=N)
+NVS partition (key: "board_config" / "rev_override")
+        ↓
+On next boot, board_detect_active_rev() reads NVS override first,
+falls back to compile-time BOARD_REV if no override
 ```
 
-At boot, `board_detect_init()`:
-1. Checks NVS for a saved `rev_override`. If present, uses that.
-2. If no NVS override, reads `BOARD_ID_GPIO0` and `BOARD_ID_GPIO1` (two strapping pins). The bit pattern identifies the board:
-   - `0b00` = v2
-   - `0b01` = v3
-   - `0b10` = v4 (future)
-   - `0b11` = v5 (future)
-3. If detection fails, falls back to the compile-time `BOARD_REV` and logs a warning.
+### API
 
-### Hardware design
+```c
+// Read the active rev (NVS override or compile-time fallback)
+int rev = board_detect_active_rev();   // returns 2, 3, etc.
 
-To use this, the v2 and v3 boards need different resistor configurations on two free GPIOs (e.g. GPIO11, GPIO12). For example:
+// Set a runtime override (from web UI)
+board_detect_set_override(3);           // use v3 pinout
 
-| Board | GPIO11 (BOARD_ID0) | GPIO12 (BOARD_ID1) | Result |
-|---|---|---|---|
-| v2 | 10K pull-up to 3V3 (HIGH) | 10K pull-up to 3V3 (HIGH) | `0b11` = V5 (wrong!) |
-| v3 | 10K pull-up to 3V3 (HIGH) | 10K pull-down to GND (LOW) | `0b01` = V3 (correct) |
+// Clear the override (back to compile-time)
+board_detect_clear_override();
 
-(The actual resistor placement depends on which free GPIOs you choose. See the file for `BOARD_ID_GPIO0/1` definitions.)
+// Check if an override is currently set
+bool has_override;
+int current_rev;
+has_override = board_detect_has_override(&current_rev);
+```
 
-### When to use which layer
+### Web UI integration
+
+The web UI should expose:
+- A "Board Revision" indicator (showing current active rev)
+- A dropdown to set v2 or v3
+- A "Reset to default" button (clears NVS, falls back to compile-time)
+
+Recommended URL: `POST /api/board/rev` with body `{"rev": 3}`. Returns the new active rev.
+
+### When to use this
 
 | Scenario | Use |
 |---|---|
-| Production robot, fixed hardware | Hardware strapping (auto-detects on every boot) |
-| Dev/test, want to override a misconfigured board | NVS override via web UI (`/api/board/rev`) |
-| Just flashing for the first time | Compile-time default (`-DBOARD_REV=N`) |
+| Production robot, fixed hardware | Set the rev once via web UI, then forget |
+| Dev/test, swapping boards | Set the rev via web UI on each board |
+| Flashing for the first time | Compile-time default (`-DBOARD_REV=N`) applies until the user sets an override |
 
-### Important constraints
+### Limitations
 
-- **ID pins must not be ESP32-C3 strapping pins** (GPIO2, GPIO8, GPIO9) — these affect boot mode and shouldn't be repurposed. The test `test_board_id_pins_not_strapping` enforces this.
-- **ID pins must not overlap with other peripherals** (motors, LEDs, I2C, etc.). The test `test_board_id_pins_not_used_by_board_config` enforces this against `board_config.h`.
-- **Choose GPIOs that exist on the ESP32-C3-MINI-1 module.** The C3 module has 22 usable GPIOs; the schematic shows several as NC (not connected). Pick NC pins for the ID, or modify the board to bring out new ones.
-
-### Limitations of the current implementation
-
-- **Requires board modification.** Adding 4 resistors per board (2 pull-ups + 2 pull-downs, or similar) is a one-time cost but requires board respin.
-- **The chosen pin numbers (GPIO11, GPIO12) are placeholders.** They need to be confirmed against the actual ESP32-C3-MINI-1 module pinout — GPIO11 and GPIO12 may not be brought out as pads on the module. Verify before manufacturing.
-- **NVS override persists across reflashes.** If you set a NVS override and then reflash with a different board, the override still applies. The web UI must expose a "clear override" button for safety.
-- **The current code only runs at boot.** It doesn't re-detect if the hardware changes mid-session (which is fine for a robot that doesn't swap boards while running).
+- **NVS override persists across reflashes.** If you set a NVS override and then reflash with a different default, the override still applies. The web UI must expose a "Reset to default" button for safety.
+- **NVS is one-time-writeable on flash, but rewrites are fine.** Modern flash handles thousands of writes; not a concern.
+- **The override applies at boot, not mid-session.** If you swap boards while the firmware is running, the active rev doesn't change until reboot. (Fine for a robot that doesn't swap boards while running.)
 
 ---
 

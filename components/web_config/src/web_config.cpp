@@ -16,6 +16,8 @@
 
 #include "web_config.h"
 #include "ble_gamepad.h"
+#include "board_config.h"
+#include "board_detect.h"
 #include "Constants.h"
 
 #include <Arduino.h>
@@ -265,6 +267,45 @@ static void register_routes(void) {
     server->on("/api/pair/clear", HTTP_POST,
         [](AsyncWebServerRequest *req) {
             ble_gamepad_clear_paired_macs();
+            req->send(200, "application/json", "{\"ok\":true}");
+        },
+        NULL
+    );
+
+    // Board revision selection. POST /api/board/rev with body
+    // "rev=3" or "rev=2" to set the active board revision. Takes
+    // effect on next boot. POST /api/board/reset to clear the
+    // override and fall back to compile-time BOARD_REV.
+    server->on("/api/board/rev", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+            // No body params expected for simple set; we look at the
+            // URL query string ?rev=N.
+            if (!req->hasParam("rev")) {
+                req->send(400, "application/json",
+                          "{\"err\":\"missing rev parameter\"}");
+                return;
+            }
+            int rev = req->getParam("rev")->value().toInt();
+            esp_err_t err = board_detect_set_override(rev);
+            if (err != ESP_OK) {
+                req->send(400, "application/json",
+                          "{\"err\":\"invalid rev (expected 2-255)\"}");
+                return;
+            }
+            req->send(200, "application/json",
+                      String("{\"ok\":true,\"rev\":") + rev + "}");
+        },
+        NULL
+    );
+
+    server->on("/api/board/reset", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+            esp_err_t err = board_detect_clear_override();
+            if (err != ESP_OK) {
+                req->send(500, "application/json",
+                          "{\"err\":\"clear failed\"}");
+                return;
+            }
             req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL
