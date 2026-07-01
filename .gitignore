@@ -5,6 +5,11 @@ build/
 .cmake-build-debug/
 cmake-build-*/
 
+# ESP-IDF auto-generated top-level files (PlatformIO generates these on first build)
+# Don't commit them - they conflict with our `src_dir = main` setting
+/CMakeLists.txt
+/dependencies.lock
+
 # Test artifacts
 .pytest_cache/
 htmlcov/

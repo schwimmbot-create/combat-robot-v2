@@ -36,15 +36,31 @@ pio device monitor -e esp32-c3-devkitc-02
 | Web UI dashboard | ✅ Implemented, untested on hardware |
 | OTA upload endpoint | ✅ Implemented, untested on hardware |
 | WiFi STA+AP fallback | ✅ Implemented, untested on hardware |
+| NVS board rev override | ✅ Implemented, untested on hardware |
 | Captive portal DNS | ⏳ TODO |
 | Pairing button (GPIO) | ⏳ Stub (web UI works) |
 | Motor/pin config via web | ⏳ Phase 2 |
 | Input mapping editor | ⏳ Phase 2 |
 | LED effect library | ⏳ Phase 2 |
 
-**Bottom line:** Code compiles in theory. It WILL have bugs when you flash it. The testing plan in `docs/TESTING.md` walks through validation. Expect to iterate.
+**Bottom line:** Code compiles (in theory), it WILL have bugs when you flash it. **The flashing attempt so far has hit a toolchain issue (Arduino-as-component doesn't work on ESP-IDF 5.4) — this is unresolved, see `docs/BOARD_HARDWARE.md` for the current build config state.**
 
-## See also
+See `tests/README.md` for what's covered.
+
+## Test status
+
+**216 tests pass, 0 fail** (host-side pytest). Run with:
+
+```bash
+pip install -r tests/requirements.txt
+pytest tests/
+```
+
+Or use the pre-flash gate:
+
+```bash
+bash tests/pre_flash_check.sh
+```
 
 - `docs/DECISIONS.md` — the architecture decisions
 - `docs/TESTING.md` — what to test and how
