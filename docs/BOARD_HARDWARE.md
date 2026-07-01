@@ -366,6 +366,61 @@ The v2 .epro shows two components with symbol `TS2306A 240GF MSM 9_C2976675` (U2
    - Web UI to configure CN5 use (brushed vs BLDC mode)
 5. **Verify the v1.3 firmware's actual behavior** by capturing GPIO outputs while the firmware runs.
 
+## 11. Runtime board detection
+
+The `board_config.h` is currently compile-time only — you set `BOARD_REV=2` or `BOARD_REV=3` at build time. The `board_detect.h/cpp` module (in the same component) adds **runtime detection** so the same compiled binary can run on both boards.
+
+### How it works (3-layer priority)
+
+```
+1. NVS override       (highest priority — user-set via web UI)
+        ↓
+2. Hardware strapping  (2 GPIO pins read at boot)
+        ↓
+3. Compile-time default (-DBOARD_REV=N)
+```
+
+At boot, `board_detect_init()`:
+1. Checks NVS for a saved `rev_override`. If present, uses that.
+2. If no NVS override, reads `BOARD_ID_GPIO0` and `BOARD_ID_GPIO1` (two strapping pins). The bit pattern identifies the board:
+   - `0b00` = v2
+   - `0b01` = v3
+   - `0b10` = v4 (future)
+   - `0b11` = v5 (future)
+3. If detection fails, falls back to the compile-time `BOARD_REV` and logs a warning.
+
+### Hardware design
+
+To use this, the v2 and v3 boards need different resistor configurations on two free GPIOs (e.g. GPIO11, GPIO12). For example:
+
+| Board | GPIO11 (BOARD_ID0) | GPIO12 (BOARD_ID1) | Result |
+|---|---|---|---|
+| v2 | 10K pull-up to 3V3 (HIGH) | 10K pull-up to 3V3 (HIGH) | `0b11` = V5 (wrong!) |
+| v3 | 10K pull-up to 3V3 (HIGH) | 10K pull-down to GND (LOW) | `0b01` = V3 (correct) |
+
+(The actual resistor placement depends on which free GPIOs you choose. See the file for `BOARD_ID_GPIO0/1` definitions.)
+
+### When to use which layer
+
+| Scenario | Use |
+|---|---|
+| Production robot, fixed hardware | Hardware strapping (auto-detects on every boot) |
+| Dev/test, want to override a misconfigured board | NVS override via web UI (`/api/board/rev`) |
+| Just flashing for the first time | Compile-time default (`-DBOARD_REV=N`) |
+
+### Important constraints
+
+- **ID pins must not be ESP32-C3 strapping pins** (GPIO2, GPIO8, GPIO9) — these affect boot mode and shouldn't be repurposed. The test `test_board_id_pins_not_strapping` enforces this.
+- **ID pins must not overlap with other peripherals** (motors, LEDs, I2C, etc.). The test `test_board_id_pins_not_used_by_board_config` enforces this against `board_config.h`.
+- **Choose GPIOs that exist on the ESP32-C3-MINI-1 module.** The C3 module has 22 usable GPIOs; the schematic shows several as NC (not connected). Pick NC pins for the ID, or modify the board to bring out new ones.
+
+### Limitations of the current implementation
+
+- **Requires board modification.** Adding 4 resistors per board (2 pull-ups + 2 pull-downs, or similar) is a one-time cost but requires board respin.
+- **The chosen pin numbers (GPIO11, GPIO12) are placeholders.** They need to be confirmed against the actual ESP32-C3-MINI-1 module pinout — GPIO11 and GPIO12 may not be brought out as pads on the module. Verify before manufacturing.
+- **NVS override persists across reflashes.** If you set a NVS override and then reflash with a different board, the override still applies. The web UI must expose a "clear override" button for safety.
+- **The current code only runs at boot.** It doesn't re-detect if the hardware changes mid-session (which is fine for a robot that doesn't swap boards while running).
+
 ---
 
 ## 10. File Inventory
