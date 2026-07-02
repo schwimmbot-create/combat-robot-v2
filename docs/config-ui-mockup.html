@@ -692,6 +692,15 @@ function connectWS() {
         if (msg.type === 'state') {
           setBle(!!msg.connected);
           state.gp = msg.connected ? msg.state : null;
+          if (msg.pairing) {
+            state.pairingActive = (msg.pairing === 'ACCEPT');
+            const el = document.getElementById('pair-state');
+            if (el) el.textContent = msg.pairing;
+            const btn = document.getElementById('btn-pair');
+            const cBtn = document.getElementById('btn-cancel-pair');
+            if (btn) btn.disabled = state.pairingActive;
+            if (cBtn) cBtn.disabled = !state.pairingActive;
+          }
         }
       } catch (e) {}
     };

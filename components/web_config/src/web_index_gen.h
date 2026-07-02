@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-02T08:04:54 from docs/config-ui-mockup.html
-// Source size: 29721 bytes
+// Generated 2026-07-02T08:53:29 from docs/config-ui-mockup.html
+// Source size: 30183 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -700,6 +700,15 @@ function connectWS() {
         if (msg.type === 'state') {
           setBle(!!msg.connected);
           state.gp = msg.connected ? msg.state : null;
+          if (msg.pairing) {
+            state.pairingActive = (msg.pairing === 'ACCEPT');
+            const el = document.getElementById('pair-state');
+            if (el) el.textContent = msg.pairing;
+            const btn = document.getElementById('btn-pair');
+            const cBtn = document.getElementById('btn-cancel-pair');
+            if (btn) btn.disabled = state.pairingActive;
+            if (cBtn) cBtn.disabled = !state.pairingActive;
+          }
         }
       } catch (e) {}
     };

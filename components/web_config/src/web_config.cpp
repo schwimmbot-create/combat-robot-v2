@@ -67,6 +67,10 @@ static struct {
 
 // Connection callback registered with ble_gamepad. Notifies the WS loop
 // that there's now something to broadcast.
+static void gamepad_ws_event(AsyncWebSocket *server, AsyncWebSocketClient *client,
+                             AwsEventType type, void *arg, uint8_t *data, size_t len);
+static void gamepad_ws_broadcast_now(void);
+
 static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
     s_gp.connected = connected;
     if (!connected) {
@@ -75,6 +79,9 @@ static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
         s_gp.lt = s_gp.rt = 0;
         s_gp.buttons = s_gp.dpad = 0;
     }
+    // Push the change to any connected WS clients immediately rather
+    // than waiting up to 33 ms for the next 30 Hz tick.
+    gamepad_ws_broadcast_now();
 }
 
 // --- WebSocket live gamepad feed --------------------------------------
@@ -93,19 +100,40 @@ static void gamepad_ws_event(AsyncWebSocket *server, AsyncWebSocketClient *clien
 }
 
 // Build a JSON state message into buf and return the length. Pre-allocated
-// 256-byte buffer is plenty for our 9-number state object.
+// 256-byte buffer is plenty for our 9-number state object. Pairing
+// state is included so the page can show "ACCEPT" / "IDLE" without
+// having to poll /api/status every second.
 static int gamepad_build_state_json(char *buf, size_t buflen) {
     struct ControllerState cs = ble_gamepad_get_state();
+    const char *pairing_str = "IDLE";
+    switch (ble_gamepad_get_pairing_state()) {
+        case PAIRING_STATE_IDLE:     pairing_str = "IDLE";     break;
+        case PAIRING_STATE_ACCEPT:   pairing_str = "ACCEPT";   break;
+        case PAIRING_STATE_DISABLED: pairing_str = "DISABLED"; break;
+    }
     int n = snprintf(buf, buflen,
-        "{\"type\":\"state\",\"connected\":%s,"
+        "{\"type\":\"state\",\"connected\":%s,\"pairing\":\"%s\","
         "\"state\":{\"lx\":%d,\"ly\":%d,\"rx\":%d,\"ry\":%d,"
                   "\"lt\":%d,\"rt\":%d,"
                   "\"buttons\":%u,\"dpad\":%u}}",
         s_gp.connected ? "true" : "false",
+        pairing_str,
         cs.leftStickX, cs.leftStickY, cs.rightStickX, cs.rightStickY,
         cs.rightTrigger, cs.leftTrigger,
         (unsigned)cs.buttons, (unsigned)cs.dpad);
     return (n > 0 && (size_t)n < buflen) ? n : -1;
+}
+
+// Broadcast a single state frame immediately to all WS clients (used
+// right after a pairing-state change so the page reflects it without
+// waiting up to 33ms for the next 30Hz tick).
+static void gamepad_ws_broadcast_now(void) {
+    if (!ws || ws->count() == 0) return;
+    s_gp.last_send_ms = millis();
+    char buf[256];
+    int n = gamepad_build_state_json(buf, sizeof(buf));
+    if (n < 0) return;
+    ws->textAll(buf, n);
 }
 
 static void gamepad_ws_tick(void) {
@@ -290,6 +318,7 @@ static void register_routes(void) {
     server->on("/api/pair/start", HTTP_POST,
         [](AsyncWebServerRequest *req) {
             ble_gamepad_set_pairing_state(PAIRING_STATE_ACCEPT);
+            gamepad_ws_broadcast_now();
             req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL
@@ -298,6 +327,7 @@ static void register_routes(void) {
     server->on("/api/pair/cancel", HTTP_POST,
         [](AsyncWebServerRequest *req) {
             ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE);
+            gamepad_ws_broadcast_now();
             req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL
@@ -306,6 +336,7 @@ static void register_routes(void) {
     server->on("/api/pair/clear", HTTP_POST,
         [](AsyncWebServerRequest *req) {
             ble_gamepad_clear_paired_macs();
+            gamepad_ws_broadcast_now();
             req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL

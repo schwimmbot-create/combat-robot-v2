@@ -174,6 +174,48 @@ class TestOutputConfigImplementation:
 
 
 # ---------------------------------------------------------------------------
+# BLE gamepad — diagnostic logs + default-state regression guards.
+# User reported that pairing state changes (clicking "Enter Pairing Mode")
+# were not visible on the page. These tests pin the firmware contract that
+# prevents that bug class from coming back.
+# ---------------------------------------------------------------------------
+
+class TestBleGamepadGuiContract:
+    BLE_SRC = PROJECT_ROOT / "components" / "ble_gamepad" / "src" / "ble_gamepad.cpp"
+
+    @pytest.fixture(scope="class")
+    def ble_src_text(self) -> str:
+        return self.BLE_SRC.read_text()
+
+    def test_uses_nimble_arduino_api(self, ble_src_text):
+        assert "#include <NimBLEDevice.h>" in ble_src_text
+        assert "NimBLEAdvertisedDeviceCallbacks" in ble_src_text
+
+    def test_boot_logs_observable(self, ble_src_text):
+        # Diagnostic logs make it possible to verify on serial that
+        # NimBLE actually advertised and started scanning. Without
+        # these, a silent boot looks identical to a no-op boot.
+        for log in ('ESP_LOGI(TAG, "advertising + bench service up"',
+                    'ESP_LOGI(TAG, "set_pairing_state:',
+                    'ESP_LOGI(TAG, "start_scan: ok='):
+            assert log in ble_src_text, f"missing diagnostic log: {log!r}"
+
+    def test_default_pairing_state_when_no_paired_controllers(self, ble_src_text):
+        # Brand-new board should auto-enter ACCEPT so the user does not
+        # have to click "Enter Pairing Mode" to pair.
+        m = re.search(
+            r"s_state\.pairing_state\s*=\s*\(count\s*==\s*0\)\s*\?\s*PAIRING_STATE_ACCEPT\s*:\s*PAIRING_STATE_IDLE",
+            ble_src_text,
+        )
+        assert m, "no-pair default should set pairing to ACCEPT"
+
+    def test_mockup_handles_ws_pairing_field(self):
+        mockup = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text()
+        assert "msg.pairing" in mockup
+        assert "pair-state" in mockup
+
+
+# ---------------------------------------------------------------------------
 # Patch parser logic — verified against the source patterns.
 # ---------------------------------------------------------------------------
 
@@ -265,6 +307,42 @@ class TestWebConfigApiRoutes:
         # In C source the leading " is escaped, so look for the escaped form.
         assert '\\"lx\\":%d' in wc_text
         assert '\\"buttons\\":%u' in wc_text
+
+    def test_pairing_state_in_ws_feed(self, wc_text):
+        # Bug fix: the WS state message must carry a `pairing` field so the
+        # page can show ACCEPT/IDLE without polling /api/status, and the
+        # state must be pushed immediately on pairing-state changes so
+        # the page updates within a few ms rather than waiting on the
+        # 30 Hz tick.
+        assert '\\"pairing\\":\\"%s\\"' in wc_text, "WS feed must include pairing state"
+        assert "gamepad_ws_broadcast_now" in wc_text
+        # Must be called from each pairing endpoint, not just the 30 Hz tick.
+        for path in ("/api/pair/start", "/api/pair/cancel", "/api/pair/clear"):
+            block = wc_text.split(path, 1)
+            assert len(block) > 1, f"no handler block for {path}"
+            next_300_chars = block[1][:600]
+            assert "gamepad_ws_broadcast_now" in next_300_chars, (
+                f"{path} handler doesn't call gamepad_ws_broadcast_now()"
+            )
+        # And from the BLE connection callback. Forward-decl + definition
+        # both have the name; find them and verify the function body is
+        # the one that calls the broadcast (the declaration won't).
+        cb_block = wc_text.split("on_ble_connection_change(bool connected", 1)
+        assert len(cb_block) > 1, "no on_ble_connection_change definition"
+        body_open = cb_block[1].find("{")
+        assert body_open >= 0, "on_ble_connection_change has no {"
+        # Bracket-balancing search for the matching close.
+        depth = 0
+        i = body_open
+        while i < len(cb_block[1]):
+            if cb_block[1][i] == "{": depth += 1
+            elif cb_block[1][i] == "}":
+                depth -= 1
+                if depth == 0: break
+            i += 1
+        body = cb_block[1][body_open:i+1]
+        assert "gamepad_ws_broadcast_now" in body, \
+            "on_ble_connection_change body doesn't call gamepad_ws_broadcast_now"
 
     def test_chunk_4_captive_portal(self, wc_text):
         # Captive portal: include DNSServer, start it in AP mode, process it

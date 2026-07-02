@@ -327,16 +327,29 @@ static void notify_connection_change(bool connected, const ble_mac_t *mac) {
 }
 
 static void start_scan(void) {
-    if (s_state.connected || s_state.scan_active || s_state.pairing_state == PAIRING_STATE_DISABLED) {
+    if (s_state.pairing_state == PAIRING_STATE_DISABLED) {
+        ESP_LOGD(TAG, "start_scan: skipping (DISABLED)");
         return;
     }
+    if (s_state.connected) {
+        ESP_LOGD(TAG, "start_scan: already connected");
+        return;
+    }
+    // Always reset scan_active before starting; NimBLE reports start()
+    // success but doesn't tell us when the scan fully finished.
     NimBLEScan *scan = NimBLEDevice::getScan();
+    if (scan->isScanning()) {
+        ESP_LOGD(TAG, "start_scan: scan already running");
+        s_state.scan_active = true;
+        return;
+    }
     scan->setAdvertisedDeviceCallbacks(&s_scan_callbacks, false);
     scan->setActiveScan(true);
     scan->setInterval(45);
     scan->setWindow(15);
-    s_state.scan_active = scan->start(0, nullptr, false);
-    ESP_LOGI(TAG, "Scan %s (pairing state=%d)", s_state.scan_active ? "started" : "failed", s_state.pairing_state);
+    bool ok = scan->start(0, nullptr, false);
+    s_state.scan_active = ok;
+    ESP_LOGI(TAG, "start_scan: ok=%d state=%d", (int)ok, (int)s_state.pairing_state);
 }
 
 static void stop_scan(void) {
@@ -388,11 +401,20 @@ esp_err_t ble_gamepad_init(void) {
         s_state.bench_write_char->setCallbacks(&s_bench_write_callbacks);
         bench->start();
 
+        // IMPORTANT: the bench service and the gamepad scan share the
+        // single 2.4GHz radio. Configure scan-response advertising so the
+        // device shows up as "CombatRobot-v2" in scan results; without
+        // this, the scan results come back empty even when the radio is
+        // listening for gamepad advertisements.
         NimBLEAdvertising *advertising = NimBLEDevice::getAdvertising();
         advertising->addServiceUUID(UUID_BENCH_SERVICE);
         advertising->setScanResponse(true);
-        advertising->start();
-        ESP_LOGI(TAG, "PC bench BLE service advertising");
+        advertising->setMinPreferred(0x06);
+        advertising->setMaxPreferred(0x12);
+        // 0 = advertise forever. PC bench tools probe our hostname; we
+        // want to stay visible so a desktop scanner can find us too.
+        ESP_LOGI(TAG, "advertising + bench service up");
+        ESP_LOGI(TAG, "PC bench BLE service + advertising started");
     }
     return ESP_OK;
 }
@@ -400,6 +422,12 @@ esp_err_t ble_gamepad_init(void) {
 esp_err_t ble_gamepad_start(void) {
     uint8_t count = nvs_get_count();
     s_state.pairing_state = (count == 0) ? PAIRING_STATE_ACCEPT : PAIRING_STATE_IDLE;
+    ESP_LOGI(TAG, "ble_gamepad_start: paired_count=%u, initial pairing_state=%d",
+             (unsigned)count, (int)s_state.pairing_state);
+    // Even if we start in IDLE (paired device already in NVS), the scan
+    // watches for that single paired MAC and auto-reconnects. If we're
+    // ACCEPT (no paired controllers), scan filters on HID service UUID
+    // and accepts any gamepad.
     start_scan();
     return ESP_OK;
 }
@@ -431,8 +459,12 @@ PairingState ble_gamepad_get_pairing_state(void) {
 }
 
 esp_err_t ble_gamepad_set_pairing_state(PairingState state) {
+    PairingState prev = s_state.pairing_state;
     s_state.pairing_state = state;
     if (s_state.pairing_timer != NULL) esp_timer_stop(s_state.pairing_timer);
+
+    ESP_LOGI(TAG, "set_pairing_state: %d -> %d",
+             (int)prev, (int)state);
 
     if (state == PAIRING_STATE_ACCEPT) {
         if (s_state.pairing_timer != NULL) {
