@@ -1,0 +1,5 @@
+C:\Users\kbrow\Documents\Codex\combat-robot-v2\tools\pc_ble_bench.py:98: FutureWarning: BLEDevice.metadata is deprecated and will be removed in a future version of Bleak, use AdvertisementData instead
+  devices = [d for d in devices if BOARD_BENCH_SERVICE_UUID.lower() in [u.lower() for u in (d.metadata or {}).get("uuids", [])]]
+C:\Users\kbrow\Documents\Codex\combat-robot-v2\tools\pc_ble_bench.py:88: FutureWarning: BLEDevice.metadata is deprecated and will be removed in a future version of Bleak, use AdvertisementData instead
+  uuids = ",".join((dev.metadata or {}).get("uuids", []) or [])
+   28:37:2F:CB:9D:06  CombatRobot-v2  7d2f0001-0f3a-4b8a-9b7d-2f4c9a000001

@@ -79,11 +79,35 @@ class TestSdkConfig:
                "BT_NIMBLE_ENABLED=y" in text
 
     def test_partitions_table_consistent(self):
-        """The partitions.csv must support OTA + SPIFFS for our use case."""
-        text = (PROJECT_ROOT / "partitions.csv").read_text()
+        """The partitions.csv must support OTA + SPIFFS and fit in 4MB flash."""
+        path = PROJECT_ROOT / "partitions.csv"
+        text = path.read_text()
         # Must have at least one 'app' partition
         assert "factory" in text or "ota_0" in text, \
             "partitions.csv must have at least one app partition"
+
+        flash_size = 0x400000  # ESP32-C3-MINI-1-H4 target has 4MB flash.
+        parts = []
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            fields = [field.strip() for field in line.split(",")]
+            assert len(fields) >= 5, f"Malformed partition row: {line!r}"
+            name, ptype, subtype, offset_s, size_s = fields[:5]
+            offset = int(offset_s, 0)
+            size = int(size_s, 0)
+            end = offset + size
+            assert end <= flash_size, (
+                f"Partition {name} ends at 0x{end:x}, beyond 4MB flash end 0x{flash_size:x}"
+            )
+            parts.append((offset, end, name))
+
+        for (_, prev_end, prev_name), (next_start, _, next_name) in zip(sorted(parts), sorted(parts)[1:]):
+            assert prev_end <= next_start, (
+                f"Partition {prev_name} overlaps {next_name}: "
+                f"0x{prev_end:x} > 0x{next_start:x}"
+            )
 
 
 # ---------- Board config check ----------
@@ -162,17 +186,20 @@ class TestControllerStateCompat:
         v2_cs = re.search(r"struct ControllerState \{(.*?)\};", v2, re.S)
         assert v1_cs and v2_cs, "Could not find ControllerState in both files"
 
-        def fields(s):
-            return [m.group(1) for m in re.finditer(
-                r"(?:int|uint\d+_t|bool)\s+(\w+)\s*=", s)]
+        # Match field declarations: "int  leftStickX" (v2 style) or
+        # "int  leftStickX = 0" (v1.3 style with C++ default initializer).
+        # v1.3 used C++ default initializers which we removed for C
+        # compatibility, so the regex must accept both forms.
+        v1_fields = [m.group(1) for m in re.finditer(
+            r"(?:int|uint\d+_t|bool)\s+(\w+)\s*(?:=|;)", v1_cs.group(1))]
+        v2_fields = [m.group(1) for m in re.finditer(
+            r"(?:int|uint\d+_t|bool)\s+(\w+)\s*(?:=|;)", v2_cs.group(1))]
 
-        v1_fields = fields(v1_cs.group(1))
-        v2_fields = fields(v2_cs.group(1))
         assert v1_fields == v2_fields, (
             f"ControllerState fields drifted!\n"
             f"  v1: {v1_fields}\n"
             f"  v2: {v2_fields}\n"
-            f"This breaks the contract with TaskManager."
+            f"  This breaks the contract with TaskManager."
         )
 
 

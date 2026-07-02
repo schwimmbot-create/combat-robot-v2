@@ -4,7 +4,8 @@ set(requires
         arduino
         ble_gamepad
         board_config
-        board_detect)
+        board_detect
+        output_config)
 
 idf_component_register(SRCS "${srcs}"
                 INCLUDE_DIRS "include"

@@ -10,8 +10,11 @@ Drum::Drum(uint8_t pwmPin) : _pwmPin(pwmPin) {
 }
 
 void Drum::begin() {
-    // Initialize the PWM channel with the desired frequency and resolution
-    ledcAttach(_pwmPin, ESC_PWM_FREQ, ESC_PWM_RESOLUTION);
+    // Initialize the PWM channel with the desired frequency and resolution.
+    // v2.0.14 Arduino-ESP32 requires: bind pin to channel, then set
+    // frequency. v1.3 used a single ledcAttach() call that did both.
+    ledcAttachPin(_pwmPin, ESC_PWM_CHANNEL);
+    ledcChangeFrequency(ESC_PWM_CHANNEL, ESC_PWM_FREQ, ESC_PWM_RESOLUTION);
 
     //Caluclate the maximuum value that may be sent given the resolution of the PWM
     maxPwmVal = (1 << ESC_PWM_RESOLUTION)-1;
@@ -91,8 +94,10 @@ void Drum::setSpeed(uint16_t forwardValue, uint16_t reverseValue) {
     ESP_LOGD(TAG, "ESC Duty Cycle: %d\tESC Pulse Width: %d uSec", duty_cycle, pulseWidthUs);
     
 
-    // Use ledcWriteMicroseconds to send the PWM signal
-    ledcWrite(ESC_1_PIN, duty_cycle);
+    // Use ledcWrite (returns void in v2.0.14) to send the PWM signal.
+    // v1.3 used ledcWrite(pin, duty) treating the pin as the channel;
+    // v2.0.14 requires the explicit LEDC channel number.
+    ledcWrite(ESC_PWM_CHANNEL, duty_cycle);
 }
 
 //Stop the drum by sending the minimum pulse width signal.

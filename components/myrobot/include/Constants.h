@@ -17,10 +17,18 @@ const char VERSION[] = "Version 1.3";
 
 #define DRIVE_MOTOR_PWM_FREQ 20000
 #define DRIVE_MOTOR_PWM_RESOLUTION 8
+// LEDC channels for the v2.0.14 Arduino-ESP32 framework. The v1.3
+// framework didn't expose channels (it hid them behind ledcAttach).
+#define DRIVE_MOTOR_FWD_PWM_CHANNEL 0
+#define DRIVE_MOTOR_REV_PWM_CHANNEL 1
 
 //Settings for DShot125 Signal
 #define ESC_PWM_FREQ 2000
 #define ESC_PWM_RESOLUTION 8
+#define ESC_PWM_CHANNEL 2
+
+// LED channel for the on-board status LED (debug LED).
+#define LED_PWM_CHANNEL 3
 #define ESC_MIN_PULSEWIDTH 125 //Minimum pulsewidth in microseconds
 #define ESC_MID_PULSEWIDTH 188 //Middle pulsewidth(uSec) - Used for reverse motor
 #define ESC_MAX_PULSEWIDTH 250 //Maximum pulsewidth in microseconds
@@ -54,15 +62,17 @@ const float EMA_ALPHA = 0.1f;  //Battery voltage measurement EMA filter value
 const float BATT_HYSTERESIS = 100.0f; //millivolt that voltage must go above to be considered above low voltage again
 
 //Controller Inputs
+// NOTE: This struct is included from BOTH C and C++ files. Do NOT use
+// C++-only features (default member initializers, namespaces, etc.) here.
 struct ControllerState {
-    int  leftStickX    = 0;
-    int  leftStickY    = 0;
-    int  rightStickX    = 0;
-    int  rightStickY    = 0;
-    int  rightTrigger   = 0;
-    int  leftTrigger    = 0;
-    uint16_t  buttons   = 0;
-    uint16_t  dpad      = 0;
+    int  leftStickX;
+    int  leftStickY;
+    int  rightStickX;
+    int  rightStickY;
+    int  rightTrigger;
+    int  leftTrigger;
+    uint16_t  buttons;
+    uint16_t  dpad;
 };
 
 //Board Specific Settings

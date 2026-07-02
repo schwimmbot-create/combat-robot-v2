@@ -43,7 +43,7 @@ pio device monitor -e esp32-c3-devkitc-02
 | Input mapping editor | ⏳ Phase 2 |
 | LED effect library | ⏳ Phase 2 |
 
-**Bottom line:** Code compiles (in theory), it WILL have bugs when you flash it. **The flashing attempt so far has hit a toolchain issue (Arduino-as-component doesn't work on ESP-IDF 5.4) — this is unresolved, see `docs/BOARD_HARDWARE.md` for the current build config state.**
+**Bottom line:** The PC toolchain and ESP32-C3 flashing path are verified with a minimal ESP-IDF heartbeat app on COM6. The full robot firmware is not yet hardware-verified, and the current `partitions.csv` is too large for the 4MB ESP32-C3 target. See `docs/BUILD.md` for the exact build/flash commands and current blocker.
 
 See `tests/README.md` for what's covered.
 

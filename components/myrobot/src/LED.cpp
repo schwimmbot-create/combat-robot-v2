@@ -9,11 +9,10 @@ LED::LED(int led_pin, unsigned long shortDuration, unsigned long longDuration)
       taskHandle(nullptr), patternQueue(nullptr) {}
 
 void LED::begin() {
-    //ledcSetup(1, 20000, 8);
-    //ledcAttachPin(led_pin, 1);
-    ledcAttach(led_pin, 2000, 8);     // 5kHz, 8-bit resolution
-    //ledcWrite(1, 0);           // Start off
-    ledcWrite(led_pin, 0);
+    // v2.0.14 Arduino-ESP32: bind pin to channel, then set frequency.
+    ledcAttachPin(led_pin, LED_PWM_CHANNEL);
+    ledcChangeFrequency(LED_PWM_CHANNEL, 2000, 8);
+    ledcWrite(LED_PWM_CHANNEL, 0);
 
 
     patternQueue = xQueueCreate(5, sizeof(PatternCommand));
@@ -52,17 +51,17 @@ void LED::patternTask(void* pvParameters) {
                     char symbol = led->pattern[led->patternIndex++];
                     if (symbol == '.' || symbol == '-') {
                         //ledcWrite(1, cmd.dutyCycle);  // Use brightness from queue
-                        ledcWrite(led->led_pin, cmd.dutyCycle);  // Use brightness from queue
+                        ledcWrite(LED_PWM_CHANNEL, cmd.dutyCycle);  // Use brightness from queue
                         vTaskDelay(pdMS_TO_TICKS(symbol == '-' ? led->longDuration : led->shortDuration));
 
                         //ledcWrite(1, 0);  // Off between pulses
-                        ledcWrite(led->led_pin, 0);
+                        ledcWrite(LED_PWM_CHANNEL, 0);
                         vTaskDelay(pdMS_TO_TICKS(200));
                     }
                     if (symbol == '*'){ // Longer duration flash to register on film to indicate synchronization
-                        ledcWrite(led->led_pin, cmd.dutyCycle);  // Use brightness from queue
+                        ledcWrite(LED_PWM_CHANNEL, cmd.dutyCycle);  // Use brightness from queue
                         vTaskDelay(pdMS_TO_TICKS(1000));
-                        ledcWrite(led->led_pin, 0);  // Off 
+                        ledcWrite(LED_PWM_CHANNEL, 0);  // Off 
                     }
                 }
 

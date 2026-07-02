@@ -1,0 +1,9 @@
+{
+    "name": "myrobot",
+    "version": "0.1.0",
+    "description": "Combat robot motor/control logic (port from v1.3)",
+    "build": {
+        "srcDir": "src",
+        "includeDir": "include"
+    }
+}

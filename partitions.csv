@@ -1,9 +1,10 @@
 # Name,    Type,  SubType, Offset,  Size
-# Combat Robot v2 partition table.
-# Single 4MB app + 1.2MB OTA region + 1MB SPIFFS for HTML/JS.
+# Combat Robot v2 partition table for 4MB flash.
+# Keep app slots large enough for the current ~1.1MB firmware while ensuring
+# every region ends at or below 0x400000 (4MB).
 
 nvs,      data,  nvs,     0x9000,   0x6000
 phy_init, data,  phy,     0xf000,   0x1000
-factory,  app,   factory, 0x10000,  0x300000
-ota_0,    app,   ota_0,   0x310000, 0x130000
-storage,  data,  spiffs,  0x440000, 0xB0000
+factory,  app,   factory, 0x10000,  0x180000
+ota_0,    app,   ota_0,   0x190000, 0x180000
+storage,  data,  spiffs,  0x310000, 0xF0000

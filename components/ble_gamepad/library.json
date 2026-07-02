@@ -1,0 +1,9 @@
+{
+    "name": "ble_gamepad",
+    "version": "0.1.0",
+    "description": "NimBLE-based standard Bluetooth HID gamepad parser for combat robot v2",
+    "build": {
+        "srcDir": "src",
+        "includeDir": "include"
+    }
+}

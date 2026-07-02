@@ -14,6 +14,9 @@
 #include "esp_log.h"
 #include "esp_task_wdt.h"
 #include "esp_pm.h"
+#include "nvs_flash.h"
+#include "esp_event.h"
+#include "esp_netif.h"
 
 #include "Constants.h"
 #include "TaskManager.h"
@@ -82,6 +85,25 @@ void setup() {
     ESP_LOGI(TAG, "Robot Firmware: %s", VERSION);
     ESP_LOGI(TAG, "BLE stack: NimBLE (replaces Bluepad32)");
 
+    // NVS must be initialized before any component that uses it.
+    // ble_gamepad uses NVS for the MAC whitelist; web_config uses it
+    // for WiFi credentials.
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
+
+    // TCP/IP stack and event loop are needed for WiFi (used by web_config).
+    ESP_ERROR_CHECK(esp_netif_init());
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    // Initialize BLE gamepad parser. Does not start scanning yet —
+    // that happens on nimble host sync.
+    ESP_ERROR_CHECK(ble_gamepad_init());
+    ESP_ERROR_CHECK(ble_gamepad_start());
+
     // Register the BLE connection-state callback.
     ble_gamepad_set_connection_callback(on_ble_connection_change);
 
@@ -89,10 +111,10 @@ void setup() {
     taskManager.begin();
 
     // Web config — WiFi + async HTTP server + HTML UI.
-    // Must come after nvs_flash_init() (in main.c) and esp_netif_init()
-    // (in main.c). WiFi.begin() may take ~10s if it has to try saved
-    // credentials; runs synchronously inside init() to make connection
-    // state predictable.
+    // Must come after nvs_flash_init() and esp_netif_init() above.
+    // WiFi.begin() may take ~10s if it has to try saved credentials;
+    // runs synchronously inside init() to make connection state
+    // predictable.
     ESP_ERROR_CHECK(web_config_init());
 
     // Watchdog: same pattern as v1.3.
@@ -107,7 +129,7 @@ void loop() {
     // produces the same ControllerState structure.
     ControllerState gs = ble_gamepad_get_state();
 
-    if (gs.connected) {
+    if (ble_gamepad_is_connected()) {
         controllerState.leftStickY    = gs.leftStickY;
         controllerState.rightStickY   = gs.rightStickY;
         controllerState.rightTrigger  = gs.rightTrigger;

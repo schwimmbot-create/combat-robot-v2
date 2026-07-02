@@ -1,0 +1,9 @@
+{
+    "name": "output_config",
+    "version": "0.1.0",
+    "description": "NVS-backed output configuration (motor direction, servo type, source mapping) for the web UI",
+    "build": {
+        "srcDir": "src",
+        "includeDir": "include"
+    }
+}

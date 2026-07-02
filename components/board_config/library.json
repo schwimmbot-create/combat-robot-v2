@@ -1,0 +1,9 @@
+{
+    "name": "board_config",
+    "version": "0.1.0",
+    "description": "Board revision pin definitions and runtime detection",
+    "build": {
+        "srcDir": "src",
+        "includeDir": "include"
+    }
+}

@@ -26,19 +26,15 @@
 #include <stdbool.h>
 #include "esp_err.h"
 
-// Match myrobot/Constants.h ControllerState so callers don't care
-// where the data came from.
-typedef struct {
-    int  leftStickX    = 0;
-    int  leftStickY    = 0;
-    int  rightStickX    = 0;
-    int  rightStickY    = 0;
-    int  rightTrigger   = 0;
-    int  leftTrigger    = 0;
-    uint16_t  buttons   = 0;
-    uint16_t  dpad      = 0;
-    bool connected      = false;
-} ControllerState;
+// ControllerState is defined in myrobot/Constants.h (v1.3 compat).
+// We do NOT redefine it here to avoid ODR violations.
+// The v1.3 struct already has the fields we need: leftStickX/Y,
+// rightStickX/Y, leftTrigger, rightTrigger, buttons, dpad.
+// Connection status is exposed via ble_gamepad_is_connected() instead
+// of a struct field (since the v1.3 struct can't be modified from
+// this header).
+#include "Constants.h"  // for ControllerState
+
 
 // Pairing mode state machine. Visible to web UI / button handlers
 // so they can drive transitions cleanly.
@@ -73,7 +69,9 @@ void ble_gamepad_deinit(void);
 
 // Get the most recent gamepad state. Safe to call from any task.
 // Returns a copy — the internal state is updated by the NimBLE task.
-ControllerState ble_gamepad_get_state(void);
+// Note: written as `struct ControllerState` for C compatibility —
+// in C++ this is equivalent to the bare `ControllerState` name.
+struct ControllerState ble_gamepad_get_state(void);
 
 // Is a controller currently connected and providing reports?
 bool ble_gamepad_is_connected(void);

@@ -26,10 +26,11 @@ V1_REPO = PROJECT_ROOT.parent / "esp-idf-arduino-bluepad32-template"
 
 # ---------- Ported file integrity ----------
 
-PORTED_FILES = [
+# Files that must remain byte-identical to v1.3 combat_robot branch.
+# Modifying these means breaking v1.3 compatibility for no reason.
+BYTE_IDENTICAL_FILES = [
     "components/myrobot/include/Adafruit_NeoPixel.h",
     "components/myrobot/include/Buttons.h",
-    "components/myrobot/include/Constants.h",
     "components/myrobot/include/Drive.h",
     "components/myrobot/include/DriveMotor.h",
     "components/myrobot/include/Drum.h",
@@ -40,28 +41,53 @@ PORTED_FILES = [
     "components/myrobot/src/Adafruit_NeoPixel.cpp",
     "components/myrobot/src/Buttons.cpp",
     "components/myrobot/src/Drive.cpp",
-    "components/myrobot/src/DriveMotor.cpp",
-    "components/myrobot/src/Drum.cpp",
-    "components/myrobot/src/LED.cpp",
     "components/myrobot/src/PowerFunctions.cpp",
     "components/myrobot/src/rgbLED.cpp",
     "components/myrobot/src/TaskManager.cpp",
     "components/myrobot/src/esp.c",
 ]
 
+# Files we've intentionally modified from v1.3 to support the new
+# Arduino-ESP32 2.0.14 framework (LEDC API migration, etc.).
+# We verify these are still semantically correct in TestIntentionallyModified.
+INTENTIONALLY_MODIFIED_FILES = {
+    "components/myrobot/include/Constants.h":
+        "Removed C++ default member initializers (made it C-compatible); "
+        "removed controllerState::connected (moved to ble_gamepad_is_connected()); "
+        "added LEDC channel defines (DRIVE_MOTOR_FWD_PWM_CHANNEL etc).",
+    "components/myrobot/src/DriveMotor.cpp":
+        "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
+        "ledcChangeFrequency(). ledcWrite now uses explicit channel constants "
+        "instead of pin numbers (v1.3 used the pin as the channel).",
+    "components/myrobot/src/Drum.cpp":
+        "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
+        "ledcChangeFrequency(). ledcWrite now uses ESC_PWM_CHANNEL.",
+    "components/myrobot/src/LED.cpp":
+        "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
+        "ledcChangeFrequency(). ledcWrite now uses LED_PWM_CHANNEL.",
+}
+
+# All ported files (union of both lists)
+PORTED_FILES = BYTE_IDENTICAL_FILES + list(INTENTIONALLY_MODIFIED_FILES.keys())
+
 
 class TestPortedFilesUnchanged:
-    """myrobot/ files must be byte-identical to v1.3 combat_robot branch.
+    """myrobot/ files must be byte-identical to v1.3 combat_robot branch,
+    EXCEPT for files we've explicitly migrated to the new framework
+    (see INTENTIONALLY_MODIFIED_FILES).
 
-    If you've intentionally modified a myrobot/ file, update both this
-    list and the v1 reference. If you've modified it by accident, this
-    test will catch you.
+    If you've intentionally modified a myrobot/ file, add it to
+    INTENTIONALLY_MODIFIED_FILES with a reason. The test will then
+    only verify the unmodified files.
     """
 
     @pytest.mark.skipif(not V1_REPO.exists(),
                         reason="v1 reference repo not available")
     @pytest.mark.parametrize("relpath", PORTED_FILES)
     def test_file_byte_identical_to_v1(self, relpath):
+        # Skip files we've intentionally modified (LEDC API migration, etc.)
+        if relpath in INTENTIONALLY_MODIFIED_FILES:
+            pytest.skip(f"intentionally modified: {INTENTIONALLY_MODIFIED_FILES[relpath]}")
         v1 = V1_REPO / relpath
         v2 = PROJECT_ROOT / relpath
         if not v1.exists():
@@ -75,8 +101,69 @@ class TestPortedFilesUnchanged:
                 f"{relpath} differs from v1\n"
                 f"  v1 sha256: {v1_hash}\n"
                 f"  v2 sha256: {v2_hash}\n"
-                f"  If intentional, update v1 reference or this test."
+                f"  If intentional, add to INTENTIONALLY_MODIFIED_FILES with a reason."
             )
+
+
+class TestIntentionallyModified:
+    """Verify that files in INTENTIONALLY_MODIFIED_FILES have the right
+    structure post-migration. These tests would have failed under the
+    byte-identical assertion, so we explicitly check the new state.
+    """
+
+    def test_drivemotor_uses_new_ledc_api(self):
+        text = (PROJECT_ROOT / "components/myrobot/src/DriveMotor.cpp").read_text()
+        assert "ledcAttachPin" in text, "DriveMotor should use ledcAttachPin"
+        assert "ledcChangeFrequency" in text, "DriveMotor should use ledcChangeFrequency"
+        # v1.3 used `ledcAttach(...)` which should be gone from executable code.
+        uncommented = "\n".join(
+            line for line in text.splitlines()
+            if not line.lstrip().startswith("//")
+        )
+        assert not re.search(r"\bledcAttach\s*\(", uncommented), (
+            "DriveMotor still has the v1.3 ledcAttach() call. "
+            "Migrate to ledcAttachPin + ledcChangeFrequency."
+        )
+
+    def test_drum_uses_new_ledc_api(self):
+        text = (PROJECT_ROOT / "components/myrobot/src/Drum.cpp").read_text()
+        assert "ledcAttachPin" in text
+        assert "ledcChangeFrequency" in text
+        uncommented = "\n".join(
+            line for line in text.splitlines()
+            if not line.lstrip().startswith("//")
+        )
+        assert not re.search(r"\bledcAttach\s*\(", uncommented)
+
+    def test_led_uses_new_ledc_api(self):
+        text = (PROJECT_ROOT / "components/myrobot/src/LED.cpp").read_text()
+        assert "ledcAttachPin" in text
+        assert "ledcChangeFrequency" in text
+        uncommented = "\n".join(
+            line for line in text.splitlines()
+            if not line.lstrip().startswith("//")
+        )
+        assert not re.search(r"\bledcAttach\s*\(", uncommented)
+
+    def test_constants_h_has_ledc_channels(self):
+        text = (PROJECT_ROOT / "components/myrobot/include/Constants.h").read_text()
+        for name in ("DRIVE_MOTOR_FWD_PWM_CHANNEL", "DRIVE_MOTOR_REV_PWM_CHANNEL",
+                     "ESC_PWM_CHANNEL", "LED_PWM_CHANNEL"):
+            assert name in text, f"Constants.h should define {name}"
+
+    def test_constants_h_is_c_compatible(self):
+        """Constants.h is included from BOTH C and C++ files; no C++ features."""
+        text = (PROJECT_ROOT / "components/myrobot/include/Constants.h").read_text()
+        # The ControllerState struct should not have default member initializers
+        # (those are C++ only and break compilation when included from .c files).
+        m = re.search(r"struct ControllerState\s*\{([^}]+)\}", text, re.S)
+        assert m, "Couldn't find ControllerState struct"
+        body = m.group(1)
+        # Look for `= 0` or `= false` etc. in field initializers
+        assert not re.search(r"\w+\s*=\s*\d+\s*;", body), (
+            "ControllerState fields should not have C++ default initializers. "
+            "These break C compilation (Constants.h is included from main.c)."
+        )
 
 
 # ---------- Brace balance ----------
@@ -138,11 +225,11 @@ class TestBleApiConsistency:
         cpp = self.CPP.read_text()
         # Find function declarations in header
         decls = set(re.findall(
-            r"^\s*(?:esp_err_t|void|bool|ControllerState|PairingState|ble_mac_t|uint\d+_t)\s+(ble_gamepad_\w+)\s*\(",
+            r"^\s*(?:esp_err_t|void|bool|(?:struct\s+)?ControllerState|PairingState|ble_mac_t|uint\d+_t)\s+(ble_gamepad_\w+)\s*\(",
             header, re.M))
         # Find function definitions in cpp
         defs = set(re.findall(
-            r"^(?:esp_err_t|void|bool|ControllerState|PairingState)\s+(ble_gamepad_\w+)\s*\(",
+            r"^(?:esp_err_t|void|bool|(?:struct\s+)?ControllerState|PairingState)\s+(ble_gamepad_\w+)\s*\(",
             cpp, re.M))
         # Allow internal helpers (not in header) to be defined without decl
         # Find functions defined in cpp but NOT declared in header
@@ -192,6 +279,64 @@ class TestNoBluepad32Leftovers:
                 f"Bluepad32/btstack references in: "
                 f"{[str(v.relative_to(PROJECT_ROOT)) for v in violations]}"
             )
+
+
+# ---------- NimBLE-Arduino integration ----------
+
+class TestNimbleArduinoIntegration:
+    """BLE should use the Arduino-compatible NimBLE library, not raw ESP-IDF archives.
+
+    The raw ESP-IDF NimBLE attempt compiled but failed at link time because
+    PlatformIO pulled an ABI-incompatible libbt.a. Under framework=arduino,
+    NimBLE-Arduino is the supported dependency shape.
+    """
+
+    def test_platformio_uses_nimble_arduino_library(self):
+        text = (PROJECT_ROOT / "platformio.ini").read_text()
+        assert "h2zero/NimBLE-Arduino" in text
+
+    def test_platformio_has_no_raw_esp_idf_nimble_link_hacks(self):
+        text = (PROJECT_ROOT / "platformio.ini").read_text()
+        forbidden = [
+            "framework-arduinoespressif32-libs/esp32c3/include/bt",
+            "framework-arduinoespressif32-libs/esp32c3/lib",
+            "-lbt",
+        ]
+        present = [item for item in forbidden if item in text]
+        assert not present, f"raw ESP-IDF NimBLE build/link hacks remain: {present}"
+
+    def test_ble_implementation_uses_nimble_arduino_api(self):
+        text = (PROJECT_ROOT / "components/ble_gamepad/src/ble_gamepad.cpp").read_text()
+        assert "#include <NimBLEDevice.h>" in text
+        assert "NimBLEAdvertisedDeviceCallbacks" in text or "NimBLEScan" in text
+        forbidden = [
+            "nimble/nimble_port.h",
+            "host/ble_gap.h",
+            "host/ble_gatt.h",
+            "ble_gap_disc(",
+            "nimble_port_run(",
+        ]
+        present = [item for item in forbidden if item in text]
+        assert not present, f"raw ESP-IDF NimBLE API remains: {present}"
+
+    def test_pc_ble_bench_tool_exists(self):
+        tool = PROJECT_ROOT / "tools/pc_ble_bench.py"
+        assert tool.exists(), "tools/pc_ble_bench.py should provide PC Bluetooth bench tests"
+        text = tool.read_text()
+        assert "bleak" in text
+        assert "scan" in text
+        assert "notify" in text or "start_notify" in text
+
+    def test_pc_ble_bench_uuid_contract_matches_firmware(self):
+        firmware = (PROJECT_ROOT / "components/ble_gamepad/src/ble_gamepad.cpp").read_text()
+        tool = (PROJECT_ROOT / "tools/pc_ble_bench.py").read_text()
+        bench_service = "7d2f0001-0f3a-4b8a-9b7d-2f4c9a000001"
+        bench_write = "7d2f0002-0f3a-4b8a-9b7d-2f4c9a000001"
+        assert bench_service in firmware
+        assert bench_service in tool
+        assert bench_write in firmware
+        assert bench_write in tool
+        assert "BOARD_BENCH_WRITE_UUID" in tool
 
 
 # ---------- CMakeLists.txt sanity ----------

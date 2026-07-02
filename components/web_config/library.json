@@ -1,0 +1,9 @@
+{
+    "name": "web_config",
+    "version": "0.1.0",
+    "description": "WiFi + ESPAsyncWebServer configuration UI",
+    "build": {
+        "srcDir": "src",
+        "includeDir": "include"
+    }
+}

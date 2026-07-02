@@ -1,95 +1,219 @@
-# Build Instructions
+# Build and Flash Instructions
 
-## Prerequisites
+This file documents the exact PlatformIO/ESP-IDF workflow that works on Kevin's Windows PC for the ESP32-C3 Mini / ESP32-C3 DevKit target.
 
-- PlatformIO Core 6.x (or the PlatformIO IDE in VSCode)
-- ESP32 platform: `pioarduino/platform-espressif32#develop` (configured in `platformio.ini`)
-- USB driver for your ESP32-C3 (CH343 or CP2102; Windows often installs these automatically)
+## Verified PC setup
+
+- Host: Windows, using Git Bash / MSYS shell.
+- Project path: `C:/Users/kbrow/Documents/Codex/combat-robot-v2`
+- PlatformIO Core: `6.1.19`
+- PlatformIO executable: `C:/Users/kbrow/.platformio/penv/Scripts/platformio.exe`
+- Important: `pio` is **not currently on PATH** in the Hermes/Git-Bash shell. Use the full path or export PlatformIO's venv first.
+- Confirmed ESP32-C3 serial port: `COM6`
+- Confirmed chip during upload: `ESP32-C3 revision v0.4`
+- Confirmed MAC during upload: `28:37:2f:cb:9d:04`
+
+## Shell setup for this PC
+
+From Git Bash:
+
+```bash
+cd "C:/Users/kbrow/Documents/Codex/combat-robot-v2"
+export PATH="$HOME/.platformio/penv/Scripts:$PATH"
+pio --version
+```
+
+Expected:
+
+```text
+PlatformIO Core, version 6.1.19
+```
+
+If you do not want to modify `PATH`, use the full executable path:
+
+```bash
+"/c/Users/kbrow/.platformio/penv/Scripts/platformio.exe" --version
+```
+
+## Finding the ESP32-C3 port
+
+```bash
+pio device list
+```
+
+Known-good result from this PC:
+
+```text
+COM6
+----
+Hardware ID: USB VID:PID=303A:1001 SER=28:37:2F:CB:9D:04
+Description: USB Serial Device (COM6)
+```
+
+Ignore the Bluetooth SPP ports (`COM4`, `COM5`, `COM10`, `COM11`, etc.). The ESP32-C3 is the `USB VID:PID=303A:1001` device.
 
 ## Building
 
 ```bash
-# From the project root (combat-robot-v2/)
+cd "C:/Users/kbrow/Documents/Codex/combat-robot-v2"
+export PATH="$HOME/.platformio/penv/Scripts:$PATH"
 pio run -e esp32-c3-devkitc-02
+```
 
-# Or with verbose output to see component fetch progress
+Verbose build:
+
+```bash
 pio run -e esp32-c3-devkitc-02 -v
 ```
 
-On first build, PlatformIO will:
-1. Fetch the ESP32 platform (~200MB).
-2. Fetch the Arduino-esp32 framework.
-3. Fetch NimBLE from the component manager (~150MB).
-4. Fetch ESPAsyncWebServer and AsyncTCP.
-5. Compile the project.
+The first successful ESP-IDF 5.1.2 build on this PC installed:
 
-Expect 5-15 minutes for the first build, ~30s for incremental.
-
-## Uploading
-
-```bash
-# Hold BOOT button on C3, then run:
-pio run -e esp32-c3-devkitc-02 -t upload
-
-# Or with the auto-reset pattern (most C3 dev boards):
-pio run -e esp32-c3-devkitc-02 -t upload --upload-port /dev/ttyUSB0
+```text
+framework-espidf @ 3.50102.240122 (5.1.2)
+tool-esptoolpy @ 1.40501.0 (4.5.1)
+toolchain-riscv32-esp @ 12.2.0+20230208
 ```
 
-On Windows, the upload port is `COMx` — find it via Device Manager.
+The first build can take several minutes because PlatformIO downloads ESP-IDF, toolchains, libraries, and Python dependencies. Incremental builds are usually seconds.
 
-## Flashing without PlatformIO (advanced)
+## Flashing
 
-If you have a pre-built `.bin` and want to flash directly with `esptool.py`:
+Use the known ESP32-C3 port explicitly:
 
 ```bash
-esptool.py --chip esp32c3 --port /dev/ttyUSB0 --baud 460800 \
-    write_flash 0x0 .pio/build/esp32-c3-devkitc-02/firmware.bin
+cd "C:/Users/kbrow/Documents/Codex/combat-robot-v2"
+export PATH="$HOME/.platformio/penv/Scripts:$PATH"
+pio run -e esp32-c3-devkitc-02 -t upload --upload-port COM6
 ```
 
-## Build artifacts
+Known-good upload output includes:
 
-After `pio run`, look in `.pio/build/esp32-c3-devkitc-02/`:
-- `firmware.bin` — flashable image
-- `firmware.elf` — symbol table for debugging
-- `firmware.map` — memory map (useful for finding what takes flash)
+```text
+Serial port COM6
+Connecting...
+Chip is ESP32-C3 (revision v0.4)
+Features: WiFi, BLE
+Crystal is 40MHz
+MAC: 28:37:2f:cb:9d:04
+Uploading stub...
+Running stub...
+Changing baud rate to 460800
+...
+Hash of data verified.
+Leaving...
+Hard resetting via RTS pin...
+========================= [SUCCESS]
+```
 
-## Targets
+The C3 board on this PC reset automatically via RTS after upload; manually holding BOOT was not required for the verified hello-world flash.
 
-| Environment | Board | Notes |
-|---|---|---|
-| `esp32-c3-devkitc-02` | ESP32-C3 DevKit M02 | **Primary target.** BLE-only, 4MB flash. |
-| `esp32dev` | ESP32 DevKit | Full classic BT + BLE. Larger. |
-| `esp32-s3-devkitc-1` | ESP32-S3 | Dual core, BLE only. |
-| `esp32-c6-devkitc-1` | ESP32-C6 | BLE + 802.15.4. |
-| `esp32-h2-devkitm-1` | ESP32-H2 | BLE + 802.15.4. |
-
-All use the same source; pin defines in `myrobot/include/Constants.h` are C3-specific and may need tweaking per board.
-
-## Before you flash — run the test suite
+## Serial monitor
 
 ```bash
-# Install test deps (one-time)
+pio device monitor --port COM6 --baud 115200
+```
+
+For short automated captures from Git Bash:
+
+```bash
+timeout 10 pio device monitor --port COM6 --baud 115200
+```
+
+The verified toolchain-test firmware printed one line per second:
+
+```text
+[tick 0005] uptime=4984s  heap=327496  hello from combat-robot-v2
+[tick 0006] uptime=4985s  heap=327496  hello from combat-robot-v2
+[tick 0007] uptime=4986s  heap=327496  hello from combat-robot-v2
+```
+
+## What has actually been verified
+
+Verified on hardware:
+
+1. PlatformIO is installed and usable from `~/.platformio/penv/Scripts`.
+2. PlatformIO can install/use ESP-IDF 5.1.2 for `espressif32@6.5.0`.
+3. RISC-V ESP32-C3 cross-compilation works.
+4. Bootloader, partition table, and app image can be generated.
+5. esptool can connect to COM6, identify the ESP32-C3, erase/write flash, verify hashes, and reset the board.
+6. A minimal ESP-IDF app runs and prints heartbeat logs over USB serial.
+
+Not yet verified:
+
+- The full robot firmware build.
+- BLE gamepad pairing.
+- Web UI.
+- Motor/drum/servo outputs.
+- OTA.
+
+## Known blocker: current `partitions.csv` does not fit 4MB flash
+
+The current project partition table is too large for the ESP32-C3 Mini / DevKit C3 target's 4MB flash.
+
+Current `partitions.csv`:
+
+```csv
+factory,  app,   factory, 0x10000,  0x300000
+ota_0,    app,   ota_0,   0x310000, 0x130000
+storage,  data,  spiffs,  0x440000, 0xB0000
+```
+
+PlatformIO reports:
+
+```text
+Partitions tables occupies 4.9MB of flash (5177344 bytes) which does not fit in configured flash size 4MB.
+```
+
+For the hardware-flash proof, a temporary smaller partition table was used with a minimal hello-world app only. That temporary table was removed afterward. Before flashing the real robot firmware, fix `partitions.csv` so it fits in 4MB.
+
+## Known PlatformIO package issue fixed on this PC
+
+A corrupt/partial package directory existed at:
+
+```text
+C:/Users/kbrow/.platformio/packages/framework-espidf
+```
+
+It had no `package.json`, causing:
+
+```text
+MissingPackageManifestError: Could not find one of 'package.json' manifest files in the package
+```
+
+That broken directory was deleted, and PlatformIO successfully installed:
+
+```text
+framework-espidf@3.50102.240122
+```
+
+If the same error returns, check `C:/Users/kbrow/.platformio/packages/` for a manifestless `framework-espidf` directory and let PlatformIO reinstall it.
+
+## Useful cleanup commands
+
+Generated ESP-IDF/PlatformIO files can be safely removed:
+
+```bash
+rm -rf .pio
+rm -f CMakeLists.txt dependencies.lock sdkconfig sdkconfig.old sdkconfig.esp32-c3-devkitc-02
+```
+
+Do **not** remove source directories like `main/` or `components/` unless intentionally replacing the build with a temporary toolchain-test app.
+
+## Before flashing real robot firmware
+
+Run the host-side gate first:
+
+```bash
 pip install -r tests/requirements.txt
-
-# Run all host-side tests
-pytest tests/
-
-# Or use the pre-flash script (recommended)
 bash tests/pre_flash_check.sh
 ```
 
-Tests catch: API drift, schema mismatches between HTML and C++, accidental edits to ported files, the schematic pinout mismatch, and more. **If a test fails, do not flash.**
+Then build and flash:
 
-See `tests/README.md` for what's covered.
+```bash
+pio run -e esp32-c3-devkitc-02
+pio run -e esp32-c3-devkitc-02 -t upload --upload-port COM6
+pio device monitor --port COM6 --baud 115200
+```
 
-### `fatal error: nimble/nimble_port.h: No such file or directory`
-The NimBLE managed component hasn't been fetched. Run `pio run` again to let PIO resolve it, or manually `pio pkg install -l "espressif/nimble@~1.5.0"`.
-
-### `undefined reference to initArduino()`
-The Arduino framework is not registering the loop task. Check that `framework = espidf` is set in `platformio.ini` and that the `arduino` component is in the `requires` list of `myrobot/CMakeLists.txt`.
-
-### `error: 'CONFIG_BT_NIMBLE_HOST_ONLY' undeclared`
-The NimBLE component version doesn't support this option. Check `components/ble_gamepad/idf_component.yml` and pin to a version that has it. (Latest NimBLE versions have it.)
-
-### `region 'iram0_0' overflowed`
-Out of IRAM. Common when NimBLE's ACL buffers are too large. Reduce `CONFIG_BT_NIMBLE_MSYS1_BLOCK_COUNT` and `CONFIG_BT_NIMBLE_MSYS2_BLOCK_COUNT` in `sdkconfig.defaults`.
+If the partition-table error appears, fix `partitions.csv` before continuing. Do not work around it for the full firmware by using an unrelated default partition table; that only proves the toolchain, not that the robot app layout is valid.

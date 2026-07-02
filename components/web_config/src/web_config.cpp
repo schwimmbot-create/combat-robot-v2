@@ -18,6 +18,7 @@
 #include "ble_gamepad.h"
 #include "board_config.h"
 #include "board_detect.h"
+#include "output_config.h"
 #include "Constants.h"
 
 #include <Arduino.h>
@@ -26,7 +27,7 @@
 #include <AsyncTCP.h>
 #include <Update.h>
 #include <Preferences.h>
-
+#include <DNSServer.h>
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -49,8 +50,76 @@ static const char *AP_SSID_PREFIX = "Combat-Robot-";
 
 // Globals.
 static AsyncWebServer *server = nullptr;
+static AsyncWebSocket *ws = nullptr;
+static DNSServer       dnsServer;     // captive-portal DNS, only active in AP mode
 static bool wifi_ap_mode = false;
 static char ap_password[32] = AP_DEFAULT_PASSWORD;
+
+// Gamepad live state for the WebSocket streamer. Updated each loop tick
+// when a client is connected.
+static struct {
+    bool connected;
+    int  lx, ly, rx, ry, lt, rt;
+    uint16_t buttons;
+    uint16_t dpad;
+    uint32_t last_send_ms;
+} s_gp = { false, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+
+// Connection callback registered with ble_gamepad. Notifies the WS loop
+// that there's now something to broadcast.
+static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
+    s_gp.connected = connected;
+    if (!connected) {
+        // Reset sticks/triggers so the UI doesn't show stale values.
+        s_gp.lx = s_gp.ly = s_gp.rx = s_gp.ry = 0;
+        s_gp.lt = s_gp.rt = 0;
+        s_gp.buttons = s_gp.dpad = 0;
+    }
+}
+
+// --- WebSocket live gamepad feed --------------------------------------
+
+#define GAMEPAD_WS_PATH "/ws"
+#define GAMEPAD_TICK_HZ 30
+
+static void gamepad_ws_event(AsyncWebSocket *server, AsyncWebSocketClient *client,
+                             AwsEventType type, void *arg, uint8_t *data, size_t len) {
+    if (type == WS_EVT_CONNECT) {
+        ESP_LOGI(TAG, "ws client #%u connected from %s", client->id(),
+                 client->remoteIP().toString().c_str());
+    } else if (type == WS_EVT_DISCONNECT) {
+        ESP_LOGI(TAG, "ws client #%u disconnected", client->id());
+    }
+}
+
+// Build a JSON state message into buf and return the length. Pre-allocated
+// 256-byte buffer is plenty for our 9-number state object.
+static int gamepad_build_state_json(char *buf, size_t buflen) {
+    struct ControllerState cs = ble_gamepad_get_state();
+    int n = snprintf(buf, buflen,
+        "{\"type\":\"state\",\"connected\":%s,"
+        "\"state\":{\"lx\":%d,\"ly\":%d,\"rx\":%d,\"ry\":%d,"
+                  "\"lt\":%d,\"rt\":%d,"
+                  "\"buttons\":%u,\"dpad\":%u}}",
+        s_gp.connected ? "true" : "false",
+        cs.leftStickX, cs.leftStickY, cs.rightStickX, cs.rightStickY,
+        cs.rightTrigger, cs.leftTrigger,
+        (unsigned)cs.buttons, (unsigned)cs.dpad);
+    return (n > 0 && (size_t)n < buflen) ? n : -1;
+}
+
+static void gamepad_ws_tick(void) {
+    if (!ws) return;
+    if (ws->count() == 0) return;     // no clients, no work
+    uint32_t now = millis();
+    if (now - s_gp.last_send_ms < (1000 / GAMEPAD_TICK_HZ)) return;
+    s_gp.last_send_ms = now;
+
+    char buf[256];
+    int n = gamepad_build_state_json(buf, sizeof(buf));
+    if (n < 0) return;
+    ws->textAll(buf, n);
+}
 
 // --- WiFi credential storage ------------------------------------------
 
@@ -88,116 +157,11 @@ static esp_err_t wifi_clear_credentials(void) {
 }
 
 // --- HTML (embedded PROGMEM) ------------------------------------------
-
-static const char INDEX_HTML[] PROGMEM = R"rawliteral(
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Combat Robot v2</title>
-  <style>
-    body { font-family: -apple-system, system-ui, sans-serif; background: #1a1a1a;
-           color: #eee; margin: 0; padding: 1rem; }
-    h1 { color: #ff6b35; }
-    .card { background: #2a2a2a; border-radius: 8px; padding: 1rem;
-            margin-bottom: 1rem; }
-    .status-grid { display: grid; grid-template-columns: max-content 1fr;
-                   gap: 0.5rem 1rem; }
-    .label { color: #888; }
-    .ok { color: #4ade80; }
-    .warn { color: #fbbf24; }
-    .err { color: #f87171; }
-    button { background: #ff6b35; color: white; border: none; padding: 0.5rem 1rem;
-             border-radius: 4px; cursor: pointer; font-weight: 600; }
-    button:hover { background: #ff8c5a; }
-    button:disabled { background: #555; cursor: not-allowed; }
-    code { background: #111; padding: 0.1rem 0.3rem; border-radius: 3px;
-           font-size: 0.9em; }
-    .mac-list { font-family: monospace; }
-  </style>
-</head>
-<body>
-  <h1>🤖 Combat Robot v2</h1>
-
-  <div class="card">
-    <h2>Status</h2>
-    <div class="status-grid" id="status">
-      <span class="label">Loading…</span>
-    </div>
-  </div>
-
-  <div class="card">
-    <h2>Controller</h2>
-    <p>Connected: <span id="ble-state">–</span></p>
-    <p>MAC: <code id="ble-mac">–</code></p>
-    <p>Pairing: <span id="pair-state">–</span></p>
-    <button id="btn-pair">Enter Pairing Mode</button>
-    <button id="btn-cancel-pair" disabled>Cancel Pairing</button>
-    <button id="btn-unpair">Clear Paired Controllers</button>
-  </div>
-
-  <div class="card">
-    <h2>Paired Controllers</h2>
-    <div class="mac-list" id="mac-list">–</div>
-  </div>
-
-  <div class="card">
-    <h2>WiFi</h2>
-    <p>IP: <code id="wifi-ip">–</code> <span id="wifi-mode"></span></p>
-    <p>To change WiFi: hold the BOOT button for 10s, or POST to <code>/api/wifi</code>.</p>
-  </div>
-
-  <div class="card">
-    <h2>Firmware</h2>
-    <p>Version: <code id="fw-version">–</code></p>
-    <form id="ota-form" method="POST" action="/api/ota" enctype="multipart/form-data">
-      <input type="file" name="firmware" accept=".bin">
-      <button type="submit">Upload &amp; Update</button>
-    </form>
-  </div>
-
-  <script>
-    let pairingActive = false;
-    async function refresh() {
-      try {
-        const r = await fetch('/api/status');
-        const s = await r.json();
-        document.getElementById('ble-state').textContent = s.ble_connected ? '✅ Connected' : '❌ Disconnected';
-        document.getElementById('ble-state').className = s.ble_connected ? 'ok' : 'err';
-        document.getElementById('ble-mac').textContent = s.ble_mac || '–';
-        document.getElementById('pair-state').textContent = s.pairing_state;
-        document.getElementById('wifi-ip').textContent = s.wifi_ip;
-        document.getElementById('wifi-mode').textContent = s.wifi_ap_mode ? '(AP mode)' : '(STA mode)';
-        document.getElementById('fw-version').textContent = s.firmware_version;
-        document.getElementById('mac-list').innerHTML = s.paired_macs.length
-          ? s.paired_macs.map(m => `<div>${m}</div>`).join('')
-          : '<em>No controllers paired</em>';
-        pairingActive = (s.pairing_state === 'ACCEPT');
-        document.getElementById('btn-pair').disabled = pairingActive;
-        document.getElementById('btn-cancel-pair').disabled = !pairingActive;
-      } catch (e) { console.error(e); }
-    }
-    setInterval(refresh, 2000);
-    refresh();
-
-    document.getElementById('btn-pair').onclick = async () => {
-      await fetch('/api/pair/start', { method: 'POST' });
-      refresh();
-    };
-    document.getElementById('btn-cancel-pair').onclick = async () => {
-      await fetch('/api/pair/cancel', { method: 'POST' });
-      refresh();
-    };
-    document.getElementById('btn-unpair').onclick = async () => {
-      if (!confirm('Clear all paired controllers? You will need to re-pair.')) return;
-      await fetch('/api/pair/clear', { method: 'POST' });
-      refresh();
-    };
-  </script>
-</body>
-</html>
-)rawliteral";
+//
+// The production HTML is generated from docs/config-ui-mockup.html by
+// tools/gen_web_index.py into web_index_gen.h. That header is included
+// here and supplies the canonical `INDEX_HTML[]` symbol.
+#include "web_index_gen.h"
 
 // --- JSON helpers -----------------------------------------------------
 
@@ -247,6 +211,81 @@ static void register_routes(void) {
     });
 
     server->on("/api/status", HTTP_GET, send_json_status);
+
+    // Output config (motor direction / servo type / input mapping).
+    server->on("/api/config", HTTP_GET, [](AsyncWebServerRequest *req) {
+        static char buf[OC_JSON_BUF_SIZE];
+        int n = output_config_to_json(buf, sizeof(buf));
+        if (n < 0) {
+            req->send(500, "application/json", "{\"err\":\"encode\"}");
+            return;
+        }
+        AsyncWebServerResponse *resp = req->beginResponse(200, "application/json", buf);
+        resp->addHeader("Cache-Control", "no-store");
+        req->send(resp);
+    });
+
+    server->on("/api/config/sources", HTTP_GET, [](AsyncWebServerRequest *req) {
+        static char buf[OC_JSON_BUF_SIZE];
+        int n = output_config_sources_to_json(buf, sizeof(buf));
+        if (n < 0) {
+            req->send(500, "application/json", "{\"err\":\"encode\"}");
+            return;
+        }
+        AsyncWebServerResponse *resp = req->beginResponse(200, "application/json", buf);
+        resp->addHeader("Cache-Control", "no-store");
+        req->send(resp);
+    });
+
+    server->on("/api/config", HTTP_PATCH, [](AsyncWebServerRequest *req) {
+        // ESPAsyncWebServer doesn't give us a body for non-body methods
+        // consistently. We accept the patch body via header or POST-style.
+        // For now we require POST so the form data parser is engaged.
+        req->send(405, "application/json", "{\"err\":\"use POST\"}");
+    });
+
+    // Buffer the body ourselves. The native "body handler" takes a
+    // (uint8_t*, size_t) callback which is awkward for JSON; we collect
+    // the body via Upload handler chunks (none expected for the JSON
+    // PATCH) and read the raw request URI body via the request callback
+    // when the request signals "body parsed".
+    //
+    // For ESPAsyncWebServer 3.6.0 the simplest contract that returns a
+    // body to the server is a `body` handler with the proper signature.
+    // The signature is:
+    //   void body(AsyncWebServerRequest *req, uint8_t *data, size_t len,
+    //             size_t index, size_t total)
+    // We accumulate chunks and apply the patch in the final "request"
+    // callback when index+len == total.
+    server->on("/api/config", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+            // Fired after the request (including body) has been parsed.
+            // We don't read the body here because the body-handler
+            // below stashed it on the request's user context.
+            auto *body = static_cast<String *>(req->_tempObject);
+            if (!body) {
+                req->send(400, "application/json", "{\"err\":\"no body\"}");
+                return;
+            }
+            esp_err_t err = output_config_apply_json_patch(body->c_str());
+            delete body;
+            req->_tempObject = nullptr;
+            if (err != ESP_OK) {
+                req->send(400, "application/json", "{\"err\":\"invalid patch\"}");
+                return;
+            }
+            req->send(200, "application/json", "{\"ok\":true}");
+        },
+        NULL,
+        [](AsyncWebServerRequest *req, uint8_t *data, size_t len,
+           size_t index, size_t total) {
+            if (!req->_tempObject) {
+                req->_tempObject = new String();
+                static_cast<String *>(req->_tempObject)->reserve(total);
+            }
+            auto *body = static_cast<String *>(req->_tempObject);
+            body->concat(reinterpret_cast<const char *>(data), len);
+        });
 
     server->on("/api/pair/start", HTTP_POST,
         [](AsyncWebServerRequest *req) {
@@ -364,6 +403,14 @@ static void start_ap_mode(void) {
     wifi_ap_mode = true;
     ESP_LOGW(TAG, "Started AP: %s (password: %s), IP: %s",
              ap_ssid, ap_password, WiFi.softAPIP().toString().c_str());
+
+    // Captive-portal DNS: respond to every query with our AP IP, so clients
+    // hitting "captive.apple.com", "connectivitycheck.gstatic.com", etc.
+    // get redirected to our server. Combined with the onNotFound handler
+    // above, any URL the user types resolves to /.
+    dnsServer.stop();
+    dnsServer.setErrorReplyCode(DNSReplyCode::NoError);
+    dnsServer.start(53, "*", WiFi.softAPIP());
 }
 
 static esp_err_t try_sta_mode(void) {
@@ -396,7 +443,16 @@ static esp_err_t try_sta_mode(void) {
 esp_err_t web_config_init(void) {
     ESP_LOGI(TAG, "Initializing web config");
 
+    // Output config must be initialized before we can serve /api/config.
+    output_config_init();
+
     server = new AsyncWebServer(80);
+    ws = new AsyncWebSocket(GAMEPAD_WS_PATH);
+    ws->onEvent(gamepad_ws_event);
+    server->addHandler(ws);
+
+    // BLE gamepad connection callback so we know when to start streaming.
+    ble_gamepad_set_connection_callback(on_ble_connection_change);
 
     // Try STA, fall back to AP.
     if (try_sta_mode() != ESP_OK) {
@@ -411,12 +467,20 @@ esp_err_t web_config_init(void) {
 }
 
 void web_config_loop(void) {
+    // Drain captive-portal DNS requests whenever we're in AP mode.
+    if (wifi_ap_mode) {
+        dnsServer.processNextRequest();
+    }
+
     // ESPAsyncWebServer runs handlers on its own task. We just need
     // to keep an eye on WiFi state for the captive portal DNS server
     // (TODO: implement once captive portal is added).
     static uint32_t last_check = 0;
     uint32_t now = millis();
-    if (now - last_check < 5000) return;
+    if (now - last_check < 5000) {
+        gamepad_ws_tick();
+        return;
+    }
     last_check = now;
 
     // If we were in STA and got disconnected, fall back to AP.
@@ -424,6 +488,10 @@ void web_config_loop(void) {
         ESP_LOGW(TAG, "WiFi lost, switching to AP mode");
         start_ap_mode();
     }
+
+    // Drain any dead WS clients so count() stays accurate.
+    if (ws) ws->cleanupClients();
+    gamepad_ws_tick();
 }
 
 void web_config_get_status(web_status_t *out) {

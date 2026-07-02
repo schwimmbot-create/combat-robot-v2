@@ -25,6 +25,7 @@ __pycache__/
 # ESP-IDF
 sdkconfig
 sdkconfig.old
+sdkconfig.*
 
 # IDE
 .vscode/

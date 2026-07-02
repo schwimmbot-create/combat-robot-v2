@@ -1,0 +1,78 @@
+Processing esp32-c3-devkitc-02 (board: esp32-c3-devkitc-02; platform: espressif32@6.5.0; framework: arduino)
+--------------------------------------------------------------------------------
+Verbose mode can be enabled via `-v, --verbose` option
+CONFIGURATION: https://docs.platformio.org/page/boards/espressif32/esp32-c3-devkitc-02.html
+PLATFORM: Espressif 32 (6.5.0) > Espressif ESP32-C3-DevKitC-02
+HARDWARE: ESP32C3 160MHz, 320KB RAM, 4MB Flash
+DEBUG: Current (cmsis-dap) External (cmsis-dap, esp-bridge, esp-builtin, esp-prog, iot-bus-jtag, jlink, minimodule, olimex-arm-usb-ocd, olimex-arm-usb-ocd-h, olimex-arm-usb-tiny-h, olimex-jtag-tiny, tumpa)
+PACKAGES: 
+ - framework-arduinoespressif32 @ 3.20014.231204 (2.0.14) 
+ - tool-esptoolpy @ 1.40501.0 (4.5.1) 
+ - toolchain-riscv32-esp @ 8.4.0+2021r2-patch5
+LDF: Library Dependency Finder -> https://bit.ly/configure-pio-ldf
+LDF Modes: Finder ~ deep+, Compatibility ~ soft
+Found 42 compatible libraries
+Scanning dependencies...
+Dependency Graph
+|-- ESPAsyncWebServer @ 3.6.0
+|-- AsyncTCP @ 3.3.2
+|-- NimBLE-Arduino @ 1.4.3
+|-- myrobot @ 0.1.0
+|-- ble_gamepad @ 0.1.0
+|-- web_config @ 0.1.0
+Building in release mode
+Compiling .pio\build\esp32-c3-devkitc-02\libb0b\web_config\web_config.cpp.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\esp32-hal-time.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\esp32-hal-timer.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\esp32-hal-tinyusb.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\esp32-hal-touch.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\esp32-hal-uart.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\firmware_msc_fat.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\libb64\cdecode.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\libb64\cencode.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\main.cpp.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\stdlib_noniso.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\wiring_pulse.c.o
+Compiling .pio\build\esp32-c3-devkitc-02\FrameworkArduino\wiring_shift.c.o
+C:/Users/kbrow/.platformio/packages/framework-arduinoespressif32@3.20014.231204/cores/esp32/esp32-hal-uart.c: In function 'uartSetPins':
+C:/Users/kbrow/.platformio/packages/framework-arduinoespressif32@3.20014.231204/cores/esp32/esp32-hal-uart.c:153:9: warning: 'return' with no value, in function returning non-void
+         return;
+         ^~~~~~
+C:/Users/kbrow/.platformio/packages/framework-arduinoespressif32@3.20014.231204/cores/esp32/esp32-hal-uart.c:149:6: note: declared here
+ bool uartSetPins(uint8_t uart_num, int8_t rxPin, int8_t txPin, int8_t ctsPin, int8_t rtsPin)
+      ^~~~~~~~~~~
+In file included from components/web_config/src/web_config.cpp:19:
+components/board_config/include/board_config.h:237:28: warning: inline variables are only available with -std=c++17 or -std=gnu++17
+ inline constexpr BoardInfo kBoardInfo = {
+                            ^~~~~~~~~~
+components/board_config/include/board_config.h:273:75: note: #pragma message: Building for Generic Robot Controller v2 (v2 (current production))
+     #pragma message "Building for " BOARD_NAME " (" BOARD_REVISION_STRING ")"
+                                                                           ^~~
+components/web_config/src/web_config.cpp: In lambda function:
+components/web_config/src/web_config.cpp:247:49: warning: 'void AsyncWebServerRequest::send_P(int, const String&, const char*, AwsTemplateProcessor)' is deprecated: Replaced by send(int code, const String& contentType, const char* content = asyncsrv::empty, AwsTemplateProcessor callback = nullptr) [-Wdeprecated-declarations]
+         req->send_P(200, "text/html", INDEX_HTML);
+                                                 ^
+In file included from components/web_config/src/web_config.cpp:26:
+.pio/libdeps/esp32-c3-devkitc-02/ESPAsyncWebServer/src/ESPAsyncWebServer.h:350:10: note: declared here
+     void send_P(int code, const String& contentType, PGM_P content, AwsTemplateProcessor callback = nullptr) {
+          ^~~~~~
+components/web_config/src/web_config.cpp: In function 'void register_routes()':
+components/web_config/src/web_config.cpp:297:10: error: no matching function for call to 'AsyncWebServer::on(const char [12], WebRequestMethod, register_routes()::<lambda(AsyncWebServerRequest*)>, NULL, register_routes()::<lambda(AsyncWebServerRequest*, const String&)>)'
+         });
+          ^
+In file included from components/web_config/src/web_config.cpp:26:
+.pio/libdeps/esp32-c3-devkitc-02/ESPAsyncWebServer/src/ESPAsyncWebServer.h:881:30: note: candidate: 'AsyncCallbackWebHandler& AsyncWebServer::on(const char*, ArRequestHandlerFunction)'
+     AsyncCallbackWebHandler& on(const char* uri, ArRequestHandlerFunction onRequest) { return on(uri, HTTP_ANY, onRequest); }
+                              ^~
+.pio/libdeps/esp32-c3-devkitc-02/ESPAsyncWebServer/src/ESPAsyncWebServer.h:881:30: note:   candidate expects 2 arguments, 5 provided
+.pio/libdeps/esp32-c3-devkitc-02/ESPAsyncWebServer/src/ESPAsyncWebServer.h:882:30: note: candidate: 'AsyncCallbackWebHandler& AsyncWebServer::on(const char*, WebRequestMethodComposite, ArRequestHandlerFunction, ArUploadHandlerFunction, ArBodyHandlerFunction)'
+     AsyncCallbackWebHandler& on(const char* uri, WebRequestMethodComposite method, ArRequestHandlerFunction onRequest, ArUploadHandlerFunction onUpload = nullptr, ArBodyHandlerFunction onBody = nullptr);
+                              ^~
+.pio/libdeps/esp32-c3-devkitc-02/ESPAsyncWebServer/src/ESPAsyncWebServer.h:882:30: note:   no known conversion for argument 5 from 'register_routes()::<lambda(AsyncWebServerRequest*, const String&)>' to 'ArBodyHandlerFunction' {aka 'std::function<void(AsyncWebServerRequest*, unsigned char*, unsigned int, unsigned int, unsigned int)>'}
+*** [.pio\build\esp32-c3-devkitc-02\libb0b\web_config\web_config.cpp.o] Error 1
+========================= [FAILED] Took 12.93 seconds =========================
+
+Environment          Status    Duration
+-------------------  --------  ------------
+esp32-c3-devkitc-02  FAILED    00:00:12.928
+==================== 1 failed, 0 succeeded in 00:00:12.928 ====================
