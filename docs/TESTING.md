@@ -13,6 +13,8 @@ bash tests/pre_flash_check.sh
 
 If a test fails (especially the schematic pinout check), **resolve it before flashing**. The tests are designed to catch the kinds of regressions that would silently break a combat robot mid-fight.
 
+Current state: **256 tests pass, 4 skipped** (most skips are intentional-modification skips in `tests/regression/test_structure.py`). Run in <1 s after the first run.
+
 ## Required hardware
 
 - ESP32-C3 DevKit M02 (or your target board)
@@ -67,20 +69,29 @@ Subscribe complete; status=0
 
 ## Test 3: Robot responds to input
 
-1. With controller paired, move the left stick. You should see the drive wheels respond (or not, if you haven't calibrated).
-2. Press triggers — drum should spin up.
-3. Press Y button — orientation should flip (per existing processButtons logic).
+Default mapping (configurable via the Outputs tab in the web UI):
 
-**Log should show:**
-```
-DriveMotor Forward: 200
-ESC Duty Cycle: 150    ESC Pulse Width: 188 uSec
-```
+| Output | Default source | Direction |
+|---|---|---|
+| M1 (drive motor 1) | LY (left stick Y) | normal |
+| M2 (drive motor 2) | LY (left stick Y) | normal |
+| Weapon / ESC | RT (right trigger) | normal |
+| S1, S2 (servos) | (none) | — |
 
-If you see no motor response, check:
-- `processControllers()` is being called (add an `ESP_LOGI` in `loop()`).
-- The axes from your 8BitDo are not all zero (verify by serial-printing `controllerState`).
-- The `parse_hid_report` function is being called (add an `ESP_LOGD` in the `BLE_GAP_EVENT_NOTIFY_RX` case).
+With the controller paired:
+
+1. Move the left stick → drive wheels should respond.
+2. Pull the right trigger → ESC / drum should spin up.
+3. Verify the configuration by opening the Outputs tab on `http://192.168.4.1/` — the dropdowns should reflect the above mapping.
+
+To remap M1 to a different source (e.g. RX for tank steering):
+
+1. Open the Outputs tab.
+2. Change M1's primary dropdown to RX.
+3. Click **Save changes** at the bottom.
+4. Move the right stick X — M1 should respond.
+
+Saved changes persist in NVS (`output_cfg/cfg_v1` blob).
 
 ## Test 4: Re-pairing after disconnect
 
@@ -104,11 +115,27 @@ If you see no motor response, check:
 
 ## Test 7: WiFi STA mode
 
-1. POST to `/api/wifi` with `{"ssid":"MyHomeWiFi","psk":"mypassword"}`.
+1. POST to `/api/wifi` with body `{"ssid":"MyHomeWiFi","psk":"mypassword"}`.
 2. Restart the robot.
 3. The robot should connect to your home WiFi and start a web server on the assigned IP.
 
-(Currently, there's no UI form for this — it's a JSON API. A form is in Phase 2.)
+## Test 8: WebSocket live feed
+
+1. Connect to the AP, open `http://192.168.4.1/` in a browser.
+2. Open browser developer tools → Console. With no controller connected, no `ws open` / `ws close` should appear at all (no clients means no spam).
+3. Pair a controller. Within ~1 second the page should show the live stick canvas, LT/RT bars, and button chips reacting to your inputs.
+4. Console: `ws open` is expected on connect, `ws close` only if you navigate away.
+
+Implemented as `AsyncWebSocket` mounted at `/ws`. See `components/web_config/src/web_config.cpp::gamepad_ws_tick()` for the streaming logic.
+
+## Test 9: Captive portal
+
+1. Connect to the AP, leave the network settings for ~10 seconds.
+2. Android: you should see a "Sign in to network" notification.
+3. iOS: any browser attempt to load a URL should auto-redirect to `http://192.168.4.1/`.
+4. Captive-portal probe hosts (`connectivitycheck.gstatic.com`, `captive.apple.com`, etc.) should all resolve to the AP IP (`192.168.4.1`).
+
+DNS handled by `DNSServer` on port 53 in `web_config.cpp::start_ap_mode()`.
 
 ## Known unknowns
 

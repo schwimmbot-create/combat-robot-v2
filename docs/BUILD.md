@@ -146,25 +146,19 @@ Not yet verified:
 - Motor/drum/servo outputs.
 - OTA.
 
-## Known blocker: current `partitions.csv` does not fit 4MB flash
+## Resolved: 4MB flash partition blocker
 
-The current project partition table is too large for the ESP32-C3 Mini / DevKit C3 target's 4MB flash.
-
-Current `partitions.csv`:
+The current `partitions.csv` (committed at top-level) fits exactly in 4MB:
 
 ```csv
-factory,  app,   factory, 0x10000,  0x300000
-ota_0,    app,   ota_0,   0x310000, 0x130000
-storage,  data,  spiffs,  0x440000, 0xB0000
+nvs,       data, nvs,     0x9000,   0x6000
+phy_init,  data, phy_init,0xf000,   0x1000
+factory,   app,  factory, 0x10000,  0x180000
+ota_0,     app,  ota_0,   0x190000, 0x180000
+storage,   data, spiffs,  0x310000, 0xF0000
 ```
 
-PlatformIO reports:
-
-```text
-Partitions tables occupies 4.9MB of flash (5177344 bytes) which does not fit in configured flash size 4MB.
-```
-
-For the hardware-flash proof, a temporary smaller partition table was used with a minimal hello-world app only. That temporary table was removed afterward. Before flashing the real robot firmware, fix `partitions.csv` so it fits in 4MB.
+Every entry ends at or below 0x400000. Verified by `test_pre_flash.py::TestSdkConfig::test_partitions_table_consistent`, which parses the file and checks `offset + size <= 0x400000` and no overlaps.
 
 ## Known PlatformIO package issue fixed on this PC
 
@@ -189,7 +183,6 @@ framework-espidf@3.50102.240122
 If the same error returns, check `C:/Users/kbrow/.platformio/packages/` for a manifestless `framework-espidf` directory and let PlatformIO reinstall it.
 
 ## Useful cleanup commands
-
 Generated ESP-IDF/PlatformIO files can be safely removed:
 
 ```bash

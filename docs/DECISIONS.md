@@ -277,8 +277,31 @@ Your `platformio.ini` says `framework = espidf` but `main.c` uses `Arduino.h`. T
 
 - `main/` — `app_main` (was `main.c`), Arduino `setup()`/`loop()` (was `sketch.cpp`).
 - `components/myrobot/` — ported from v1.3, no functional changes yet.
-- `components/ble_gamepad/` — **NEW**, NimBLE HID parser + pairing mode.
-- `components/web_config/` — **NEW**, async web server + HTML UI + NVS config.
+- `components/board_config/` — per-`BOARD_REV` pin map + `BoardInfo` struct.
+- `components/output_config/` — NVS-backed per-output config (direction toggle, source mapping, deadzone).
+- `components/ble_gamepad/` — **NEW**, NimBLE HID parser + pairing mode + bench GATT server for PC bench tests.
+- `components/web_config/` — **NEW**, async web server + HTML UI + WebSocket live feed + captive-portal DNS.
 - `docs/DECISIONS.md` — this file.
-- `docs/BUILD.md` — build instructions (TODO).
-- `docs/TESTING.md` — how to test on hardware (TODO).
+- `docs/AGENT.md` — ⭐ READ FIRST if you're picking up this codebase cold.
+- `docs/CHANGELOG.md` — what shipped in each commit.
+- `docs/BUILD.md` — build instructions (verified for Windows / Git Bash / PlatformIO 6.1.19).
+- `docs/TESTING.md` — how to test on hardware + what each test demonstrates.
+
+---
+
+## 7. Outcomes (as of commit 2fc6cc4)
+
+Every L1–L7 lesson in section 4 was applied:
+
+- § 4L1 → `output_config` component is pure C, hand-rolls its own JSON writer/parser (~150 LOC each, no ArduinoJson).
+- § 4L3 → NimBLE-Arduino at v1.4.3, with the standard 0x1812 HID parser accepting the 8BitDo Ultimate 2 in BLE mode.
+- § 4L4 → `lib_extra_dirs = components` plus each `library.json` so PlatformIO picks up the custom components.
+- § 4L5 → 4MB partitions (factory + ota_0 + spiffs), each ≤ `0x180000`.
+- § 4L7 → `framework = arduino` (not espidf) — final, no longer mixed-mode.
+
+Additional lessons learned (out of scope of the original L1–L7):
+
+- **ESPAsyncWebServer 3.6.0 body handler signature is `(req, uint8_t*, size_t, size_t, size_t)`** — not the older `(req, body)` String variant. Buffer the body manually via `req->_tempObject` if you need String semantics.
+- **AsyncWebSocket on the same port (80) needs `server->addHandler(ws)`** before routes are registered, or the routes will shadow the WS upgrade.
+- **Captive-portal DNS** must run on the AP IP and use `setErrorReplyCode(NoError)` so probe hosts that don't trust CNAMEs still get the right answer. Combined with `onNotFound` redirecting to `/`, this is enough — no need for a dedicated landing page.
+- **Phone `<input type="file">` triggers "Open with..."** dialog on iOS/Android. The OTA form is a real `<form enctype="multipart/form-data">` posting to `/api/ota`, no JS handlers.
