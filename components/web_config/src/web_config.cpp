@@ -63,13 +63,15 @@ static struct {
     uint16_t buttons;
     uint16_t dpad;
     uint32_t last_send_ms;
-} s_gp = { false, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    volatile bool broadcast_pending;
+} s_gp = { false, 0, 0, 0, 0, 0, 0, 0, 0, 0, false };
 
 // Connection callback registered with ble_gamepad. Notifies the WS loop
 // that there's now something to broadcast.
 static void gamepad_ws_event(AsyncWebSocket *server, AsyncWebSocketClient *client,
                              AwsEventType type, void *arg, uint8_t *data, size_t len);
 static void gamepad_ws_broadcast_now(void);
+static int gamepad_build_state_json(char *buf, size_t buflen);
 
 static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
     s_gp.connected = connected;
@@ -79,9 +81,10 @@ static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
         s_gp.lt = s_gp.rt = 0;
         s_gp.buttons = s_gp.dpad = 0;
     }
-    // Push the change to any connected WS clients immediately rather
-    // than waiting up to 33 ms for the next 30 Hz tick.
-    gamepad_ws_broadcast_now();
+    // NimBLE invokes this callback from its own task. ESPAsyncWebServer /
+    // AsyncTCP are not safe to call from here, so only mark the web loop
+    // to broadcast on its next tick.
+    s_gp.broadcast_pending = true;
 }
 
 // --- WebSocket live gamepad feed --------------------------------------
@@ -94,8 +97,19 @@ static void gamepad_ws_event(AsyncWebSocket *server, AsyncWebSocketClient *clien
     if (type == WS_EVT_CONNECT) {
         ESP_LOGI(TAG, "ws client #%u connected from %s", client->id(),
                  client->remoteIP().toString().c_str());
+        if (Serial) {
+            Serial.printf("[WS] client #%u connected count=%u\r\n",
+                          client->id(), ws ? ws->count() : 0);
+        }
+        char buf[256];
+        int n = gamepad_build_state_json(buf, sizeof(buf));
+        if (n > 0) client->text(buf, n);
     } else if (type == WS_EVT_DISCONNECT) {
         ESP_LOGI(TAG, "ws client #%u disconnected", client->id());
+        if (Serial) {
+            Serial.printf("[WS] client #%u disconnected count=%u\r\n",
+                          client->id(), ws ? ws->count() : 0);
+        }
     }
 }
 
@@ -128,25 +142,36 @@ static int gamepad_build_state_json(char *buf, size_t buflen) {
 // right after a pairing-state change so the page reflects it without
 // waiting up to 33ms for the next 30Hz tick).
 static void gamepad_ws_broadcast_now(void) {
-    if (!ws || ws->count() == 0) return;
+    if (!ws) return;
+    uint32_t count = ws->count();
+    if (count == 0) {
+        if (Serial) Serial.printf("[WS] broadcast skipped count=0\r\n");
+        return;
+    }
     s_gp.last_send_ms = millis();
     char buf[256];
     int n = gamepad_build_state_json(buf, sizeof(buf));
     if (n < 0) return;
-    ws->textAll(buf, n);
+    if (Serial) Serial.printf("[WS] broadcast count=%u payload=%s\r\n", count, buf);
+    ws->textAll(buf);
 }
 
 static void gamepad_ws_tick(void) {
     if (!ws) return;
-    if (ws->count() == 0) return;     // no clients, no work
+    if (ws->count() == 0) {
+        s_gp.broadcast_pending = false;
+        return;
+    }
     uint32_t now = millis();
-    if (now - s_gp.last_send_ms < (1000 / GAMEPAD_TICK_HZ)) return;
+    bool pending = s_gp.broadcast_pending;
+    if (!pending && now - s_gp.last_send_ms < (1000 / GAMEPAD_TICK_HZ)) return;
+    s_gp.broadcast_pending = false;
     s_gp.last_send_ms = now;
 
     char buf[256];
     int n = gamepad_build_state_json(buf, sizeof(buf));
     if (n < 0) return;
-    ws->textAll(buf, n);
+    ws->textAll(buf);
 }
 
 // --- WiFi credential storage ------------------------------------------
@@ -241,9 +266,12 @@ static void register_routes(void) {
     server->on("/api/status", HTTP_GET, send_json_status);
 
     // Output config (motor direction / servo type / input mapping).
-    server->on("/api/config", HTTP_GET, [](AsyncWebServerRequest *req) {
+    // Register the longer /api/config/sources path before /api/config;
+    // ESPAsyncWebServer route matching can otherwise let the shorter
+    // prefix handler consume /api/config/sources.
+    server->on("/api/config/sources", HTTP_GET, [](AsyncWebServerRequest *req) {
         static char buf[OC_JSON_BUF_SIZE];
-        int n = output_config_to_json(buf, sizeof(buf));
+        int n = output_config_sources_to_json(buf, sizeof(buf));
         if (n < 0) {
             req->send(500, "application/json", "{\"err\":\"encode\"}");
             return;
@@ -253,9 +281,9 @@ static void register_routes(void) {
         req->send(resp);
     });
 
-    server->on("/api/config/sources", HTTP_GET, [](AsyncWebServerRequest *req) {
+    server->on("/api/config", HTTP_GET, [](AsyncWebServerRequest *req) {
         static char buf[OC_JSON_BUF_SIZE];
-        int n = output_config_sources_to_json(buf, sizeof(buf));
+        int n = output_config_to_json(buf, sizeof(buf));
         if (n < 0) {
             req->send(500, "application/json", "{\"err\":\"encode\"}");
             return;
@@ -318,7 +346,7 @@ static void register_routes(void) {
     server->on("/api/pair/start", HTTP_POST,
         [](AsyncWebServerRequest *req) {
             ble_gamepad_set_pairing_state(PAIRING_STATE_ACCEPT);
-            gamepad_ws_broadcast_now();
+            s_gp.broadcast_pending = true;
             req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL
@@ -327,7 +355,7 @@ static void register_routes(void) {
     server->on("/api/pair/cancel", HTTP_POST,
         [](AsyncWebServerRequest *req) {
             ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE);
-            gamepad_ws_broadcast_now();
+            s_gp.broadcast_pending = true;
             req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL
@@ -336,7 +364,7 @@ static void register_routes(void) {
     server->on("/api/pair/clear", HTTP_POST,
         [](AsyncWebServerRequest *req) {
             ble_gamepad_clear_paired_macs();
-            gamepad_ws_broadcast_now();
+            s_gp.broadcast_pending = true;
             req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL
@@ -430,10 +458,22 @@ static void start_ap_mode(void) {
     snprintf(ap_ssid, sizeof(ap_ssid), "%s%04X", AP_SSID_PREFIX,
              (uint16_t)(ESP.getEfuseMac() >> 32) & 0xFFFF);
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(ap_ssid, ap_password);
-    wifi_ap_mode = true;
-    ESP_LOGW(TAG, "Started AP: %s (password: %s), IP: %s",
-             ap_ssid, ap_password, WiFi.softAPIP().toString().c_str());
+    bool ok = WiFi.softAP(ap_ssid, ap_password);
+    wifi_ap_mode = ok;
+    ESP_LOGW(TAG, "Started AP: ok=%d ssid=%s ip=%s channel=%d stations=%d",
+             (int)ok,
+             ap_ssid,
+             WiFi.softAPIP().toString().c_str(),
+             WiFi.channel(),
+             WiFi.softAPgetStationNum());
+    if (Serial) {
+        Serial.printf("[WIFI_AP] ok=%d ssid=%s ip=%s channel=%d stations=%d\r\n",
+                      (int)ok,
+                      ap_ssid,
+                      WiFi.softAPIP().toString().c_str(),
+                      WiFi.channel(),
+                      WiFi.softAPgetStationNum());
+    }
 
     // Captive-portal DNS: respond to every query with our AP IP, so clients
     // hitting "captive.apple.com", "connectivitycheck.gstatic.com", etc.

@@ -11,6 +11,9 @@
 #include "sdkconfig.h"
 
 #include <Arduino.h>
+#include <WiFi.h>
+#include <stdarg.h>
+#include <stdio.h>
 #include "esp_log.h"
 #include "esp_task_wdt.h"
 #include "esp_pm.h"
@@ -25,6 +28,22 @@
 #include "web_config.h"
 
 static const char *TAG = "Main";
+
+static void boot_trace(const char *msg) {
+    if (Serial) {
+        Serial.printf("[BOOT %lu] %s\r\n", (unsigned long)millis(), msg);
+    }
+    ESP_LOGI(TAG, "%s", msg);
+}
+
+static void boot_tracef(const char *fmt, ...) {
+    char buf[160];
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof(buf), fmt, ap);
+    va_end(ap);
+    boot_trace(buf);
+}
 
 ControllerState controllerState;   // shared with myrobot/TaskManager
 
@@ -73,52 +92,98 @@ static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
 // --- Arduino lifecycle ------------------------------------------------
 
 void setup() {
+    Serial.begin(115200);
+    Serial.setDebugOutput(true);
+    delay(300);
+    boot_trace("setup begin");
+
     // Disable automatic light sleep (matches v1.3 behavior; required
     // because RMT (NeoPixel) doesn't coexist with light sleep on C3).
     esp_pm_lock_handle_t pm_lock;
+    boot_trace("pm lock create");
     esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "no_light_sleep", &pm_lock);
     esp_pm_lock_acquire(pm_lock);
+    boot_trace("pm lock acquired");
 
     // Verbose logging for development; drop to INFO for production.
     esp_log_level_set("*", ESP_LOG_INFO);
 
-    ESP_LOGI(TAG, "Robot Firmware: %s", VERSION);
-    ESP_LOGI(TAG, "BLE stack: NimBLE (replaces Bluepad32)");
+    boot_tracef("Robot Firmware: %s", VERSION);
+    boot_trace("BLE stack: NimBLE (replaces Bluepad32)");
 
     // NVS must be initialized before any component that uses it.
     // ble_gamepad uses NVS for the MAC whitelist; web_config uses it
     // for WiFi credentials.
+    boot_trace("nvs init begin");
     esp_err_t err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
+        boot_tracef("nvs init requested erase: 0x%x", (unsigned)err);
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
     }
+    if (err != ESP_OK) boot_tracef("nvs init failed: 0x%x", (unsigned)err);
     ESP_ERROR_CHECK(err);
+    boot_trace("nvs init ok");
 
     // TCP/IP stack and event loop are needed for WiFi (used by web_config).
-    ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    boot_trace("netif init begin");
+    err = esp_netif_init();
+    if (err != ESP_OK) boot_tracef("netif init failed: 0x%x", (unsigned)err);
+    ESP_ERROR_CHECK(err);
+    boot_trace("netif init ok");
+
+    boot_trace("event loop create begin");
+    err = esp_event_loop_create_default();
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE) boot_tracef("event loop create failed: 0x%x", (unsigned)err);
+    if (err != ESP_ERR_INVALID_STATE) ESP_ERROR_CHECK(err);
+    boot_trace("event loop create ok");
 
     // Initialize BLE gamepad parser. Does not start scanning yet —
     // that happens on nimble host sync.
-    ESP_ERROR_CHECK(ble_gamepad_init());
-    ESP_ERROR_CHECK(ble_gamepad_start());
+    boot_trace("ble_gamepad_init begin");
+    err = ble_gamepad_init();
+    if (err != ESP_OK) boot_tracef("ble_gamepad_init failed: 0x%x", (unsigned)err);
+    ESP_ERROR_CHECK(err);
+    boot_trace("ble_gamepad_init ok");
 
-    // Register the BLE connection-state callback.
+    // Register the BLE connection-state callback before the web UI starts.
+    // Do not start active BLE scanning yet: ESP32-C3 WiFi and BLE share the
+    // 2.4GHz radio, and starting a continuous scan before softAP setup can
+    // make the config AP hard to see or associate with.
     ble_gamepad_set_connection_callback(on_ble_connection_change);
+    boot_trace("ble callback registered; scan deferred until after web_config_init");
 
     // Initialize myrobot subsystems (motors, drum, LEDs, battery, etc.).
+    boot_trace("taskManager.begin begin");
     taskManager.begin();
+    boot_trace("taskManager.begin ok");
 
     // Web config — WiFi + async HTTP server + HTML UI.
     // Must come after nvs_flash_init() and esp_netif_init() above.
     // WiFi.begin() may take ~10s if it has to try saved credentials;
     // runs synchronously inside init() to make connection state
     // predictable.
-    ESP_ERROR_CHECK(web_config_init());
+    boot_trace("web_config_init begin");
+    err = web_config_init();
+    if (err != ESP_OK) boot_tracef("web_config_init failed: 0x%x", (unsigned)err);
+    ESP_ERROR_CHECK(err);
+    boot_trace("web_config_init ok");
+
+    // Now that the AP/server is initialized, start BLE scanning/bench
+    // advertising. This ordering keeps the robot config UI reachable while
+    // pairing scans are active.
+    boot_trace("ble_gamepad_start begin");
+    err = ble_gamepad_start();
+    if (err != ESP_OK) boot_tracef("ble_gamepad_start failed: 0x%x", (unsigned)err);
+    ESP_ERROR_CHECK(err);
+    boot_trace("ble_gamepad_start ok");
 
     // Watchdog: same pattern as v1.3.
-    ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
+    boot_trace("watchdog add begin");
+    err = esp_task_wdt_add(NULL);
+    if (err != ESP_OK) boot_tracef("watchdog add failed: 0x%x", (unsigned)err);
+    ESP_ERROR_CHECK(err);
+    boot_trace("setup done");
 
     // TODO (Phase 2): handle_pairing_button() integration with Buttons class.
 }
@@ -148,9 +213,26 @@ void loop() {
     }
 
     handle_pairing_button();
+    ble_gamepad_poll();
 
     // Service the web_config (WiFi watchdog, future captive portal DNS).
     web_config_loop();
+
+    static uint32_t last_heartbeat_ms = 0;
+    uint32_t now = millis();
+    if (now - last_heartbeat_ms >= 5000) {
+        last_heartbeat_ms = now;
+        if (Serial) {
+            Serial.printf("[HEARTBEAT %lu] wifi_mode=%d ap_ip=%s sta_ip=%s stations=%d ble_connected=%d pairing=%d\r\n",
+                          (unsigned long)now,
+                          (int)WiFi.getMode(),
+                          WiFi.softAPIP().toString().c_str(),
+                          WiFi.localIP().toString().c_str(),
+                          WiFi.softAPgetStationNum(),
+                          ble_gamepad_is_connected() ? 1 : 0,
+                          (int)ble_gamepad_get_pairing_state());
+        }
+    }
 
     // Feed the watchdog.
     esp_task_wdt_reset();

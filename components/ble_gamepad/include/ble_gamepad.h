@@ -64,6 +64,9 @@ esp_err_t ble_gamepad_init(void);
 // Returns ESP_OK on success.
 esp_err_t ble_gamepad_start(void);
 
+// Service finite BLE scan slices while in pairing mode. Call from loop().
+void ble_gamepad_poll(void);
+
 // Deinit. Used for OTA reset, factory reset, etc.
 void ble_gamepad_deinit(void);
 

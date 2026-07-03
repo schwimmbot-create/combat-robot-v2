@@ -200,14 +200,17 @@ class TestBleGamepadGuiContract:
                     'ESP_LOGI(TAG, "start_scan: ok='):
             assert log in ble_src_text, f"missing diagnostic log: {log!r}"
 
-    def test_default_pairing_state_when_no_paired_controllers(self, ble_src_text):
-        # Brand-new board should auto-enter ACCEPT so the user does not
-        # have to click "Enter Pairing Mode" to pair.
-        m = re.search(
-            r"s_state\.pairing_state\s*=\s*\(count\s*==\s*0\)\s*\?\s*PAIRING_STATE_ACCEPT\s*:\s*PAIRING_STATE_IDLE",
-            ble_src_text,
-        )
-        assert m, "no-pair default should set pairing to ACCEPT"
+    def test_boot_does_not_start_pairing_scan(self, ble_src_text):
+        # ESP32-C3 WiFi and BLE share the 2.4GHz radio. The HTML page is
+        # the pairing trigger, so boot must keep BLE scanning idle until
+        # the user presses Enter Pairing Mode; otherwise the SoftAP can be
+        # unreachable before the page loads.
+        assert "s_state.pairing_state = PAIRING_STATE_IDLE" in ble_src_text
+        assert "scan deferred" in ble_src_text
+        start_block = ble_src_text.split("esp_err_t ble_gamepad_start(void)", 1)[1]
+        start_block = start_block.split("void ble_gamepad_deinit", 1)[0]
+        assert "start_scan();" not in start_block
+        assert "ble_gamepad_poll" in ble_src_text
 
     def test_mockup_handles_ws_pairing_field(self):
         mockup = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text()
@@ -277,6 +280,17 @@ class TestWebConfigApiRoutes:
     def test_api_config_sources_route_present(self, wc_text):
         assert '"/api/config/sources"' in wc_text
 
+    def test_api_config_sources_registered_before_generic_config(self, wc_text):
+        # ESPAsyncWebServer route matching can let the shorter /api/config
+        # handler consume /api/config/sources if the generic route is added
+        # first. The longer route must be registered first.
+        assert wc_text.index('"/api/config/sources"') < wc_text.index('"/api/config"')
+
+    def test_json_buffer_large_enough_for_sources(self):
+        header = (PROJECT_ROOT / "components" / "output_config" / "include" / "output_config.h").read_text()
+        m = re.search(r"#define\s+OC_JSON_BUF_SIZE\s+(\d+)", header)
+        assert m and int(m.group(1)) >= 2048
+
     def test_api_config_post_uses_body_handler(self, wc_text):
         # ESPAsyncWebServer 3.6.0 requires an upload handler (we pass NULL)
         # and a body handler with signature (req, uint8_t*, size_t, size_t, size_t).
@@ -310,28 +324,24 @@ class TestWebConfigApiRoutes:
 
     def test_pairing_state_in_ws_feed(self, wc_text):
         # Bug fix: the WS state message must carry a `pairing` field so the
-        # page can show ACCEPT/IDLE without polling /api/status, and the
-        # state must be pushed immediately on pairing-state changes so
-        # the page updates within a few ms rather than waiting on the
-        # 30 Hz tick.
+        # page can show ACCEPT/IDLE without polling /api/status. Pairing
+        # endpoints and BLE callbacks must request a broadcast immediately.
+        # The actual ws->textAll call is intentionally deferred to the web
+        # loop; AsyncWebServer/AsyncTCP are unsafe from NimBLE callbacks.
         assert '\\"pairing\\":\\"%s\\"' in wc_text, "WS feed must include pairing state"
         assert "gamepad_ws_broadcast_now" in wc_text
-        # Must be called from each pairing endpoint, not just the 30 Hz tick.
+        assert "broadcast_pending" in wc_text
         for path in ("/api/pair/start", "/api/pair/cancel", "/api/pair/clear"):
             block = wc_text.split(path, 1)
             assert len(block) > 1, f"no handler block for {path}"
             next_300_chars = block[1][:600]
-            assert "gamepad_ws_broadcast_now" in next_300_chars, (
-                f"{path} handler doesn't call gamepad_ws_broadcast_now()"
+            assert "broadcast_pending = true" in next_300_chars, (
+                f"{path} handler doesn't request a deferred WS broadcast"
             )
-        # And from the BLE connection callback. Forward-decl + definition
-        # both have the name; find them and verify the function body is
-        # the one that calls the broadcast (the declaration won't).
         cb_block = wc_text.split("on_ble_connection_change(bool connected", 1)
         assert len(cb_block) > 1, "no on_ble_connection_change definition"
         body_open = cb_block[1].find("{")
         assert body_open >= 0, "on_ble_connection_change has no {"
-        # Bracket-balancing search for the matching close.
         depth = 0
         i = body_open
         while i < len(cb_block[1]):
@@ -341,8 +351,11 @@ class TestWebConfigApiRoutes:
                 if depth == 0: break
             i += 1
         body = cb_block[1][body_open:i+1]
-        assert "gamepad_ws_broadcast_now" in body, \
-            "on_ble_connection_change body doesn't call gamepad_ws_broadcast_now"
+        assert "broadcast_pending = true" in body, \
+            "on_ble_connection_change body doesn't request deferred WS broadcast"
+        assert "gamepad_ws_broadcast_now" not in body, \
+            "NimBLE callback must not call ws->textAll directly"
+
 
     def test_chunk_4_captive_portal(self, wc_text):
         # Captive portal: include DNSServer, start it in AP mode, process it

@@ -106,9 +106,10 @@ typedef struct {
 #define OC_NVS_NAMESPACE        "output_cfg"
 #define OC_NVS_KEY_BLOB         "cfg_v1"
 
-// JSON output buffer sizing. 5 outputs × ~80 bytes each + envelope.
-// Worst case still fits in 1KB; we round up generously.
-#define OC_JSON_BUF_SIZE        1024
+// JSON output buffer sizing. Config is ~700 bytes; source-list JSON is
+// larger because it includes 24 id/name/label entries. 2KB covers both
+// with headroom while staying small for ESP32-C3 RAM.
+#define OC_JSON_BUF_SIZE        2048
 #define OC_SOURCE_NAME_MAX_LEN  12
 
 // Lifecycle ----------------------------------------------------------------

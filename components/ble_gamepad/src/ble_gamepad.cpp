@@ -21,8 +21,15 @@
 
 static const char *TAG = "ble_gamepad";
 
+#define BLE_SERIALF(...) do { \
+    if (Serial) { \
+        Serial.printf(__VA_ARGS__); \
+    } \
+} while (0)
+
 static const NimBLEUUID UUID_HID((uint16_t)0x1812);
 static const NimBLEUUID UUID_CHR_REPORT((uint16_t)0x2a4d);
+static const NimBLEUUID UUID_CHR_REPORT_MAP((uint16_t)0x2a4b);
 static const NimBLEUUID UUID_BENCH_SERVICE("7d2f0001-0f3a-4b8a-9b7d-2f4c9a000001");
 static const NimBLEUUID UUID_BENCH_HID_WRITE("7d2f0002-0f3a-4b8a-9b7d-2f4c9a000001");
 
@@ -33,8 +40,12 @@ static const NimBLEUUID UUID_BENCH_HID_WRITE("7d2f0002-0f3a-4b8a-9b7d-2f4c9a0000
 
 static void start_scan(void);
 static void stop_scan(void);
+static void scan_complete_cb(NimBLEScanResults results);
 static void parse_hid_report(const uint8_t *data, uint16_t len);
 static void notify_connection_change(bool connected, const ble_mac_t *mac);
+
+static uint32_t s_last_scan_attempt_ms = 0;
+static uint32_t s_last_scan_complete_ms = 0;
 
 static struct {
     PairingState pairing_state;
@@ -236,6 +247,19 @@ static void notify_cb(NimBLERemoteCharacteristic *chr, uint8_t *data,
 }
 
 class GamepadClientCallbacks : public NimBLEClientCallbacks {
+    void onConnect(NimBLEClient *client) override {
+        (void)client;
+        BLE_SERIALF("[BLE] onConnect conn_id=%u\r\n", client->getConnId());
+    }
+
+    // Reply with a fixed passkey (000000) when the 8BitDo asks.
+    // Just-Works over BLE without local IO needs a numeric fallback
+    // value to satisfy Security Manager protocol.
+    uint32_t onPassKeyRequest() override {
+        BLE_SERIALF("[BLE] passkey requested -> 000000\r\n");
+        return (uint32_t)0;
+    }
+
     void onDisconnect(NimBLEClient *client) override {
         (void)client;
         ESP_LOGW(TAG, "Controller disconnected");
@@ -251,14 +275,25 @@ static GamepadClientCallbacks s_client_callbacks;
 static bool connect_to_target(void) {
     if (!s_state.have_target) return false;
 
+    // Consume the deferred target. If the connection fails, scan restarts and
+    // a fresh advertisement will set have_target again. This prevents a stale
+    // NimBLEAdvertisedDevice copy from being retried forever.
+    s_state.have_target = false;
     stop_scan();
     NimBLEClient *client = NimBLEDevice::createClient();
     if (client == nullptr) return false;
     client->setClientCallbacks(&s_client_callbacks, false);
+    // Supervision timeout = 1000 (10 s). The 8BitDo drops the link around the
+    // 4-s mark if nothing meaningful has been done with the connection; the
+    // wider window gives our warmup Report Map read + characteristic discover
+    // + subscribe time to complete before the controller gives up.
+    client->setConnectionParams(24, 40, 0, 1000);
 
     ESP_LOGI(TAG, "Connecting to %s", s_state.target.getAddress().toString().c_str());
+    BLE_SERIALF("[BLE] connecting addr=%s\r\n", s_state.target.getAddress().toString().c_str());
     if (!client->connect(&s_state.target)) {
         ESP_LOGW(TAG, "Connect failed");
+        BLE_SERIALF("[BLE] connect failed addr=%s\r\n", s_state.target.getAddress().toString().c_str());
         NimBLEDevice::deleteClient(client);
         start_scan();
         return false;
@@ -266,24 +301,58 @@ static bool connect_to_target(void) {
 
     NimBLERemoteService *hid = client->getService(UUID_HID);
     if (hid == nullptr) {
-        ESP_LOGW(TAG, "Connected device has no HID service");
+            ESP_LOGW(TAG, "Connected device has no HID service");
+        BLE_SERIALF("[BLE] HID service missing addr=%s\r\n", s_state.target.getAddress().toString().c_str());
         client->disconnect();
         NimBLEDevice::deleteClient(client);
         start_scan();
         return false;
     }
 
-    NimBLERemoteCharacteristic *report = hid->getCharacteristic(UUID_CHR_REPORT);
-    if (report == nullptr || !report->canNotify()) {
-        ESP_LOGW(TAG, "HID report characteristic not found or not notifiable");
+    // Warmup read: HID Report Map (0x2A4B) before notify-subscribe.
+    // Real HID hosts do this; without it the 8BitDo tears down the link
+    // shortly after we subscribe. The bytes are discarded — we only need
+    // the read to register as activity on the link.
+    NimBLERemoteCharacteristic *report_map = hid->getCharacteristic(UUID_CHR_REPORT_MAP);
+    if (report_map != nullptr) {
+        NimBLEAttValue map_data = report_map->readValue();
+        (void)map_data;  // unused
+    }
+
+    // The 8BitDo Ultimate 2 publishes multiple 0x2A4D Report characteristics;
+    // only the second (with notifiable property) carries actual gamepad input.
+    // Iterate all Report characteristics and pick the first notifiable one,
+    // then fall back to indicate if no notify-capable one is found.
+    NimBLERemoteCharacteristic *report = nullptr;
+    bool use_notify = true;
+    std::vector<NimBLERemoteCharacteristic *> *chars = hid->getCharacteristics(true);
+    if (chars != nullptr) {
+        for (NimBLERemoteCharacteristic *chr : *chars) {
+            if (chr == nullptr || !(chr->getUUID() == UUID_CHR_REPORT)) continue;
+            if (chr->canNotify()) {
+                report = chr;
+                use_notify = true;
+                break;
+            }
+            if (report == nullptr && chr->canIndicate()) {
+                report = chr;
+                use_notify = false;
+            }
+        }
+    }
+
+    if (report == nullptr) {
+        ESP_LOGW(TAG, "No notifiable/indicatable HID report characteristic found");
         client->disconnect();
         NimBLEDevice::deleteClient(client);
         start_scan();
         return false;
     }
 
-    if (!report->subscribe(true, notify_cb)) {
-        ESP_LOGW(TAG, "HID notification subscribe failed");
+    BLE_SERIALF("[BLE] subscribing HID report use_notify=%d\r\n", (int)use_notify);
+    if (!report->subscribe(use_notify, notify_cb)) {
+        ESP_LOGW(TAG, "HID report subscribe failed");
+        BLE_SERIALF("[BLE] HID subscribe failed\r\n");
         client->disconnect();
         NimBLEDevice::deleteClient(client);
         start_scan();
@@ -296,13 +365,24 @@ static bool connect_to_target(void) {
     if (!ble_mac_is_whitelisted(&s_state.connected_mac)) {
         ble_gamepad_add_paired_mac(&s_state.connected_mac);
     }
+    if (s_state.pairing_timer != NULL) esp_timer_stop(s_state.pairing_timer);
+    s_state.pairing_state = PAIRING_STATE_IDLE;
     notify_connection_change(true, &s_state.connected_mac);
     ESP_LOGI(TAG, "Subscribed to HID reports");
+    BLE_SERIALF("[BLE] subscribed pairing=locked\r\n");
     return true;
 }
 
 class GamepadAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice *device) override {
+        if (device->haveName()) {
+            BLE_SERIALF("[BLE_ADV] %s rssi=%d\r\n", device->getName().c_str(), device->getRSSI());
+        } else {
+            BLE_SERIALF("[BLE_ADV] %s rssi=%d\r\n", device->getAddress().toString().c_str(), device->getRSSI());
+        }
+        if (device->isAdvertisingService(UUID_HID)) {
+            BLE_SERIALF("[BLE_ADV] HID matches: %s\r\n", device->getAddress().toString().c_str());
+        }
         if (!device->isAdvertisingService(UUID_HID)) return;
 
         ble_mac_t mac;
@@ -313,7 +393,8 @@ class GamepadAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks 
 
         s_state.target = *device;
         s_state.have_target = true;
-        connect_to_target();
+        BLE_SERIALF("[BLE] target found; deferring connect addr=%s\r\n", device->getAddress().toString().c_str());
+        stop_scan();
     }
 };
 
@@ -326,36 +407,58 @@ static void notify_connection_change(bool connected, const ble_mac_t *mac) {
     if (s_state.connection_cb) s_state.connection_cb(connected, mac);
 }
 
+static void scan_complete_cb(NimBLEScanResults results) {
+    (void)results;
+    s_state.scan_active = false;
+    s_last_scan_complete_ms = millis();
+    NimBLEDevice::getScan()->clearResults();
+    BLE_SERIALF("[BLE] scan_complete state=%d target=%d\r\n", (int)s_state.pairing_state, (int)s_state.have_target);
+}
+
 static void start_scan(void) {
-    if (s_state.pairing_state == PAIRING_STATE_DISABLED) {
-        ESP_LOGD(TAG, "start_scan: skipping (DISABLED)");
+    if (s_state.pairing_state != PAIRING_STATE_ACCEPT) {
+        ESP_LOGD(TAG, "start_scan: skipping state=%d", (int)s_state.pairing_state);
         return;
     }
-    if (s_state.connected) {
-        ESP_LOGD(TAG, "start_scan: already connected");
+    if (s_state.connected || s_state.have_target) {
+        ESP_LOGD(TAG, "start_scan: connected=%d target=%d", (int)s_state.connected, (int)s_state.have_target);
         return;
     }
-    // Always reset scan_active before starting; NimBLE reports start()
-    // success but doesn't tell us when the scan fully finished.
+
     NimBLEScan *scan = NimBLEDevice::getScan();
-    if (scan->isScanning()) {
-        ESP_LOGD(TAG, "start_scan: scan already running");
+    if (scan->isScanning() || s_state.scan_active) {
         s_state.scan_active = true;
         return;
     }
+
+    uint32_t now = millis();
+    if (now - s_last_scan_attempt_ms < 1000) return;
+    if (s_last_scan_complete_ms != 0 && now - s_last_scan_complete_ms < 250) return;
+    s_last_scan_attempt_ms = now;
+
+    scan->clearResults();
     scan->setAdvertisedDeviceCallbacks(&s_scan_callbacks, false);
     scan->setActiveScan(true);
     scan->setInterval(45);
     scan->setWindow(15);
-    bool ok = scan->start(0, nullptr, false);
+
+    bool ok = scan->start(/*duration_seconds=*/1, scan_complete_cb, false);
     s_state.scan_active = ok;
-    ESP_LOGI(TAG, "start_scan: ok=%d state=%d", (int)ok, (int)s_state.pairing_state);
+    if (!ok) {
+        // NimBLE can briefly report busy after stop/complete. Keep retries
+        // slow and explicit so we don't starve WiFi or spam the host task.
+        scan->stop();
+        scan->clearResults();
+    }
+    ESP_LOGI(TAG, "start_scan: ok=%d state=%d slice=1s", (int)ok, (int)s_state.pairing_state);
+    BLE_SERIALF("[BLE] start_scan ok=%d state=%d slice=1s\r\n", (int)ok, (int)s_state.pairing_state);
 }
 
 static void stop_scan(void) {
     NimBLEScan *scan = NimBLEDevice::getScan();
     if (scan->isScanning()) scan->stop();
     s_state.scan_active = false;
+    scan->clearResults();
 }
 
 static void pairing_window_expired_cb(void *arg) {
@@ -389,7 +492,12 @@ esp_err_t ble_gamepad_init(void) {
 
     NimBLEDevice::init("CombatRobot-v2");
     NimBLEDevice::setPower(ESP_PWR_LVL_P9);
-    NimBLEDevice::setSecurityAuth(true, true, true);
+    // 8BitDo pairing: SC + bonding, no MITM (neither side has IO),
+    // display-yes-no IO so the controller is happy with Just Works,
+    // fixed passkey 000000 in case Security Manager asks for one.
+    NimBLEDevice::setSecurityIOCap(BLE_HS_IO_DISPLAY_YESNO);
+    NimBLEDevice::setSecurityPasskey((uint32_t)0);
+    NimBLEDevice::setSecurityAuth(/*bonding=*/true, /*mitm=*/false, /*sc=*/true);
 
     if (s_state.bench_server == nullptr) {
         s_state.bench_server = NimBLEDevice::createServer();
@@ -421,14 +529,12 @@ esp_err_t ble_gamepad_init(void) {
 
 esp_err_t ble_gamepad_start(void) {
     uint8_t count = nvs_get_count();
-    s_state.pairing_state = (count == 0) ? PAIRING_STATE_ACCEPT : PAIRING_STATE_IDLE;
-    ESP_LOGI(TAG, "ble_gamepad_start: paired_count=%u, initial pairing_state=%d",
+    // scan deferred: ESP32-C3 BLE scans share the 2.4GHz radio with the
+    // SoftAP. Boot must remain IDLE so the config UI loads reliably; the
+    // user explicitly enters ACCEPT via /api/pair/start.
+    s_state.pairing_state = PAIRING_STATE_IDLE;
+    ESP_LOGI(TAG, "ble_gamepad_start: paired_count=%u, initial pairing_state=%d (scan deferred)",
              (unsigned)count, (int)s_state.pairing_state);
-    // Even if we start in IDLE (paired device already in NVS), the scan
-    // watches for that single paired MAC and auto-reconnects. If we're
-    // ACCEPT (no paired controllers), scan filters on HID service UUID
-    // and accepts any gamepad.
-    start_scan();
     return ESP_OK;
 }
 
@@ -460,7 +566,11 @@ PairingState ble_gamepad_get_pairing_state(void) {
 
 esp_err_t ble_gamepad_set_pairing_state(PairingState state) {
     PairingState prev = s_state.pairing_state;
+    BLE_SERIALF("[BLE] set_pairing_state %d -> %d\r\n", (int)prev, (int)state);
     s_state.pairing_state = state;
+    // Restating the static passkey here is cheap and protects against any
+    // reset of the GAP security manager between boot and first pair.
+    NimBLEDevice::setSecurityPasskey((uint32_t)0);
     if (s_state.pairing_timer != NULL) esp_timer_stop(s_state.pairing_timer);
 
     ESP_LOGI(TAG, "set_pairing_state: %d -> %d",
@@ -494,4 +604,15 @@ esp_err_t ble_gamepad_disconnect(void) {
 
 void ble_gamepad_set_connection_callback(ble_connection_callback_t cb) {
     s_state.connection_cb = cb;
+}
+
+void ble_gamepad_poll(void) {
+    if (s_state.connected) return;
+    if (s_state.have_target) {
+        BLE_SERIALF("[BLE] poll connecting deferred target\r\n");
+        connect_to_target();
+        return;
+    }
+    if (s_state.pairing_state != PAIRING_STATE_ACCEPT) return;
+    start_scan();
 }
