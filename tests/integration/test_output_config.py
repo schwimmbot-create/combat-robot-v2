@@ -470,6 +470,19 @@ class TestConfigUiMockup:
         assert "TAB_NAMES.includes(h)" in html
         assert "hashchange" in html
 
+    def test_save_payload_sends_only_editable_output_fields(self, html):
+        # /api/config accepts only editable fields; read-only fields like
+        # numeric id/display_name must not be echoed back or browser Save 400s.
+        assert "function editableOutputPatch(outputs)" in html
+        assert "apiPostJSON('/api/config', editableOutputPatch(state.outputs))" in html
+        m = re.search(r"function editableOutputPatch[\s\S]+?document.getElementById\('btn-save'", html)
+        assert m, "editableOutputPatch/save block missing"
+        body = m.group(0)
+        for field in ("direction", "servo_mode", "deadzone", "primary", "secondary"):
+            assert field in body
+        assert "display_name" not in body
+        assert "id:" not in body
+
     def test_each_output_rendered_with_dropdowns(self, html):
         # The renderOutput() function must include primary, secondary
         # dropdown + direction toggle + deadzone for motors and servo_mode

@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-03T09:36:17 from docs/config-ui-mockup.html
-// Source size: 32571 bytes
+// Generated 2026-07-03T10:03:13 from docs/config-ui-mockup.html
+// Source size: 32909 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -641,9 +641,23 @@ async function apiPostJSON(path, body) {
 }
 
 // ---- Save / Reset wiring -----------------------------------------------
+function editableOutputPatch(outputs) {
+  const patch = {};
+  for (const [id, cfg] of Object.entries(outputs)) {
+    patch[id] = {
+      direction: cfg.direction,
+      servo_mode: cfg.servo_mode,
+      deadzone: cfg.deadzone,
+      primary: cfg.primary,
+      secondary: cfg.secondary,
+    };
+  }
+  return patch;
+}
+
 document.getElementById('btn-save').addEventListener('click', async () => {
   try {
-    await apiPostJSON('/api/config', state.outputs);
+    await apiPostJSON('/api/config', editableOutputPatch(state.outputs));
     toast('Saved to NVS');
   } catch (e) { toast('Save failed: ' + e.message, 'err'); }
 });
