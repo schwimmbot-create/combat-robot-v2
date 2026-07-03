@@ -258,6 +258,21 @@ class TestOutputConfigPatchParser:
         body = m.group(0) if m else ""
         assert "return ESP_ERR_INVALID_ARG" in body
 
+    def test_config_json_closes_each_output_once(self, src_text):
+        # Regression: /api/config emitted `"M1":{...}},"M2"...`,
+        # which was invalid JSON even though truncated curl output looked OK.
+        block = re.search(r"int output_config_to_json[\s\S]+?int output_config_sources_to_json", src_text)
+        assert block, "output_config_to_json missing"
+        body = block.group(0)
+        assert 'json_append_raw(out_buf, out_buf_len, &used, "}");' in body
+        assert 'json_append_raw(out_buf, out_buf_len, &used, "}}");\n    }' not in body
+
+    def test_patch_parser_accepts_numeric_deadzone_and_top_level_commas(self, src_text):
+        # The HTML sends deadzone as a JSON number and saves all outputs in
+        # one patch object, so POST /api/config must accept both.
+        assert "strtol(p, &end, 10)" in src_text
+        assert "if (*p == ',') p++;" in src_text
+
 
 # ---------------------------------------------------------------------------
 # web_config integration
@@ -428,6 +443,32 @@ class TestConfigUiMockup:
                     "SELECT", "START", "L3", "R3", "HOME",
                     "A", "B", "X", "Y", "L1", "R1", "L2", "R2", "NONE"):
             assert f"'{tok}'" in body or f'"{tok}"' in body
+
+    def test_output_ui_explains_signed_stick_mapping(self, html):
+        # UX regression: assigning Left Stick Y to a drive motor means the
+        # one signed axis drives both directions (above center forward,
+        # below center reverse). The UI must say that directly rather than
+        # implying separate forward/reverse inputs are required.
+        assert "Drive input (center = stop)" in html
+        assert "above center = forward, below center = reverse" in html
+        assert "Optional reverse-only input" in html
+
+    def test_direction_toggle_input_precedes_label_for_checked_css(self, html):
+        # CSS uses `.toggle input:checked + label`; the input must be
+        # appended immediately before the label or the selected option will
+        # never be highlighted.
+        assert "input:checked + label" in html
+        assert "wrap.appendChild(inp);" in html
+        assert "wrap.appendChild(lab);" in html
+        assert "wrap.appendChild(make('normal',   'Normal')[1])" not in html
+
+    def test_hash_deep_links_to_outputs_tab(self, html):
+        # #outputs previously opened the Controller tab because the code
+        # validated hashes against OUTPUTS (M1/M2/etc.) instead of tab names.
+        assert "const TAB_NAMES = ['controller', 'outputs', 'settings', 'about'];" in html
+        assert "function tabFromHash()" in html
+        assert "TAB_NAMES.includes(h)" in html
+        assert "hashchange" in html
 
     def test_each_output_rendered_with_dropdowns(self, html):
         # The renderOutput() function must include primary, secondary

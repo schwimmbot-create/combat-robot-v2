@@ -297,7 +297,7 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"secondary\":");
         ok &= json_append_quoted_token(out_buf, out_buf_len, &used,
                                         kSourceNames[c->secondary]);
-        ok &= json_append_raw(out_buf, out_buf_len, &used, "}}");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
     }
     ok &= json_append_raw(out_buf, out_buf_len, &used, "}}");
     if (!ok) return -1;
@@ -411,35 +411,43 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
         memcpy(key, key_start, klen);
         p++; // closing "
 
-        char value[24] = {0};
-        if (!parse_string_value(&p, value, sizeof(value))) return false;
-
-        if (strcmp(key, "direction") == 0) {
-            if (strcmp(value, "normal") == 0) {
-                if (s_cfg[id].direction != OC_DIR_NORMAL) { s_cfg[id].direction = OC_DIR_NORMAL; dirty = true; }
-            } else if (strcmp(value, "reversed") == 0) {
-                if (s_cfg[id].direction != OC_DIR_REVERSED) { s_cfg[id].direction = OC_DIR_REVERSED; dirty = true; }
-            } else return false;
-        } else if (strcmp(key, "servo_mode") == 0) {
-            if (strcmp(value, "bi") == 0) {
-                if (s_cfg[id].servo_mode != OC_SERVO_BI) { s_cfg[id].servo_mode = OC_SERVO_BI; dirty = true; }
-            } else if (strcmp(value, "uni") == 0) {
-                if (s_cfg[id].servo_mode != OC_SERVO_UNI) { s_cfg[id].servo_mode = OC_SERVO_UNI; dirty = true; }
-            } else return false;
-        } else if (strcmp(key, "primary") == 0) {
-            oc_source_id_t s;
-            if (!output_config_source_from_str(value, &s)) return false;
-            if (s_cfg[id].primary != s) { s_cfg[id].primary = s; dirty = true; }
-        } else if (strcmp(key, "secondary") == 0) {
-            oc_source_id_t s;
-            if (!output_config_source_from_str(value, &s)) return false;
-            if (s_cfg[id].secondary != s) { s_cfg[id].secondary = s; dirty = true; }
-        } else if (strcmp(key, "deadzone") == 0) {
-            int d = atoi(value);
-            if (d < 0 || d > 50) return false;
+        if (strcmp(key, "deadzone") == 0) {
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (*p != ':') return false;
+            p++;
+            while (*p && isspace((unsigned char)*p)) p++;
+            char *end = NULL;
+            long d = strtol(p, &end, 10);
+            if (end == p || d < 0 || d > 50) return false;
+            p = end;
             if (s_cfg[id].deadzone_pct != (uint8_t)d) { s_cfg[id].deadzone_pct = (uint8_t)d; dirty = true; }
         } else {
-            // Unknown key: accept silently for forward-compat.
+            char value[24] = {0};
+            if (!parse_string_value(&p, value, sizeof(value))) return false;
+
+            if (strcmp(key, "direction") == 0) {
+                if (strcmp(value, "normal") == 0) {
+                    if (s_cfg[id].direction != OC_DIR_NORMAL) { s_cfg[id].direction = OC_DIR_NORMAL; dirty = true; }
+                } else if (strcmp(value, "reversed") == 0) {
+                    if (s_cfg[id].direction != OC_DIR_REVERSED) { s_cfg[id].direction = OC_DIR_REVERSED; dirty = true; }
+                } else return false;
+            } else if (strcmp(key, "servo_mode") == 0) {
+                if (strcmp(value, "bi") == 0) {
+                    if (s_cfg[id].servo_mode != OC_SERVO_BI) { s_cfg[id].servo_mode = OC_SERVO_BI; dirty = true; }
+                } else if (strcmp(value, "uni") == 0) {
+                    if (s_cfg[id].servo_mode != OC_SERVO_UNI) { s_cfg[id].servo_mode = OC_SERVO_UNI; dirty = true; }
+                } else return false;
+            } else if (strcmp(key, "primary") == 0) {
+                oc_source_id_t s;
+                if (!output_config_source_from_str(value, &s)) return false;
+                if (s_cfg[id].primary != s) { s_cfg[id].primary = s; dirty = true; }
+            } else if (strcmp(key, "secondary") == 0) {
+                oc_source_id_t s;
+                if (!output_config_source_from_str(value, &s)) return false;
+                if (s_cfg[id].secondary != s) { s_cfg[id].secondary = s; dirty = true; }
+            } else {
+                // Unknown string key: accept silently for forward-compat.
+            }
         }
 
         while (*p && isspace((unsigned char)*p)) p++;
@@ -499,6 +507,8 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
             if (!apply_patch_one(id, body)) return ESP_ERR_INVALID_ARG;
         }
         // unknown output key: ignored (forward-compat)
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == ',') p++;
     }
 
     return save_all();

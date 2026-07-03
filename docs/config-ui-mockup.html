@@ -167,6 +167,12 @@
   .toast.ok { color: var(--good); }
   .toast.err { color: var(--bad); }
   .meta { font-size: 12px; color: var(--muted); }
+  .hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+  .hint strong { color: var(--fg); }
+  .summary { margin-top: 10px; padding: 8px 10px; border-radius: 8px;
+    border: 1px solid var(--border); background: rgba(255,255,255,0.03);
+    font-size: 12px; color: var(--muted); }
+  .summary strong { color: var(--fg); }
 </style>
 </head>
 <body>
@@ -216,7 +222,7 @@
   <section class="panel" data-panel="outputs">
     <div class="card">
       <h2>Motor &amp; Servo Outputs</h2>
-      <p class="meta">Pick a controller input as the source for each output. Direction flips how the signal maps to motor spin. Servos can be bidirectional or one-way.</p>
+      <p class="meta">For drive motors, choose one signed stick axis as the <strong>Drive input</strong>: above center drives forward, below center drives reverse, center is stop. Use <strong>Direction</strong> only if the motor spins the wrong way. Optional reverse-only input is for trigger/button-style controls.</p>
       <div id="outputs"></div>
     </div>
   </section>
@@ -397,10 +403,12 @@ function directionToggle(name, value) {
     const lab = el('label', { for: inp.id }, label);
     return [inp, lab];
   };
-  wrap.appendChild(make('normal',   'Normal')[1]);
-  wrap.appendChild(make('reversed', 'Reversed')[1]);
-  wrap.appendChild(make('normal',   'Normal')[0]);
-  wrap.appendChild(make('reversed', 'Reversed')[0]);
+  // The input MUST come immediately before its label; CSS uses
+  // `.toggle input:checked + label` so the selected option is highlighted.
+  for (const [inp, lab] of [make('normal', 'Normal'), make('reversed', 'Reversed')]) {
+    wrap.appendChild(inp);
+    wrap.appendChild(lab);
+  }
   return wrap;
 }
 
@@ -421,17 +429,50 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => {
   b.addEventListener('click', () => showTab(b.dataset.tab));
 });
-const initialTab = (location.hash || '#controller').slice(1);
-showTab(OUTPUTS.find(o => o.id === initialTab) ? initialTab : 'controller');
+const TAB_NAMES = ['controller', 'outputs', 'settings', 'about'];
+function tabFromHash() {
+  const h = (location.hash || '#controller').slice(1);
+  return TAB_NAMES.includes(h) ? h : 'controller';
+}
+showTab(tabFromHash());
+window.addEventListener('hashchange', () => showTab(tabFromHash()));
 
 // ---- Output cards ------------------------------------------------------
+function sourceLabel(id) {
+  const src = SOURCES.find(s => s.id === id);
+  return src ? src.label.replace('— none —', 'none') : id;
+}
+
+function motorMappingSummary(cfg) {
+  const drive = sourceLabel(cfg.primary);
+  const reverse = cfg.secondary && cfg.secondary !== 'NONE' ? sourceLabel(cfg.secondary) : null;
+  const reversed = cfg.direction === 'reversed';
+  const dir = reversed ? 'Reversed' : 'Normal';
+  if (!cfg.primary || cfg.primary === 'NONE') {
+    return `${dir}: no drive input assigned yet.`;
+  }
+  if (['LX','LY','RX','RY'].includes(cfg.primary)) {
+    if (reversed) {
+      return `Reversed: ${drive} is assigned, but this motor output is flipped — above center sends reverse output, below center sends forward output.`;
+    }
+    return `Normal: ${drive} above center = forward, below center = reverse, center = stop. If the physical motor spins the wrong way, choose Reversed.`;
+  }
+  if (reverse) {
+    return `${dir}: ${drive} drives forward/on; ${reverse} drives reverse/off.${reversed ? ' Output is flipped.' : ''}`;
+  }
+  return `${dir}: ${drive} drives forward/on. Add a reverse-only input if needed.${reversed ? ' Output is flipped.' : ''}`;
+}
+
 function renderOutput(o) {
   const cfg = state.outputs[o.id];
   const card = el('article', { class: 'output', 'data-out': o.id });
 
   const dirWrap = directionToggle(o.id, cfg.direction);
   dirWrap.addEventListener('change', e => {
-    if (e.target.checked) state.outputs[o.id].direction = e.target.value;
+    if (e.target.checked) {
+      state.outputs[o.id].direction = e.target.value;
+      renderOutputs();
+    }
   });
 
   const isServo = (o.id === 'S1' || o.id === 'S2');
@@ -442,9 +483,9 @@ function renderOutput(o) {
   servoSel.addEventListener('change', e => { state.outputs[o.id].servo_mode = e.target.value; });
 
   const primary = sourceSelect('primary', cfg.primary);
-  primary.addEventListener('change', e => { state.outputs[o.id].primary = e.target.value; });
+  primary.addEventListener('change', e => { state.outputs[o.id].primary = e.target.value; renderOutputs(); });
   const secondary = sourceSelect('secondary', cfg.secondary);
-  secondary.addEventListener('change', e => { state.outputs[o.id].secondary = e.target.value; });
+  secondary.addEventListener('change', e => { state.outputs[o.id].secondary = e.target.value; renderOutputs(); });
 
   const dz = el('input', { type: 'number', min: '0', max: '50', step: '1', value: String(cfg.deadzone) });
   dz.addEventListener('change', e => {
@@ -468,16 +509,18 @@ function renderOutput(o) {
     second.appendChild(el('label', { class: 'field' }, 'Servo mode'));
     second.appendChild(servoSel);
   } else {
-    second.appendChild(el('label', { class: 'field' }, 'Reverse-input source'));
+    second.appendChild(el('label', { class: 'field' }, 'Optional reverse-only input'));
     second.appendChild(secondary);
+    second.appendChild(el('p', { class: 'hint' }, 'Leave this as none when using a signed stick axis like Left Stick Y.'));
   }
   grid.appendChild(second);
   card.appendChild(grid);
 
   const grid2 = el('div', { class: 'grid-2', style: 'margin-top:10px' });
   grid2.appendChild(el('div', {}, [
-    el('label', { class: 'field' }, isServo ? 'Primary input' : 'Forward input'),
+    el('label', { class: 'field' }, isServo ? 'Primary input' : 'Drive input (center = stop)'),
     primary,
+    !isServo ? el('p', { class: 'hint' }, 'Example: Left Stick Y above center = forward, below center = reverse.') : null,
   ]));
 
   if (isServo) {
@@ -492,6 +535,12 @@ function renderOutput(o) {
     ]));
   }
   card.appendChild(grid2);
+  if (!isServo) {
+    card.appendChild(el('div', { class: 'summary' }, [
+      el('strong', {}, 'Mapping: '),
+      motorMappingSummary(state.outputs[o.id]),
+    ]));
+  }
   return card;
 }
 
