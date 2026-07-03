@@ -133,7 +133,7 @@ static int gamepad_build_state_json(char *buf, size_t buflen) {
         s_gp.connected ? "true" : "false",
         pairing_str,
         cs.leftStickX, cs.leftStickY, cs.rightStickX, cs.rightStickY,
-        cs.rightTrigger, cs.leftTrigger,
+        cs.leftTrigger, cs.rightTrigger,
         (unsigned)cs.buttons, (unsigned)cs.dpad);
     return (n > 0 && (size_t)n < buflen) ? n : -1;
 }

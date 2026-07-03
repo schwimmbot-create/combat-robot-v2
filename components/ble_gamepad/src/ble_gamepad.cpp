@@ -60,6 +60,7 @@ static struct {
     NimBLEAdvertisedDevice target;
     bool have_target;
     bool scan_active;
+    bool auto_reconnect;
 } s_state = {
     .pairing_state = PAIRING_STATE_IDLE,
     .connected = false,
@@ -70,6 +71,7 @@ static struct {
     .bench_write_char = NULL,
     .have_target = false,
     .scan_active = false,
+    .auto_reconnect = false,
 };
 
 // --- NVS whitelist helpers ----------------------------------------------
@@ -264,9 +266,13 @@ class GamepadClientCallbacks : public NimBLEClientCallbacks {
         (void)client;
         ESP_LOGW(TAG, "Controller disconnected");
         s_state.connected = false;
+        s_state.client = nullptr;
         s_state.controller_state = ControllerState{};
         notify_connection_change(false, &s_state.connected_mac);
-        if (s_state.pairing_state != PAIRING_STATE_DISABLED) start_scan();
+        if (s_state.pairing_state == PAIRING_STATE_DISABLED) return;
+        // Always allow auto-reconnect if any whitelisted MAC still exists.
+        if (nvs_get_count() > 0) s_state.auto_reconnect = true;
+        start_scan();
     }
 };
 
@@ -416,8 +422,15 @@ static void scan_complete_cb(NimBLEScanResults results) {
 }
 
 static void start_scan(void) {
-    if (s_state.pairing_state != PAIRING_STATE_ACCEPT) {
-        ESP_LOGD(TAG, "start_scan: skipping state=%d", (int)s_state.pairing_state);
+    // Two valid reasons to scan: (1) the user just entered ACCEPT for new
+    // pairings; (2) we have a whitelisted controller and want to auto-
+    // reconnect when it powers on. Either is enough to start a scan slice.
+    bool accept_open = (s_state.pairing_state == PAIRING_STATE_ACCEPT);
+    bool auto_open = s_state.auto_reconnect &&
+                     (s_state.pairing_state != PAIRING_STATE_DISABLED);
+    if (!accept_open && !auto_open) {
+        ESP_LOGD(TAG, "start_scan: skipping state=%d auto=%d",
+                 (int)s_state.pairing_state, (int)s_state.auto_reconnect);
         return;
     }
     if (s_state.connected || s_state.have_target) {
@@ -529,12 +542,15 @@ esp_err_t ble_gamepad_init(void) {
 
 esp_err_t ble_gamepad_start(void) {
     uint8_t count = nvs_get_count();
-    // scan deferred: ESP32-C3 BLE scans share the 2.4GHz radio with the
-    // SoftAP. Boot must remain IDLE so the config UI loads reliably; the
-    // user explicitly enters ACCEPT via /api/pair/start.
+    // Boot remains IDLE so the SoftAP / web UI is reachable on the shared
+    // 2.4 GHz radio. If a whitelisted controller already exists, arm
+    // auto_reconnect so the poll loop keeps scanning for it; the user
+    // does not have to re-click "Enter Pairing Mode" every power-cycle.
     s_state.pairing_state = PAIRING_STATE_IDLE;
-    ESP_LOGI(TAG, "ble_gamepad_start: paired_count=%u, initial pairing_state=%d (scan deferred)",
-             (unsigned)count, (int)s_state.pairing_state);
+    s_state.auto_reconnect = (count > 0);
+    ESP_LOGI(TAG, "ble_gamepad_start: paired_count=%u, pairing_state=%d, auto_reconnect=%d",
+             (unsigned)count, (int)s_state.pairing_state,
+             (int)s_state.auto_reconnect);
     return ESP_OK;
 }
 
@@ -590,6 +606,7 @@ esp_err_t ble_gamepad_set_pairing_state(PairingState state) {
 esp_err_t ble_gamepad_clear_paired_macs(void) {
     esp_err_t err = nvs_clear_all_macs();
     if (err != ESP_OK) return err;
+    s_state.auto_reconnect = false;
     ble_gamepad_disconnect();
     return ble_gamepad_set_pairing_state(PAIRING_STATE_ACCEPT);
 }
@@ -613,6 +630,13 @@ void ble_gamepad_poll(void) {
         connect_to_target();
         return;
     }
-    if (s_state.pairing_state != PAIRING_STATE_ACCEPT) return;
+    // Three reasons to be scanning right now:
+    //   (1) User entered ACCEPT — open to any HID device.
+    //   (2) We have a whitelisted controller and auto_reconnect is on.
+    //   (3) Idle scan is disabled (DISABLED state) — bail.
+    if (s_state.pairing_state == PAIRING_STATE_DISABLED) return;
+    if (s_state.pairing_state != PAIRING_STATE_ACCEPT && !s_state.auto_reconnect) {
+        return;
+    }
     start_scan();
 }

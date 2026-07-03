@@ -201,16 +201,90 @@ class TestBleGamepadGuiContract:
             assert log in ble_src_text, f"missing diagnostic log: {log!r}"
 
     def test_boot_does_not_start_pairing_scan(self, ble_src_text):
-        # ESP32-C3 WiFi and BLE share the 2.4GHz radio. The HTML page is
-        # the pairing trigger, so boot must keep BLE scanning idle until
-        # the user presses Enter Pairing Mode; otherwise the SoftAP can be
-        # unreachable before the page loads.
+        # ESP32-C3 WiFi and BLE share the 2.4GHz radio. Boot must keep
+        # BLE scanning idle (pairing_state == IDLE) so the SoftAP / web UI
+        # is reachable; the user explicitly enters ACCEPT via
+        # /api/pair/start when they want a new pairing.
         assert "s_state.pairing_state = PAIRING_STATE_IDLE" in ble_src_text
-        assert "scan deferred" in ble_src_text
-        start_block = ble_src_text.split("esp_err_t ble_gamepad_start(void)", 1)[1]
-        start_block = start_block.split("void ble_gamepad_deinit", 1)[0]
-        assert "start_scan();" not in start_block
+        start_block = re.search(
+            r"esp_err_t ble_gamepad_start\(void\)\s*\{[\s\S]+?\n\}",
+            ble_src_text,
+        )
+        assert start_block, "ble_gamepad_start() not found"
+        body = start_block.group(0)
+        assert "start_scan();" not in body
+        # Boot may ARM auto_reconnect, but it must NOT call start_scan()
+        # directly. The poll loop / connect path takes it from here.
+        assert "auto_reconnect = (count > 0)" in body
         assert "ble_gamepad_poll" in ble_src_text
+
+    def test_boot_arms_auto_reconnect_when_whitelist_exists(self, ble_src_text):
+        # Regression: 8BitDo power-cycled after a successful bond did not
+        # auto-reconnect. start_scan() used to require pairing_state==ACCEPT
+        # unconditionally. Boot must now also set auto_reconnect=true when
+        # at least one whitelisted MAC is in NVS, so the poll loop keeps
+        # scanning without the user re-clicking "Enter Pairing Mode".
+        assert "s_state.auto_reconnect" in ble_src_text
+        start_block = re.search(
+            r"esp_err_t ble_gamepad_start\(void\)\s*\{[\s\S]+?\n\}",
+            ble_src_text,
+        )
+        assert start_block, "ble_gamepad_start() not found"
+        body = start_block.group(0)
+        assert "s_state.pairing_state = PAIRING_STATE_IDLE" in body
+        assert "auto_reconnect = (count > 0)" in body
+
+    def test_start_scan_honors_auto_reconnect_gate(self, ble_src_text):
+        # start_scan() must allow scanning when auto_reconnect is on even
+        # though pairing_state is IDLE. Otherwise the onDisconnect path
+        # silently does nothing and a paired controller never reconnects.
+        body = re.search(r"static void start_scan\(void\)\s*\{[\s\S]+?^\}",
+                         ble_src_text, re.M)
+        assert body, "start_scan() not found"
+        b = body.group(0)
+        assert "accept_open" in b
+        assert "auto_open" in b
+        # The old unconditional early-return must NOT be present anymore.
+        assert "!s_state.pairing_state == PAIRING_STATE_ACCEPT" not in b
+        assert "skipping state=%d auto=%d" in b
+
+    def test_on_disconnect_re_arms_auto_reconnect(self, ble_src_text):
+        # When the controller drops the link, we want the poll loop to keep
+        # trying if there's still a whitelisted MAC in NVS. This is what
+        # the user sees as "power-cycle reconnect".
+        body = re.search(
+            r"void onDisconnect\(NimBLEClient \*client\) override[\s\S]+?\n    \}",
+            ble_src_text,
+        )
+        assert body, "onDisconnect() not found"
+        b = body.group(0)
+        assert "nvs_get_count() > 0" in b
+        assert "s_state.auto_reconnect = true" in b
+
+    def test_clear_paired_macs_drops_auto_reconnect(self, ble_src_text):
+        body = re.search(
+            r"esp_err_t ble_gamepad_clear_paired_macs\(void\)\s*\{[\s\S]+?\n\}",
+            ble_src_text,
+        )
+        assert body, "ble_gamepad_clear_paired_macs() not found"
+        b = body.group(0)
+        assert "s_state.auto_reconnect = false" in b
+
+    def test_ws_state_ltrt_mapping_is_not_swapped(self):
+        # Regression: the WS payload used to send "lt": cs.rightTrigger
+        # and "rt": cs.leftTrigger, which swapped the L2/R2 bars on the
+        # Controller tab. The labels must match the field source.
+        wc_text = (PROJECT_ROOT / "components" / "web_config" / "src" / "web_config.cpp").read_text()
+        # Find the line where the trigger fields are passed to snprintf.
+        # Must be in left-then-right order to match the JSON keys "lt"/"rt".
+        m = re.search(
+            r"cs\.leftStickX,\s*cs\.leftStickY,\s*cs\.rightStickX,\s*cs\.rightStickY,\s*\n\s*cs\.(leftTrigger|rightTrigger),\s*cs\.(leftTrigger|rightTrigger),",
+            wc_text,
+        )
+        assert m, "trigger arg order not found in web_config.cpp"
+        assert m.group(1) == "leftTrigger" and m.group(2) == "rightTrigger", (
+            f"triggers swapped in WS payload: {m.group(0)!r}"
+        )
 
     def test_mockup_handles_ws_pairing_field(self):
         mockup = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text()
