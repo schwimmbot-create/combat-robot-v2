@@ -184,6 +184,10 @@ esp_err_t output_config_apply_json_patch(const char *json_patch);
 // statically allocated; do not free.
 const char *output_config_source_name(oc_source_id_t id);
 
+// Reverse of output_config_source_name: parse "LX", "RT", "BTN_A", etc.
+// into the enum. Returns true on success and writes the result to *out.
+bool output_config_source_from_str(const char *s, oc_source_id_t *out);
+
 // Stable string id used in JSON ("M1", "Weapon", etc).
 const char *output_config_output_id_str(oc_output_id_t id);
 
