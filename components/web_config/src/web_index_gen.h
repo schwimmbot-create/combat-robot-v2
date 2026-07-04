@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-03T10:03:13 from docs/config-ui-mockup.html
-// Source size: 32909 bytes
+// Generated 2026-07-03T19:13:14 from docs/config-ui-mockup.html
+// Source size: 33815 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -472,6 +472,13 @@ function motorMappingSummary(cfg) {
 }
 
 function renderOutput(o) {
+  // Defensive: if /api/config returned a key we don't have seeded
+  // (or `Reset Outputs to Defaults` raced a save), seed minimal defaults
+  // rather than throw on cfg.direction.
+  if (!state.outputs[o.id]) state.outputs[o.id] = {
+    direction: 'normal', servo_mode: 'bi', deadzone: 10,
+    primary: 'NONE', secondary: 'NONE',
+  };
   const cfg = state.outputs[o.id];
   const card = el('article', { class: 'output', 'data-out': o.id });
 
@@ -562,15 +569,17 @@ function renderOutputs() {
 function renderButtonChips(gp) {
   const root = document.getElementById('btns');
   root.innerHTML = '';
+  const buttons = (gp && typeof gp.buttons === 'number') ? gp.buttons : 0;
+  const dpad = (gp && typeof gp.dpad === 'number') ? gp.dpad : 0;
   if (!gp) {
     root.appendChild(el('span', { class: 'meta' }, 'Waiting for controller…'));
     return;
   }
   for (const [i, b] of BUTTONS.entries()) {
-    root.appendChild(el('span', { class: 'btn-chip' + ((gp.buttons >> i) & 1 ? ' on' : '') }, b));
+    root.appendChild(el('span', { class: 'btn-chip' + ((buttons >> i) & 1 ? ' on' : '') }, b));
   }
   for (const [i, d] of [['↑',0x01],['↓',0x02],['←',0x04],['→',0x08]]) {
-    root.appendChild(el('span', { class: 'btn-chip' + ((gp.dpad & d) ? ' on' : '') }, d));
+    root.appendChild(el('span', { class: 'btn-chip' + ((dpad & d) ? ' on' : '') }, d));
   }
 }
 
@@ -589,26 +598,29 @@ function drawStick(canvas, lx, ly) {
 }
 
 function liveTick() {
-  if (!state.gp) {
-    drawStick(document.getElementById('ls'), 0, 0);
-    drawStick(document.getElementById('rs'), 0, 0);
-    document.getElementById('lt-bar').style.width = '0%';
-    document.getElementById('rt-bar').style.width = '0%';
-    renderButtonChips(null);
-    return;
-  }
-  drawStick(document.getElementById('ls'), state.gp.lx, state.gp.ly);
-  drawStick(document.getElementById('rs'), state.gp.rx, state.gp.ry);
-  document.getElementById('lt-bar').style.width = (state.gp.lt / 1023 * 100).toFixed(1) + '%';
-  document.getElementById('rt-bar').style.width = (state.gp.rt / 1023 * 100).toFixed(1) + '%';
-  renderButtonChips(state.gp);
+  // Clamp every field on state.gp so a partial WS frame never throws.
+  const gp = state.gp;
+  const lx = (gp && typeof gp.lx === 'number') ? gp.lx : 0;
+  const ly = (gp && typeof gp.ly === 'number') ? gp.ly : 0;
+  const rx = (gp && typeof gp.rx === 'number') ? gp.rx : 0;
+  const ry = (gp && typeof gp.ry === 'number') ? gp.ry : 0;
+  const lt = (gp && typeof gp.lt === 'number') ? gp.lt : 0;
+  const rt = (gp && typeof gp.rt === 'number') ? gp.rt : 0;
+  drawStick(document.getElementById('ls'), lx, ly);
+  drawStick(document.getElementById('rs'), rx, ry);
+  document.getElementById('lt-bar').style.width = (lt / 1023 * 100).toFixed(1) + '%';
+  document.getElementById('rt-bar').style.width = (rt / 1023 * 100).toFixed(1) + '%';
+  renderButtonChips(gp);
 }
 
 function setBle(on) {
-  state.bleConnected = on;
-  document.getElementById('hdr-ble').classList.toggle('on', on);
-  document.getElementById('hdr-ble').classList.toggle('off', !on);
-  document.getElementById('hdr-ble-text').textContent = on ? 'Connected' : 'Disconnected';
+  state.bleConnected = !!on;
+  const dot = document.getElementById('hdr-ble');
+  const text = document.getElementById('hdr-ble-text');
+  if (!dot || !text) return;
+  dot.classList.toggle('on', state.bleConnected);
+  dot.classList.toggle('off', !state.bleConnected);
+  text.textContent = state.bleConnected ? 'Connected' : 'Disconnected';
 }
 
 // ---- Toast --------------------------------------------------------------
@@ -720,6 +732,10 @@ function applyStatus(s) {
   document.getElementById('fw-battery').textContent =
     s.battery_mv ? `${(s.battery_mv/1000).toFixed(2)} V (state ${s.battery_state})` : '—';
   document.getElementById('board-rev').textContent = 'v2 (compile-time)';
+  // Drive the BLE header dot from the polled /api/status truth so the
+  // indicator reflects reality even before the first WS frame arrives
+  // (or after a board reboot before reconnect).
+  setBle(!!s.ble_connected);
   // Paired MACs
   const list = document.getElementById('mac-list');
   if (s.paired_macs && s.paired_macs.length) {
@@ -728,7 +744,7 @@ function applyStatus(s) {
   } else {
     list.textContent = 'No controllers paired';
   }
-}
+  }
 
 async function refreshStatus() {
   try {
@@ -779,6 +795,7 @@ function connectWS() {
 }
 
 // ---- Boot ---------------------------------------------------------------
+setBle(false);
 renderOutputs();
 connectWS();
 loadConfig();

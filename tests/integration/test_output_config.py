@@ -390,6 +390,68 @@ class TestBleGamepadGuiContract:
         assert "BLE_BENCH_FLAG_NAMESPACE" in body
         assert "return false;" in body
 
+    # ----- Web UI hardening regressions (paired-controller crash + missing
+    # connected indicator). These guard the docs/config-ui-mockup.html file
+    # that gen_web_index.py bakes into web_index_gen.h and serves from the
+    # board at GET /.
+    def test_html_setBle_driven_from_status(self):
+        # applyStatus() must call setBle(!!s.ble_connected) so the
+        # header indicator reflects /api/status truth and is not stuck
+        # on the initial '—' placeholder.
+        html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text(encoding="utf-8")
+        m = re.search(r"function applyStatus\(s\) \{[\s\S]+?\n  \}\s*\n\s*async function refreshStatus", html)
+        assert m, "applyStatus body not found"
+        body = m.group(0)
+        assert "setBle(!!s.ble_connected)" in body, (
+            "applyStatus must drive setBle from s.ble_connected"
+        )
+
+    def test_html_setBle_initialized_on_boot(self):
+        # Boot section must call setBle(false) so the indicator shows
+        # 'Disconnected' immediately on first paint rather than '—'.
+        html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text(encoding="utf-8")
+        # Look at the tail script block (after "// ---- Boot -----").
+        tail = html[html.rfind("// ---- Boot"):]
+        assert "setBle(false)" in tail, "boot section must initialize setBle(false)"
+
+    def test_html_renderOutput_seeds_missing_cfg(self):
+        # renderOutput(o) must not throw when state.outputs[o.id] is
+        # undefined (e.g. partial /api/config response). It should seed
+        # a defaults object before reading cfg.direction.
+        html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text(encoding="utf-8")
+        m = re.search(r"function renderOutput\([\s\S]+?\n  return card;\n\}", html)
+        assert m, "renderOutput body not found"
+        body = m.group(0)
+        assert "!state.outputs[o.id]" in body, (
+            "renderOutput must guard against undefined state.outputs[o.id]"
+        )
+        # Defaults seeded inline must include the keys the rest of the
+        # function reads (direction, primary, etc.).
+        assert "direction:" in body
+        assert "primary:" in body
+
+    def test_html_liveTick_safe_against_partial_gp(self):
+        # liveTick must clamp every gp field it touches so a malformed
+        # WS frame (missing lx/ly/lx/etc.) never throws.
+        html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text(encoding="utf-8")
+        m = re.search(r"function liveTick\([\s\S]+?\n\}\s*\n\s*function setBle", html)
+        assert m, "liveTick body not found"
+        body = m.group(0)
+        for field in ("lx", "ly", "rx", "ry", "lt", "rt"):
+            assert f"typeof gp.{field} === 'number'" in body, (
+                f"liveTick must guard gp.{field} with typeof number check"
+            )
+
+    def test_html_renderButtonChips_safe_against_partial_gp(self):
+        # renderButtonChips must guard buttons/dpad so a partial WS frame
+        # doesn't crash on `undefined >> i`.
+        html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text(encoding="utf-8")
+        m = re.search(r"function renderButtonChips\([\s\S]+?\n\}\s*\n\s*function drawStick", html)
+        assert m, "renderButtonChips body not found"
+        body = m.group(0)
+        assert "typeof gp.buttons === 'number'" in body
+        assert "typeof gp.dpad === 'number'" in body
+
     def test_platformio_ini_defaults_bench_to_off(self):
         # Production env must NOT define BENCH_HID_PUBLIC=1 (no flag = default 0).
         # A separate dev env is allowed to set it to 1.
