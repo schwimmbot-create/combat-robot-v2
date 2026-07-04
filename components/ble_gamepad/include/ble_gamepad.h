@@ -47,14 +47,28 @@ typedef enum {
     PAIRING_STATE_DISABLED = 2,  // BLE subsystem not started (e.g. WiFi-only mode)
 } PairingState;
 
-// Max number of MAC addresses we will whitelist. Small N keeps the
-// NVS namespace manageable. Kevin's stated model: one paired controller
-// at a time until reset — pairing a new controller evicts the old one
+// Compile-time maximum number of paired controllers we can store.
+// This is the size of the NVS-backed whitelist array; raising it means
+// increasing flash usage for the storage and the in-RAM cache. Runtime
+// policy (how many of these slots are actually *used*) lives in
+// output_config's `max_paired` setting and is read by
+// ble_gamepad_set_max_paired() at boot.
+//
+// Kevin's stated default model: one paired controller at a time until
+// the user pairs a new one. Pairing a new MAC evicts the existing one
 // (see ble_gamepad_add_paired_mac() in the .cpp for the overwrite
 // semantics). If you ever need multi-controller (tournament handoff,
-// spare controller in the pit), bump this and update the
-// ble_mac_t storage layout in components/board_config/.
-#define BLE_MAX_PAIRED_CONTROLLERS 1
+// spare controller in the pit), bump this and the runtime cap can go
+// up to BLE_MAX_PAIRED_CONTROLLERS.
+#define BLE_MAX_PAIRED_CONTROLLERS 4
+
+// Default cap if the NVS-stored value is missing or invalid. Matches
+// Kevin's "one controller at a time" preference.
+#define BLE_RUNTIME_MAX_PAIRED_DEFAULT  1
+
+// Upper bound on the user-configurable cap; cannot exceed the
+// compile-time array size above.
+#define BLE_RUNTIME_MAX_PAIRED_CAP      BLE_MAX_PAIRED_CONTROLLERS
 
 // 6-byte MAC address. Big-endian on the wire (Bluetooth standard),
 // stored as-is in NVS.
@@ -117,6 +131,20 @@ esp_err_t ble_gamepad_remove_paired_mac(const ble_mac_t *mac);
 // Disconnect the currently connected controller if any.
 // Useful for "force re-pair" flows.
 esp_err_t ble_gamepad_disconnect(void);
+
+// Get the current runtime cap (number of whitelist slots actually used).
+// Always in [1, BLE_RUNTIME_MAX_PAIRED_CAP]. Defaults to
+// BLE_RUNTIME_MAX_PAIRED_DEFAULT until ble_gamepad_set_max_paired()
+// is called (typically once after output_config_init()).
+uint8_t ble_gamepad_get_max_paired(void);
+
+// Set the runtime cap. n must be in [1, BLE_RUNTIME_MAX_PAIRED_CAP]
+// (returns ESP_ERR_INVALID_ARG otherwise). If the stored whitelist is
+// longer than n, the oldest slots (highest indices) are evicted
+// immediately; the currently-connected controller is NOT disconnected,
+// so a connected controller at slot 0 survives a cap reduction.
+// Returns ESP_OK on success, ESP_ERR_INVALID_ARG on out-of-range n.
+esp_err_t ble_gamepad_set_max_paired(uint8_t n);
 
 #ifdef __cplusplus
 }  // extern "C"

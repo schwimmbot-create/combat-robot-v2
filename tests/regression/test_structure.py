@@ -252,10 +252,10 @@ class TestBleApiConsistency:
         header = self.HEADER.read_text()
         cpp = self.CPP.read_text()
         decls = set(re.findall(
-            r"^\s*(?:esp_err_t|void|bool|ControllerState|PairingState|ble_mac_t|uint\d+_t)\s+(ble_gamepad_\w+)\s*\(",
+            r"^\s*(?:esp_err_t|void|bool|uint8_t|ControllerState|PairingState|ble_mac_t|uint\d+_t)\s+(ble_gamepad_\w+)\s*\(",
             header, re.M))
         defs = set(re.findall(
-            r"^(?:esp_err_t|void|bool|ControllerState|PairingState)\s+(ble_gamepad_\w+)\s*\(",
+            r"^(?:esp_err_t|void|bool|uint8_t|ControllerState|PairingState)\s+(ble_gamepad_\w+)\s*\(",
             cpp, re.M))
         missing = decls - defs
         assert not missing, f"Declared in header but not defined: {missing}"

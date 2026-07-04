@@ -59,6 +59,10 @@ static struct {
     // duration of a single ControllerState write or copy — never across
     // any blocking or allocation call.
     portMUX_TYPE lock;
+    // Runtime cap on whitelist size. Always in [1, BLE_MAX_PAIRED_CONTROLLERS].
+    // Initially BLE_RUNTIME_MAX_PAIRED_DEFAULT; updated by
+    // ble_gamepad_set_max_paired() (typically once, after output_config_init()).
+    uint8_t max_paired;
     bool connected;
     ble_mac_t connected_mac;
     ble_connection_callback_t connection_cb;
@@ -73,6 +77,7 @@ static struct {
 } s_state = {
     .pairing_state = PAIRING_STATE_IDLE,
     .lock = portMUX_INITIALIZER_UNLOCKED,
+    .max_paired = BLE_RUNTIME_MAX_PAIRED_DEFAULT,
     .connected = false,
     .connection_cb = NULL,
     .pairing_timer = NULL,
@@ -199,6 +204,8 @@ static bool ble_mac_is_whitelisted(const ble_mac_t *mac) {
 
 void ble_gamepad_get_paired_macs(ble_mac_t *out_macs, uint8_t *count) {
     uint8_t n = nvs_get_count();
+    uint8_t cap = s_state.max_paired;
+    if (n > cap) n = cap;
     if (n > BLE_MAX_PAIRED_CONTROLLERS) n = BLE_MAX_PAIRED_CONTROLLERS;
     for (int i = 0; i < n; i++) {
         if (nvs_read_mac(i, &out_macs[i]) != ESP_OK) {
@@ -212,18 +219,23 @@ void ble_gamepad_get_paired_macs(ble_mac_t *out_macs, uint8_t *count) {
 esp_err_t ble_gamepad_add_paired_mac(const ble_mac_t *mac) {
     if (ble_mac_is_whitelisted(mac)) return ESP_OK;
     uint8_t count = nvs_get_count();
-    if (count >= BLE_MAX_PAIRED_CONTROLLERS) {
-        // One-slot model (BLE_MAX_PAIRED_CONTROLLERS == 1): evict the
-        // existing entry so a freshly paired controller can take its
-        // place. With MAX > 1, we'd reject here with ESP_ERR_NO_MEM, but
-        // for MAX == 1 "pair a new controller" is the user's reset, so
-        // overwriting slot 0 is the intended behavior.
-        if (BLE_MAX_PAIRED_CONTROLLERS == 1) {
-            esp_err_t err = nvs_write_mac(0, mac);
-            if (err != ESP_OK) return err;
-            return nvs_set_count(1);
+    if (count >= s_state.max_paired) {
+        // Whitelist at runtime cap. With cap == 1 (Kevin's default),
+        // overwriting slot 0 is the user's reset path. With cap > 1,
+        // do an LIFO eviction: drop the oldest MAC by shifting slot 1
+        // → slot 0, ..., slot (cap-1) → slot (cap-2), then write the
+        // new MAC at slot (cap-1).
+        for (int i = 0; i < (int)s_state.max_paired - 1; i++) {
+            ble_mac_t next;
+            if (nvs_read_mac(i + 1, &next) == ESP_OK) {
+                esp_err_t werr = nvs_write_mac(i, &next);
+                if (werr != ESP_OK) return werr;
+            }
         }
-        return ESP_ERR_NO_MEM;
+        esp_err_t err = nvs_write_mac(s_state.max_paired - 1, mac);
+        if (err != ESP_OK) return err;
+        // Count stays the same (= s_state.max_paired).
+        return nvs_set_count(s_state.max_paired);
     }
     esp_err_t err = nvs_write_mac(count, mac);
     if (err != ESP_OK) return err;
@@ -778,6 +790,40 @@ esp_err_t ble_gamepad_disconnect(void) {
         return ESP_OK;
     }
     return ESP_ERR_INVALID_STATE;
+}
+
+// --- Runtime whitelist cap (HTML-configurable) --------------------------
+
+uint8_t ble_gamepad_get_max_paired(void) {
+    return s_state.max_paired;
+}
+
+esp_err_t ble_gamepad_set_max_paired(uint8_t n) {
+    if (n < 1 || n > BLE_RUNTIME_MAX_PAIRED_CAP) {
+        return ESP_ERR_INVALID_ARG;
+    }
+    uint8_t old = s_state.max_paired;
+    s_state.max_paired = n;
+
+    // If we shrank the cap, evict the excess (highest-index slots) from
+    // NVS now so the stored count matches the policy. The currently
+    // connected controller is NOT touched — if it's in a slot that
+    // survives the trim (slots [0..n-1]), it stays connected; if the
+    // user trimmed below its index, they'd need to call
+    // ble_gamepad_disconnect() + repair. In practice that requires
+    // someone actively truncating the cap with a controller online,
+    // which is an edge case the user opted into.
+    if (n < old) {
+        uint8_t count = nvs_get_count();
+        if (count > n) {
+            esp_err_t err = nvs_set_count(n);
+            if (err != ESP_OK) {
+                s_state.max_paired = old;  // roll back
+                return err;
+            }
+        }
+    }
+    return ESP_OK;
 }
 
 void ble_gamepad_set_connection_callback(ble_connection_callback_t cb) {

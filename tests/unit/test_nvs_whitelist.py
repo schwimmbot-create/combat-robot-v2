@@ -69,12 +69,24 @@ class TestAdd:
         assert not wl.is_whitelisted(MAC_B)
 
     def test_add_until_capacity(self):
-        """One-slot model: can hold exactly one MAC."""
+        """Default runtime cap = 1: can hold exactly one MAC."""
         wl = NvsWhitelist()
         assert wl.add(MAC_A) is True
         assert wl.count() == 1
         assert wl.is_whitelisted(MAC_A)
-        assert wl.count() == BLE_MAX_PAIRED_CONTROLLERS
+        # Default cap == BLE_RUNTIME_MAX_PAIRED_DEFAULT (1).
+        assert wl.count() == wl.get_max_paired()
+
+    def test_add_until_capacity_multi(self):
+        """With cap = 4 (matches BLE_MAX_PAIRED_CONTROLLERS), can hold four."""
+        wl = NvsWhitelist(max_paired=4)
+        assert wl.add(MAC_A) is True
+        assert wl.add(MAC_B) is True
+        assert wl.add(MAC_C) is True
+        assert wl.add(MAC_D) is True
+        assert wl.count() == 4
+        assert wl.is_whitelisted(MAC_A)
+        assert wl.is_whitelisted(MAC_D)
 
     def test_add_evicts_when_full(self):
         """Pairing a new controller evicts the old one (one-slot model).
@@ -91,20 +103,15 @@ class TestAdd:
         assert wl.get_all() == [MAC_B]
 
     def test_add_returns_false_when_full(self):
-        """With MAX > 1, a full whitelist rejects new MACs (5th rejected when MAX == 4).
+        """Skipped: runtime eviction always accepts new MACs.
 
-        Skipped under the current BLE_MAX_PAIRED_CONTROLLERS == 1 model
-        because the eviction path above covers the same scenario. Kept
-        here as a regression guard if MAX is ever bumped back up.
+        With the runtime-cap model (BLE_RUNTIME_MAX_PAIRED_DEFAULT == 1
+        and eviction on overflow), `add` never returns False for a
+        well-formed unique MAC - the C++ implementation evicts instead.
+        The eviction semantics are covered by test_add_evicts_when_full
+        for cap = 1 and test_lifo_eviction_under_high_cap for cap > 1.
         """
-        if BLE_MAX_PAIRED_CONTROLLERS == 1:
-            pytest.skip("only applies when BLE_MAX_PAIRED_CONTROLLERS > 1")
-        wl = NvsWhitelist()
-        for mac in [MAC_A, MAC_B, MAC_C, MAC_D]:
-            wl.add(mac)
-        assert wl.add(MAC_E) is False
-        assert wl.count() == BLE_MAX_PAIRED_CONTROLLERS
-        assert not wl.is_whitelisted(MAC_E)
+        pytest.skip("eviction model - accepted by add() always returns True")
 
     def test_add_rejects_wrong_length_mac(self):
         """Defensive: a 3-byte or 7-byte MAC is not valid Bluetooth."""
@@ -170,15 +177,22 @@ class TestRemove:
         assert wl.is_whitelisted(MAC_B)
 
     def test_remove_then_re_add_at_capacity(self):
-        """After removing, we can re-add to fill the freed slot."""
-        wl = NvsWhitelist()
+        """After removing, we can re-add to fill the freed slot.
+
+        Runtime cap = 4 (matches BLE_MAX_PAIRED_CONTROLLERS). Fill, drop
+        the middle, add a new MAC - whitelist should now hold the 4 MACs
+        with the removed MAC gone and the new one in its place.
+        """
+        wl = NvsWhitelist(max_paired=4)
         for mac in [MAC_A, MAC_B, MAC_C, MAC_D]:
             wl.add(mac)
+        assert wl.count() == 4
         wl.remove(MAC_B)
         # Now there's room for one more
         assert wl.add(MAC_E) is True
-        assert wl.count() == BLE_MAX_PAIRED_CONTROLLERS
+        assert wl.count() == 4
         assert wl.is_whitelisted(MAC_E)
+        assert not wl.is_whitelisted(MAC_B)
 
     def test_remove_rejects_invalid_mac(self):
         wl = NvsWhitelist()
@@ -324,3 +338,69 @@ class TestWhitelistLifecycle:
         for mac in snapshot:
             wl2.add(mac)
         assert wl2.get_all() == snapshot
+
+
+# ---------- Runtime cap (HTML-configurable) ------------------------------
+
+class TestRuntimeCap:
+    def test_default_cap_is_one(self):
+        wl = NvsWhitelist()
+        assert wl.get_max_paired() == 1
+
+    def test_set_max_paired_validates_range(self):
+        wl = NvsWhitelist(max_paired=2)
+        assert wl.set_max_paired(1) is True
+        assert wl.set_max_paired(4) is True
+        assert wl.set_max_paired(0) is False
+        assert wl.set_max_paired(5) is False
+        # Cap unchanged after rejected writes.
+        assert wl.get_max_paired() == 4
+
+    def test_set_max_paired_shrinking_evicts_high_slots(self):
+        wl = NvsWhitelist(max_paired=4)
+        for mac in [MAC_A, MAC_B, MAC_C, MAC_D]:
+            wl.add(mac)
+        assert wl.count() == 4
+        # Shrink to 2 - top two slots (C, D) evicted, bottom two (A, B) survive.
+        assert wl.set_max_paired(2) is True
+        assert wl.count() == 2
+        assert wl.is_whitelisted(MAC_A)
+        assert wl.is_whitelisted(MAC_B)
+        assert not wl.is_whitelisted(MAC_C)
+        assert not wl.is_whitelisted(MAC_D)
+
+    def test_set_max_paired_growing_does_not_evict(self):
+        wl = NvsWhitelist(max_paired=1)
+        wl.add(MAC_A)
+        assert wl.count() == 1
+        # Grow to 4 - stored count unchanged.
+        wl.set_max_paired(4)
+        assert wl.count() == 1
+        assert wl.is_whitelisted(MAC_A)
+        # Capacity to add 3 more.
+        wl.add(MAC_B)
+        wl.add(MAC_C)
+        wl.add(MAC_D)
+        assert wl.count() == 4
+
+    def test_lifo_eviction_under_high_cap(self):
+        """With cap > 1, adding past capacity does LIFO eviction.
+
+        Slot order: [A, B, C, D]. Adding E - old A evicts, order
+        becomes [B, C, D, E].
+        """
+        wl = NvsWhitelist(max_paired=4)
+        for mac in [MAC_A, MAC_B, MAC_C, MAC_D]:
+            wl.add(mac)
+        assert wl.add(MAC_E) is True
+        assert wl.count() == 4
+        assert wl.get_all() == [MAC_B, MAC_C, MAC_D, MAC_E]
+        assert not wl.is_whitelisted(MAC_A)
+        assert wl.is_whitelisted(MAC_E)
+
+    def test_runtime_cap_is_independent_per_instance(self):
+        """Each NvsWhitelist has its own cap (mirrors per-NVS-namespace NVS state)."""
+        a = NvsWhitelist(max_paired=1)
+        b = NvsWhitelist(max_paired=3)
+        assert a.get_max_paired() == 1
+        assert b.get_max_paired() == 3
