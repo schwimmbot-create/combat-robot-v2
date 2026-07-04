@@ -18,6 +18,7 @@
 #include "esp_timer.h"
 #include "nvs.h"
 #include "nvs_flash.h"
+#include "freertos/portmacro.h"  // portENTER_CRITICAL / portEXIT_CRITICAL
 
 static const char *TAG = "ble_gamepad";
 
@@ -52,6 +53,12 @@ static uint32_t s_last_scan_complete_ms = 0;
 static struct {
     PairingState pairing_state;
     ControllerState controller_state;
+    // Spinlock protecting controller_state against torn reads between
+    // the NimBLE task (write side, in parse_*_hid_report) and the
+    // Arduino loop (read side, in ble_gamepad_get_state). Held for the
+    // duration of a single ControllerState write or copy — never across
+    // any blocking or allocation call.
+    portMUX_TYPE lock;
     bool connected;
     ble_mac_t connected_mac;
     ble_connection_callback_t connection_cb;
@@ -65,6 +72,7 @@ static struct {
     bool auto_reconnect;
 } s_state = {
     .pairing_state = PAIRING_STATE_IDLE,
+    .lock = portMUX_INITIALIZER_UNLOCKED,
     .connected = false,
     .connection_cb = NULL,
     .pairing_timer = NULL,
@@ -204,7 +212,19 @@ void ble_gamepad_get_paired_macs(ble_mac_t *out_macs, uint8_t *count) {
 esp_err_t ble_gamepad_add_paired_mac(const ble_mac_t *mac) {
     if (ble_mac_is_whitelisted(mac)) return ESP_OK;
     uint8_t count = nvs_get_count();
-    if (count >= BLE_MAX_PAIRED_CONTROLLERS) return ESP_ERR_NO_MEM;
+    if (count >= BLE_MAX_PAIRED_CONTROLLERS) {
+        // One-slot model (BLE_MAX_PAIRED_CONTROLLERS == 1): evict the
+        // existing entry so a freshly paired controller can take its
+        // place. With MAX > 1, we'd reject here with ESP_ERR_NO_MEM, but
+        // for MAX == 1 "pair a new controller" is the user's reset, so
+        // overwriting slot 0 is the intended behavior.
+        if (BLE_MAX_PAIRED_CONTROLLERS == 1) {
+            esp_err_t err = nvs_write_mac(0, mac);
+            if (err != ESP_OK) return err;
+            return nvs_set_count(1);
+        }
+        return ESP_ERR_NO_MEM;
+    }
     esp_err_t err = nvs_write_mac(count, mac);
     if (err != ESP_OK) return err;
     return nvs_set_count(count + 1);
@@ -270,6 +290,12 @@ static void parse_8bitdo_report(const uint8_t *data, uint16_t base) {
     // 8BitDo Ultimate 2 capture via Windows HIDAPI:
     //   report-id?, hat, LX, LY, RX, RY, R2, L2, buttons0, buttons1, ...
     // BLE HOGP may strip the report-id byte, so `base` is the hat offset.
+    //
+    // The 8 field writes below MUST be atomic vs ble_gamepad_get_state()
+    // reads from the Arduino loop. Without this guard, a FreeRTOS tick
+    // can preempt mid-write and return a half-old-half-new ControllerState
+    // to the motor driver (torn read).
+    portENTER_CRITICAL(&s_state.lock);
     s_state.controller_state.leftStickX = scale_axis_full(data[base + 1]);
     s_state.controller_state.leftStickY = scale_axis_full(data[base + 2]);
     s_state.controller_state.rightStickX = scale_axis_full(data[base + 3]);
@@ -278,10 +304,13 @@ static void parse_8bitdo_report(const uint8_t *data, uint16_t base) {
     s_state.controller_state.leftTrigger = (int)data[base + 6] * 4;
     s_state.controller_state.buttons = decode_8bitdo_buttons(data[base + 7], data[base + 8]);
     s_state.controller_state.dpad = decode_hat(data[base]);
+    portEXIT_CRITICAL(&s_state.lock);
 }
 
 static void parse_standard_hid_report(const uint8_t *data, uint16_t len) {
     if (len < 8) return;
+    // Atomic vs ble_gamepad_get_state() — see parse_8bitdo_report().
+    portENTER_CRITICAL(&s_state.lock);
     s_state.controller_state.leftStickX = scale_axis_full(data[0]);
     s_state.controller_state.leftStickY = scale_axis_full(data[1]);
     s_state.controller_state.rightStickX = scale_axis_full(data[2]);
@@ -292,6 +321,7 @@ static void parse_standard_hid_report(const uint8_t *data, uint16_t len) {
         s_state.controller_state.rightTrigger = (int)data[7] * 4;
     }
     if (len >= 9) s_state.controller_state.dpad = decode_hat(data[8]);
+    portEXIT_CRITICAL(&s_state.lock);
 }
 
 static void parse_hid_report(const uint8_t *data, uint16_t len) {
@@ -363,7 +393,11 @@ class GamepadClientCallbacks : public NimBLEClientCallbacks {
         ESP_LOGW(TAG, "Controller disconnected");
         s_state.connected = false;
         s_state.client = nullptr;
+        // Zero-fill the controller state under the spinlock so a racing
+        // ble_gamepad_get_state() can't read a half-cleared struct.
+        portENTER_CRITICAL(&s_state.lock);
         s_state.controller_state = ControllerState{};
+        portEXIT_CRITICAL(&s_state.lock);
         notify_connection_change(false, &s_state.connected_mac);
         if (s_state.pairing_state == PAIRING_STATE_DISABLED) return;
         // Always allow auto-reconnect if any whitelisted MAC still exists.
@@ -672,11 +706,21 @@ void ble_gamepad_deinit(void) {
         esp_timer_stop(s_state.pairing_timer);
     }
     s_state.connected = false;
+    // Same spinlock guard as the onDisconnect callback — see above.
+    portENTER_CRITICAL(&s_state.lock);
     s_state.controller_state = ControllerState{};
+    portEXIT_CRITICAL(&s_state.lock);
 }
 
 ControllerState ble_gamepad_get_state(void) {
-    return s_state.controller_state;
+    // Atomic copy under portENTER_CRITICAL — paired with the writes in
+    // parse_8bitdo_report() / parse_standard_hid_report() so we never
+    // return a ControllerState where some fields are from the old frame
+    // and others from the new frame (torn read).
+    portENTER_CRITICAL(&s_state.lock);
+    ControllerState out = s_state.controller_state;
+    portEXIT_CRITICAL(&s_state.lock);
+    return out;
 }
 
 bool ble_gamepad_is_connected(void) {
@@ -726,7 +770,10 @@ esp_err_t ble_gamepad_disconnect(void) {
     if (s_state.connected) {
         s_state.connected = false;
         s_state.client = nullptr;
+        // Same spinlock guard as above — race-free zero-fill.
+        portENTER_CRITICAL(&s_state.lock);
         s_state.controller_state = ControllerState{};
+        portEXIT_CRITICAL(&s_state.lock);
         notify_connection_change(false, &s_state.connected_mac);
         return ESP_OK;
     }

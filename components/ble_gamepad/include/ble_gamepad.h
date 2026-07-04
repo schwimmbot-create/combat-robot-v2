@@ -35,6 +35,9 @@
 // this header).
 #include "Constants.h"  // for ControllerState
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // Pairing mode state machine. Visible to web UI / button handlers
 // so they can drive transitions cleanly.
@@ -45,8 +48,13 @@ typedef enum {
 } PairingState;
 
 // Max number of MAC addresses we will whitelist. Small N keeps the
-// NVS namespace manageable; combat robots have one operator.
-#define BLE_MAX_PAIRED_CONTROLLERS 4
+// NVS namespace manageable. Kevin's stated model: one paired controller
+// at a time until reset — pairing a new controller evicts the old one
+// (see ble_gamepad_add_paired_mac() in the .cpp for the overwrite
+// semantics). If you ever need multi-controller (tournament handoff,
+// spare controller in the pit), bump this and update the
+// ble_mac_t storage layout in components/board_config/.
+#define BLE_MAX_PAIRED_CONTROLLERS 1
 
 // 6-byte MAC address. Big-endian on the wire (Bluetooth standard),
 // stored as-is in NVS.
@@ -110,12 +118,24 @@ esp_err_t ble_gamepad_remove_paired_mac(const ble_mac_t *mac);
 // Useful for "force re-pair" flows.
 esp_err_t ble_gamepad_disconnect(void);
 
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
 // Callbacks -----------------------------------------------------------------
 
 // Called whenever the connection state changes. web_config uses this
 // to update the LED status indicator and broadcast to the web UI.
+//
+// Note: kept outside the `extern "C"` block on purpose — function-pointer
+// types are layout-compatible across C and C++, so consumers can assign
+// a C++ lambda or static C function interchangeably.
 typedef void (*ble_connection_callback_t)(bool connected, const ble_mac_t *mac);
 void ble_gamepad_set_connection_callback(ble_connection_callback_t cb);
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #ifdef BENCH_HID_PUBLIC
 esp_err_t ble_gamepad_bench_set_enabled(bool enabled);
@@ -125,4 +145,8 @@ esp_err_t ble_gamepad_bench_inject_hid_report(const uint8_t *data, uint16_t len)
 static inline esp_err_t ble_gamepad_bench_set_enabled(bool) { return ESP_ERR_NOT_SUPPORTED; }
 static inline bool ble_gamepad_bench_is_enabled(void) { return false; }
 static inline esp_err_t ble_gamepad_bench_inject_hid_report(const uint8_t *, uint16_t) { return ESP_ERR_NOT_SUPPORTED; }
+#endif
+
+#ifdef __cplusplus
+}  // extern "C"
 #endif

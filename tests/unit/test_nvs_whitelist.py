@@ -56,22 +56,49 @@ class TestAdd:
         assert wl.count() == 1  # still 1, not 2
 
     def test_add_preserves_insertion_order(self):
-        """get_all() returns MACs in insertion order (matches NVS blob behavior)."""
+        """With BLE_MAX == 1, each new add replaces slot 0 — only the
+        most recently added MAC survives. This is the one-slot model.
+        """
         wl = NvsWhitelist()
         wl.add(MAC_A)
-        wl.add(MAC_B)
-        wl.add(MAC_C)
-        assert wl.get_all() == [MAC_A, MAC_B, MAC_C]
+        wl.add(MAC_B)  # evicts MAC_A
+        wl.add(MAC_C)  # evicts MAC_B
+        assert wl.get_all() == [MAC_C]
+        assert wl.is_whitelisted(MAC_C)
+        assert not wl.is_whitelisted(MAC_A)
+        assert not wl.is_whitelisted(MAC_B)
 
     def test_add_until_capacity(self):
-        """Can add up to BLE_MAX_PAIRED_CONTROLLERS MACs."""
+        """One-slot model: can hold exactly one MAC."""
         wl = NvsWhitelist()
-        for mac in [MAC_A, MAC_B, MAC_C, MAC_D]:
-            assert wl.add(mac) is True
+        assert wl.add(MAC_A) is True
+        assert wl.count() == 1
+        assert wl.is_whitelisted(MAC_A)
         assert wl.count() == BLE_MAX_PAIRED_CONTROLLERS
 
+    def test_add_evicts_when_full(self):
+        """Pairing a new controller evicts the old one (one-slot model).
+
+        Kevin's stated model: one paired controller at a time until reset.
+        A new pairing IS the reset — the new MAC replaces the old.
+        """
+        wl = NvsWhitelist()
+        wl.add(MAC_A)
+        assert wl.add(MAC_B) is True
+        assert wl.count() == 1
+        assert wl.is_whitelisted(MAC_B)
+        assert not wl.is_whitelisted(MAC_A)
+        assert wl.get_all() == [MAC_B]
+
     def test_add_returns_false_when_full(self):
-        """5th MAC is rejected — capacity is BLE_MAX_PAIRED_CONTROLLERS (4)."""
+        """With MAX > 1, a full whitelist rejects new MACs (5th rejected when MAX == 4).
+
+        Skipped under the current BLE_MAX_PAIRED_CONTROLLERS == 1 model
+        because the eviction path above covers the same scenario. Kept
+        here as a regression guard if MAX is ever bumped back up.
+        """
+        if BLE_MAX_PAIRED_CONTROLLERS == 1:
+            pytest.skip("only applies when BLE_MAX_PAIRED_CONTROLLERS > 1")
         wl = NvsWhitelist()
         for mac in [MAC_A, MAC_B, MAC_C, MAC_D]:
             wl.add(mac)
@@ -119,29 +146,28 @@ class TestRemove:
         assert wl.count() == 1
 
     def test_remove_then_add_works(self):
-        """After removing, we can add a different MAC."""
+        """After removing the single entry, we can add a new MAC."""
         wl = NvsWhitelist()
         wl.add(MAC_A)
-        wl.add(MAC_B)
         wl.remove(MAC_A)
-        assert wl.add(MAC_C) is True
-        assert wl.get_all() == [MAC_B, MAC_C]
+        assert wl.count() == 0
+        assert wl.add(MAC_B) is True
+        assert wl.get_all() == [MAC_B]
+        assert wl.is_whitelisted(MAC_B)
+        assert not wl.is_whitelisted(MAC_A)
 
     def test_remove_middle_entry_shifts(self):
-        """Removing a middle entry must not leave a 'ghost' — others stay accessible."""
+        """With BLE_MAX == 1 there's only one slot — removing it leaves
+        an empty whitelist and the next add takes slot 0.
+        """
         wl = NvsWhitelist()
         wl.add(MAC_A)
+        wl.remove(MAC_A)
+        assert wl.count() == 0
+        assert wl.get_all() == []
         wl.add(MAC_B)
-        wl.add(MAC_C)
-        wl.add(MAC_D)
-        wl.remove(MAC_B)
-        # B is gone, others remain in order
-        assert wl.get_all() == [MAC_A, MAC_C, MAC_D]
-        assert wl.count() == 3
-        assert wl.is_whitelisted(MAC_A)
-        assert not wl.is_whitelisted(MAC_B)
-        assert wl.is_whitelisted(MAC_C)
-        assert wl.is_whitelisted(MAC_D)
+        assert wl.get_all() == [MAC_B]
+        assert wl.is_whitelisted(MAC_B)
 
     def test_remove_then_re_add_at_capacity(self):
         """After removing, we can re-add to fill the freed slot."""
