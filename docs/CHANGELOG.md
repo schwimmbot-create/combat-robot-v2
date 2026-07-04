@@ -46,5 +46,65 @@ feature ("remote-configurable combat robot controller").
 - `d4c48a2` Add v3 BLDC breakout (CN5) support: 4 motor drivers, 7-pin header, 50Hz servo PWM
 - `5ab619f` Add board_config.h abstraction layer (v2 + v3 support) and BOARD_HARDWARE.md
 
+## Known issues (deferred, not blocking current build)
+
+These were surfaced by a 2026-07-04 three-agent static review
+(bug-hunt / security / memory-concurrency) but not fixed in this
+session — each needs either its own design pass or follow-up commits.
+
+### Security — `security` profile only
+
+- **Hard-coded AP password `"fightbot"`** (`web_config.cpp:49,56`).
+  Anyone within WiFi range can associate with `CombatRobot-<EFUSE>`.
+  No REST endpoint under `/api/` requires any authentication:
+  `POST /api/config` (motor direction, weapon binding),
+  `POST /api/board/rev` (NVS GPIO remap), and `POST /api/ota` (raw
+  firmware upload, no signature, no size cap) are all open.
+  Fix requires a shared-secret/token model and a path to migrate
+  existing deployments.
+- **BLE Just-Works pairing with `mitm=false`, `sc=true`**
+  (`ble_gamepad.cpp:601–603`). Active-MITM attacker can proxy first
+  pairing, the cloned MAC then gets bonded + auto-whitelisted on
+  every subsequent boot. Hard-coded passkey `000000` (`onPassKeyRequest`
+  at line 347). Fix requires user-facing pairing flow change.
+
+### Bug-hunt — minor / latent
+
+- **`BoardConfig` class referenced in `TaskManager.cpp:19` but never
+  defined** (`board_config/` only defines `BoardInfo`). Currently
+  compiles because `Drum` uses hardcoded `ESC_1_PIN` directly and
+  bypasses `BoardConfig::getPins`. The dead class should be either
+  implemented or removed.
+- **No `extern "C"` guards** in `ble_gamepad.h`, `board_config.h`,
+  `board_detect.h`, `web_config.h`, `myrobot/Constants.h`. Compiles
+  today because Arduino's C++ entry point absorbs the linkage but
+  is fragile if `main.c` ever calls these directly.
+- **`rgbLED.h` uses `#pragma once`** while every other header in the
+  project uses `#ifndef` guards. Style inconsistency, no functional
+  impact.
+
+### Memory & concurrency — design notes
+
+- **Unprotected `s_state.controller_state`** between NimBLE task and
+  Arduino `loop()`. Single-core RISC-V with FreeRTOS preemption means
+  `ble_gamepad_get_state()` (struct-copy return at `ble_gamepad.cpp:661`)
+  can yield a torn frame during the field-by-field write at
+  `ble_gamepad.cpp:273–280`. Worst-case is a single-frame inconsistent
+  stick/trigger value. Fix is `portENTER_CRITICAL` around the copy.
+- **`DNSServer.start(53, ...)` called from `start_ap_mode()` on every
+  AP re-entry.** Currently safe because the call is preceded by an
+  explicit `dnsServer.stop()` and `setErrorReplyCode()` is idempotent,
+  but `start_ap_mode()` runs every time STA drops — needs a one-shot
+  guard if observed in the wild.
+- **`TaskManager::managerTask` runs on 4096 bytes of stack** under
+  Arduino default (`TaskManager.cpp:73–81`). Tight given the
+  `combined_direction` → `DriveMotor` chain plus `adjustLedForBattery`
+  rainbow-buffer allocations. Bump to 5120–6144 if WDT fires.
+- **AsyncWebServer `String` body accumulation leaks on aborted
+  requests** (`web_config.cpp:350–358`). `_tempObject` is only freed
+  on the success path; abort + OTA timeout leaves a multi-MB
+  allocation parked until client disconnect. Use a fixed-size buffer
+  for small JSON PATCHes and an explicit cleanup hook for multipart.
+
 (Older history not preserved — fresh repo, parent remote had no shared
 lineage once the public repo was created.)
