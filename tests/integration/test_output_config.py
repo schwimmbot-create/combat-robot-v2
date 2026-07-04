@@ -65,6 +65,19 @@ class TestOutputConfigBuildWiring:
         text = (PROJECT_ROOT / "components" / "web_config" / "CMakeLists.txt").read_text()
         assert "output_config" in text
 
+    def test_root_html_route_uses_explicit_progmem_response_length(self):
+        text = WC_SRC.read_text()
+        root_route = re.search(
+            r'server->on\("/",\s*HTTP_GET,\s*\[\]\(AsyncWebServerRequest \*req\) \{(?P<body>.*?)\n    \}\);',
+            text,
+            re.S,
+        )
+        assert root_route, "root HTML route not found"
+        body = root_route.group("body")
+        assert "beginResponse_P" in body
+        assert "strlen_P(INDEX_HTML)" in body
+        assert "send_P" not in body
+
 
 # ---------------------------------------------------------------------------
 # Public API surface in the header

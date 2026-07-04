@@ -284,7 +284,11 @@ static void send_json_status(AsyncWebServerRequest *req) {
 
 static void register_routes(void) {
     server->on("/", HTTP_GET, [](AsyncWebServerRequest *req) {
-        req->send_P(200, "text/html", INDEX_HTML);
+        AsyncWebServerResponse *resp = req->beginResponse_P(
+            200, "text/html",
+            reinterpret_cast<const uint8_t *>(INDEX_HTML),
+            strlen_P(INDEX_HTML));
+        req->send(resp);
     });
 
     server->on("/api/status", HTTP_GET, send_json_status);
