@@ -81,21 +81,17 @@ static struct {
 #define BLE_BENCH_FLAG_NAMESPACE     "bench"
 #define BLE_BENCH_FLAG_KEY_ENABLED   "hid_enabled"
 
-bool ble_gamepad_bench_is_enabled(void) {
 #ifdef BENCH_HID_PUBLIC
+bool ble_gamepad_bench_is_enabled(void) {
     nvs_handle_t h;
     if (nvs_open(BLE_BENCH_FLAG_NAMESPACE, NVS_READONLY, &h) != ESP_OK) return false;
     uint8_t v = 0;
     esp_err_t err = nvs_get_u8(h, BLE_BENCH_FLAG_KEY_ENABLED, &v);
     nvs_close(h);
     return (err == ESP_OK && v != 0);
-#else
-    return false;
-#endif
 }
 
 esp_err_t ble_gamepad_bench_set_enabled(bool enabled) {
-#ifdef BENCH_HID_PUBLIC
     nvs_handle_t h;
     esp_err_t err = nvs_open(BLE_BENCH_FLAG_NAMESPACE, NVS_READWRITE, &h);
     if (err != ESP_OK) return err;
@@ -103,14 +99,9 @@ esp_err_t ble_gamepad_bench_set_enabled(bool enabled) {
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
     return err;
-#else
-    (void)enabled;
-    return ESP_ERR_NOT_SUPPORTED;
-#endif
 }
 
 esp_err_t ble_gamepad_bench_inject_hid_report(const uint8_t *data, uint16_t len) {
-#ifdef BENCH_HID_PUBLIC
     if (!ble_gamepad_bench_is_enabled()) return ESP_ERR_INVALID_STATE;
     if (data == nullptr || len == 0) return ESP_ERR_INVALID_ARG;
     parse_hid_report(data, len);
@@ -120,11 +111,8 @@ esp_err_t ble_gamepad_bench_inject_hid_report(const uint8_t *data, uint16_t len)
     if (!s_state.connected) notify_connection_change(true, &s_state.connected_mac);
     ESP_LOGD(TAG, "bench HID frame accepted (%u bytes)", (unsigned)len);
     return ESP_OK;
-#else
-    (void)data; (void)len;
-    return ESP_ERR_NOT_SUPPORTED;
-#endif
 }
+#endif  // BENCH_HID_PUBLIC
 
 // --- NVS whitelist helpers ----------------------------------------------
 
@@ -308,16 +296,23 @@ static void parse_standard_hid_report(const uint8_t *data, uint16_t len) {
 
 static void parse_hid_report(const uint8_t *data, uint16_t len) {
     if (data == nullptr) return;
+    // Hard upper bound: parse_8bitdo_report reads up to data[base+8] (9 bytes)
+    // and parse_standard_hid_report reads up to data[8] — reject anything
+    // shorter than 10 bytes to keep both parsers in-bounds.
+    if (len < 10) return;
 
     // 8BitDo Ultimate 2 over Windows HIDAPI emits 34-byte reports with a
     // leading report-id byte: 01 0f 7f 7f 7f 7f 00 00 00 00 ... .
     // NimBLE's Report characteristic may deliver the same payload without
     // the report-id, so accept both base offsets.
-    if (len >= 10 && data[0] == 0x01 && data[1] <= 0x0f) {
+    if (data[0] == 0x01 && data[1] <= 0x0f) {
         parse_8bitdo_report(data, 1);
         return;
     }
-    if (len >= 9 && data[0] <= 0x0f && len > 12) {
+    // No report-id prefix: 8BitDo variant begins with 0x0f as a hat/dpad
+    // byte, never 0x01. Use len >= 10 (not > 12) — the previous condition
+    // silently dropped reports of length 10–12 in this branch.
+    if (data[0] <= 0x0f) {
         parse_8bitdo_report(data, 0);
         return;
     }
@@ -329,6 +324,7 @@ static void parse_hid_report(const uint8_t *data, uint16_t len) {
 
 // bench injection moved to gated helper above
 
+#ifdef BENCH_HID_PUBLIC
 class BenchWriteCallbacks : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic *chr) override {
         std::string value = chr->getValue();
@@ -339,6 +335,7 @@ class BenchWriteCallbacks : public NimBLECharacteristicCallbacks {
 };
 
 static BenchWriteCallbacks s_bench_write_callbacks;
+#endif  // BENCH_HID_PUBLIC
 
 static void notify_cb(NimBLERemoteCharacteristic *chr, uint8_t *data,
                       size_t len, bool is_notify) {
@@ -614,6 +611,7 @@ esp_err_t ble_gamepad_init(void) {
     NimBLEDevice::setSecurityPasskey((uint32_t)0);
     NimBLEDevice::setSecurityAuth(/*bonding=*/true, /*mitm=*/false, /*sc=*/true);
 
+#ifdef BENCH_HID_PUBLIC
     if (s_state.bench_server == nullptr) {
         s_state.bench_server = NimBLEDevice::createServer();
         NimBLEService *bench = s_state.bench_server->createService(UUID_BENCH_SERVICE);
@@ -639,6 +637,13 @@ esp_err_t ble_gamepad_init(void) {
         ESP_LOGI(TAG, "advertising + bench service up");
         ESP_LOGI(TAG, "PC bench BLE service + advertising started");
     }
+#else
+    // Default builds: do NOT expose the unauthenticated bench GATT
+    // characteristic. Anyone in BLE range who knows UUID_BENCH_SERVICE
+    // could otherwise write synthetic HID frames and drive the weapon.
+    // The HTTP-side bench endpoints under /api/bench/ are already gated
+    // by this same macro; the BLE side now matches.
+#endif  // BENCH_HID_PUBLIC
     return ESP_OK;
 }
 
