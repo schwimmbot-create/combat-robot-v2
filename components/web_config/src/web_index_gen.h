@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-04T13:19:12 from docs/config-ui-mockup.html
-// Source size: 47588 bytes
+// Generated 2026-07-04T15:06:18 from docs/config-ui-mockup.html
+// Source size: 48788 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -450,9 +450,21 @@ function el(tag, attrs = {}, children = []) {
   return e;
 }
 
+// Active drive mode automatically RESERVES its controller sources for
+// the drive mixer, removing them from the assignable pool. The only way
+// to free a reserved source back to the pool is to change Driving Style.
+function reservedSourceSet() {
+  return new Set(runtimeDriveSources(state.drive_mode));
+}
+
+function selectableSources() {
+  const reserved = reservedSourceSet();
+  return SOURCES.filter(src => src.id === 'NONE' || !reserved.has(src.id));
+}
+
 function assignedSourceOwners(exceptOutputId) {
   const owners = new Map();
-  for (const src of runtimeDriveSources(state.drive_mode)) owners.set(src, 'Driving Style');
+  for (const src of reservedSourceSet()) owners.set(src, 'Driving Style (reserved)');
   for (const out of activeBoardProfile().outputs) {
     if (out.runtimeControlled || out.id === exceptOutputId) continue;
     const cfg = state.outputs[out.id] || {};
@@ -463,15 +475,28 @@ function assignedSourceOwners(exceptOutputId) {
   return owners;
 }
 
+function renderReservedSourcesBanner() {
+  const reserved = [...reservedSourceSet()];
+  if (!reserved.length) return null;
+  const mode = (DRIVE_MODES.find(m => m.id === state.drive_mode) || DRIVE_MODES[0]);
+  const labels = reserved.map(id => (SOURCES.find(s => s.id === id) || { label: id }).label);
+  return el('div', { class: 'summary reserved-sources' }, [
+    el('strong', {}, 'Drive-mode reserved sources: '),
+    `Driving Style "${mode.label}" reserves ${labels.join(' + ')}. `
+    + 'These inputs are not selectable for Servo / ESC until you change Driving Style.',
+  ]);
+}
+
 function sourceSelect(name, value, ownerId) {
   const sel = el('select', { 'data-name': name });
   const owners = assignedSourceOwners(ownerId);
-  for (const s of SOURCES) {
-    const owner = owners.get(s.id);
-    const label = owner && s.id !== value ? `${s.label} — Used by ${owner}` : s.label;
-    const option = el('option', { value: s.id }, label);
-    if (s.id === value) option.selected = true;
-    if (owner && s.id !== value) option.disabled = true;
+  const RESERVED_SOURCES = reservedSourceSet();
+  for (const src of selectableSources()) {
+    const owner = owners.get(src.id);
+    const label = owner && src.id !== value ? `${src.label} — Used by ${owner}` : src.label;
+    const option = el('option', { value: src.id }, label);
+    if (src.id === value) option.selected = true;
+    if (owner && src.id !== value) option.disabled = true;
     sel.appendChild(option);
   }
   return sel;
@@ -635,6 +660,8 @@ function renderDriveModeCard() {
       el('span', { id: 'mock-right-pwm', class: 'meta' }, '0'),
     ]),
   ]));
+  const banner = renderReservedSourcesBanner();
+  if (banner) card.appendChild(banner);
   return card;
 }
 

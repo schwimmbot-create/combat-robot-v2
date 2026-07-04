@@ -955,6 +955,39 @@ class TestConfigUiMockup:
         assert "M1/M2 are controlled by Driving Style" in html
         assert "Drive-mode controlled" in html
 
+    def test_drive_sources_are_auto_reserved(self, html):
+        # The current code shows drive-mode-controlled sources as selectable
+        # (just disabled with "Used by Driving Style"). The new contract is
+        # that the active drive mode automatically RESERVES those sources
+        # and removes them from the available list for Servo / ESC
+        # assignment, while still surfacing the reservation as a hint.
+        for token in (
+            "function reservedSourceSet()",
+            "function selectableSources()",
+            "function renderReservedSourcesBanner()",
+            "const RESERVED_SOURCES = reservedSourceSet()",
+            "for (const src of selectableSources())",
+            "Drive-mode reserved sources",
+            "function sourceSelect(name, value, ownerId)",
+            "function assignedSourceOwners(exceptOutputId)",
+        ):
+            assert token in html, f"missing {token}"
+        # Selectable sources must NOT include anything that the active drive
+        # mode owns, even when no other output has claimed it yet.
+        tank = re.search(
+            r"tank_split[^}]+}", html)
+        assert tank, "tank_split config not found"
+        m = re.search(
+            r"function selectableSources\(\)\s*\{([\s\S]+?)\n\}",
+            html)
+        assert m, "selectableSources() body not found"
+        body = m.group(1)
+        assert "reservedSourceSet()" in body
+        # Reserved sources must be filtered out, and 'none' must always
+        # remain selectable so an output can be cleared.
+        assert "!reserved.has(src.id)" in body
+        assert "src.id === 'NONE'" in body
+
     def test_assignable_sources_are_exclusive_in_outputs_ui(self, html):
         # A controller source already consumed by Driving Style or another
         # output must be unavailable in other output dropdowns. This prevents
