@@ -39,3 +39,13 @@ Thumbs.db
 
 # Distribution
 dist/
+
+# Ad-hoc verification logs and live captures — not for the repo
+build-*.log
+upload-*.log
+live-*.log
+hermes-verify-*.log
+
+# BLE/HID recordings include controller MAC addresses; keep one sample
+# captured in the source tree, ignore new ones.
+tools/ble_recordings/

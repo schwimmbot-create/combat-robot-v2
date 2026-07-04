@@ -72,6 +72,40 @@ class HidFrame:
         ])
 
 
+@dataclass(frozen=True)
+class EightBitDoFrame:
+    """8BitDo Ultimate 2 report payload observed from BLE report handle 29.
+
+    This is the no-report-id BLE HOGP shape:
+    hat, LX, LY, RX, RY, R2, L2, buttons0, buttons1, ... padding.
+    """
+
+    lx: int = 127
+    ly: int = 127
+    rx: int = 127
+    ry: int = 127
+    r2: int = 0
+    l2: int = 0
+    buttons0: int = 0
+    buttons1: int = 0
+    hat: int = 15
+    length: int = 33
+
+    def bytes(self) -> bytes:
+        core = bytes([
+            self.hat & 0xFF,
+            self.lx & 0xFF,
+            self.ly & 0xFF,
+            self.rx & 0xFF,
+            self.ry & 0xFF,
+            self.r2 & 0xFF,
+            self.l2 & 0xFF,
+            self.buttons0 & 0xFF,
+            self.buttons1 & 0xFF,
+        ])
+        return core + bytes(max(0, self.length - len(core)))
+
+
 def parse_hex_payload(text: str) -> bytes:
     cleaned = text.replace(" ", "").replace(":", "").replace("-", "")
     if len(cleaned) % 2:
@@ -127,6 +161,19 @@ async def write(args: argparse.Namespace) -> int:
             rt=args.rt,
             hat=args.hat,
         ).bytes()
+    if args.eightbitdo_frame:
+        payload = EightBitDoFrame(
+            lx=args.lx,
+            ly=args.ly,
+            rx=args.rx,
+            ry=args.ry,
+            r2=args.r2,
+            l2=args.l2,
+            buttons0=args.buttons0,
+            buttons1=args.buttons1,
+            hat=args.hat,
+            length=args.length,
+        ).bytes()
 
     async with BleakClient(args.address, timeout=args.timeout) as client:
         await client.write_gatt_char(args.characteristic, payload, response=args.response)
@@ -159,14 +206,20 @@ def build_parser() -> argparse.ArgumentParser:
     p_write.add_argument("--response", action="store_true")
     p_write.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT)
     p_write.add_argument("--standard-frame", action="store_true", help="build a 9-byte standard HID frame from fields below")
+    p_write.add_argument("--eightbitdo-frame", action="store_true", help="build a 33-byte 8BitDo Ultimate 2 BLE report payload")
     p_write.add_argument("--lx", type=int, default=127)
     p_write.add_argument("--ly", type=int, default=127)
     p_write.add_argument("--rx", type=int, default=127)
     p_write.add_argument("--ry", type=int, default=127)
     p_write.add_argument("--buttons", type=lambda x: int(x, 0), default=0)
+    p_write.add_argument("--buttons0", type=lambda x: int(x, 0), default=0)
+    p_write.add_argument("--buttons1", type=lambda x: int(x, 0), default=0)
     p_write.add_argument("--lt", type=int, default=0)
     p_write.add_argument("--rt", type=int, default=0)
+    p_write.add_argument("--l2", type=int, default=0)
+    p_write.add_argument("--r2", type=int, default=0)
     p_write.add_argument("--hat", type=int, default=8)
+    p_write.add_argument("--length", type=int, default=33)
     p_write.set_defaults(func=write)
 
     return parser

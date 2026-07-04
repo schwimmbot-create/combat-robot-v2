@@ -30,6 +30,8 @@ static const char *TAG = "ble_gamepad";
 static const NimBLEUUID UUID_HID((uint16_t)0x1812);
 static const NimBLEUUID UUID_CHR_REPORT((uint16_t)0x2a4d);
 static const NimBLEUUID UUID_CHR_REPORT_MAP((uint16_t)0x2a4b);
+static const NimBLEUUID UUID_CHR_PROTOCOL_MODE((uint16_t)0x2a4e);
+static const NimBLEUUID UUID_DSC_REPORT_REF((uint16_t)0x2908);
 static const NimBLEUUID UUID_BENCH_SERVICE("7d2f0001-0f3a-4b8a-9b7d-2f4c9a000001");
 static const NimBLEUUID UUID_BENCH_HID_WRITE("7d2f0002-0f3a-4b8a-9b7d-2f4c9a000001");
 
@@ -73,6 +75,56 @@ static struct {
     .scan_active = false,
     .auto_reconnect = false,
 };
+
+// --- Bench HID injection helpers (gated by BENCH_HID_PUBLIC build flag) ---
+
+#define BLE_BENCH_FLAG_NAMESPACE     "bench"
+#define BLE_BENCH_FLAG_KEY_ENABLED   "hid_enabled"
+
+bool ble_gamepad_bench_is_enabled(void) {
+#ifdef BENCH_HID_PUBLIC
+    nvs_handle_t h;
+    if (nvs_open(BLE_BENCH_FLAG_NAMESPACE, NVS_READONLY, &h) != ESP_OK) return false;
+    uint8_t v = 0;
+    esp_err_t err = nvs_get_u8(h, BLE_BENCH_FLAG_KEY_ENABLED, &v);
+    nvs_close(h);
+    return (err == ESP_OK && v != 0);
+#else
+    return false;
+#endif
+}
+
+esp_err_t ble_gamepad_bench_set_enabled(bool enabled) {
+#ifdef BENCH_HID_PUBLIC
+    nvs_handle_t h;
+    esp_err_t err = nvs_open(BLE_BENCH_FLAG_NAMESPACE, NVS_READWRITE, &h);
+    if (err != ESP_OK) return err;
+    err = nvs_set_u8(h, BLE_BENCH_FLAG_KEY_ENABLED, enabled ? 1 : 0);
+    if (err == ESP_OK) err = nvs_commit(h);
+    nvs_close(h);
+    return err;
+#else
+    (void)enabled;
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
+
+esp_err_t ble_gamepad_bench_inject_hid_report(const uint8_t *data, uint16_t len) {
+#ifdef BENCH_HID_PUBLIC
+    if (!ble_gamepad_bench_is_enabled()) return ESP_ERR_INVALID_STATE;
+    if (data == nullptr || len == 0) return ESP_ERR_INVALID_ARG;
+    parse_hid_report(data, len);
+
+    static const ble_mac_t bench_mac = {{0x02, 0x00, 0x00, 0x00, 0xbe, 0x7c}};
+    s_state.connected_mac = bench_mac;
+    if (!s_state.connected) notify_connection_change(true, &s_state.connected_mac);
+    ESP_LOGD(TAG, "bench HID frame accepted (%u bytes)", (unsigned)len);
+    return ESP_OK;
+#else
+    (void)data; (void)len;
+    return ESP_ERR_NOT_SUPPORTED;
+#endif
+}
 
 // --- NVS whitelist helpers ----------------------------------------------
 
@@ -190,52 +242,99 @@ esp_err_t ble_gamepad_remove_paired_mac(const ble_mac_t *mac) {
 
 // --- HID report parsing --------------------------------------------------
 
-static void parse_hid_report(const uint8_t *data, uint16_t len) {
+static int scale_axis_full(uint8_t v) {
+    return ((int)v - 127) * 4;
+}
+
+static uint16_t decode_hat(uint8_t hat) {
+    switch (hat) {
+        case 0: return 0x01;              // up
+        case 1: return 0x01 | 0x08;       // up + right
+        case 2: return 0x08;              // right
+        case 3: return 0x02 | 0x08;       // down + right
+        case 4: return 0x02;              // down
+        case 5: return 0x02 | 0x04;       // down + left
+        case 6: return 0x04;              // left
+        case 7: return 0x01 | 0x04;       // up + left
+        default: return 0;
+    }
+}
+
+static uint16_t decode_8bitdo_buttons(uint8_t b0, uint8_t b1) {
+    uint16_t buttons = 0;
+    if (b0 & 0x01) buttons |= (1u << 0);  // A
+    if (b0 & 0x02) buttons |= (1u << 1);  // B
+    if (b0 & 0x08) buttons |= (1u << 2);  // X
+    if (b0 & 0x10) buttons |= (1u << 3);  // Y
+    if (b0 & 0x40) buttons |= (1u << 4);  // L1
+    if (b0 & 0x80) buttons |= (1u << 5);  // R1
+    if (b1 & 0x01) buttons |= (1u << 6);  // L2 digital
+    if (b1 & 0x02) buttons |= (1u << 7);  // R2 digital
+    if (b1 & 0x04) buttons |= (1u << 8);  // SELECT / SHARE
+    if (b1 & 0x08) buttons |= (1u << 9);  // START / OPTIONS
+    if (b1 & 0x20) buttons |= (1u << 10); // L3
+    if (b1 & 0x40) buttons |= (1u << 11); // R3
+    if (b1 & 0x10) buttons |= (1u << 12); // HOME
+    return buttons;
+}
+
+static void parse_8bitdo_report(const uint8_t *data, uint16_t base) {
+    // 8BitDo Ultimate 2 capture via Windows HIDAPI:
+    //   report-id?, hat, LX, LY, RX, RY, R2, L2, buttons0, buttons1, ...
+    // BLE HOGP may strip the report-id byte, so `base` is the hat offset.
+    s_state.controller_state.leftStickX = scale_axis_full(data[base + 1]);
+    s_state.controller_state.leftStickY = scale_axis_full(data[base + 2]);
+    s_state.controller_state.rightStickX = scale_axis_full(data[base + 3]);
+    s_state.controller_state.rightStickY = scale_axis_full(data[base + 4]);
+    s_state.controller_state.rightTrigger = (int)data[base + 5] * 4;
+    s_state.controller_state.leftTrigger = (int)data[base + 6] * 4;
+    s_state.controller_state.buttons = decode_8bitdo_buttons(data[base + 7], data[base + 8]);
+    s_state.controller_state.dpad = decode_hat(data[base]);
+}
+
+static void parse_standard_hid_report(const uint8_t *data, uint16_t len) {
     if (len < 8) return;
-
-    auto scale_axis_full = [](uint8_t v) -> int {
-        return ((int)v - 127) * 4;
-    };
-
     s_state.controller_state.leftStickX = scale_axis_full(data[0]);
     s_state.controller_state.leftStickY = scale_axis_full(data[1]);
     s_state.controller_state.rightStickX = scale_axis_full(data[2]);
     s_state.controller_state.rightStickY = scale_axis_full(data[3]);
-
-    if (len >= 6) {
-        s_state.controller_state.buttons = data[4] | (data[5] << 8);
-    }
+    if (len >= 6) s_state.controller_state.buttons = data[4] | (data[5] << 8);
     if (len >= 8) {
         s_state.controller_state.leftTrigger = (int)data[6] * 4;
         s_state.controller_state.rightTrigger = (int)data[7] * 4;
     }
-    if (len >= 9) {
-        switch (data[8]) {
-            case 0: s_state.controller_state.dpad = 0x01; break;
-            case 1: s_state.controller_state.dpad = 0x01 | 0x04; break;
-            case 2: s_state.controller_state.dpad = 0x04; break;
-            case 3: s_state.controller_state.dpad = 0x02 | 0x04; break;
-            case 4: s_state.controller_state.dpad = 0x02; break;
-            case 5: s_state.controller_state.dpad = 0x02 | 0x08; break;
-            case 6: s_state.controller_state.dpad = 0x08; break;
-            case 7: s_state.controller_state.dpad = 0x01 | 0x08; break;
-            default: s_state.controller_state.dpad = 0; break;
-        }
+    if (len >= 9) s_state.controller_state.dpad = decode_hat(data[8]);
+}
+
+static void parse_hid_report(const uint8_t *data, uint16_t len) {
+    if (data == nullptr) return;
+
+    // 8BitDo Ultimate 2 over Windows HIDAPI emits 34-byte reports with a
+    // leading report-id byte: 01 0f 7f 7f 7f 7f 00 00 00 00 ... .
+    // NimBLE's Report characteristic may deliver the same payload without
+    // the report-id, so accept both base offsets.
+    if (len >= 10 && data[0] == 0x01 && data[1] <= 0x0f) {
+        parse_8bitdo_report(data, 1);
+        return;
     }
+    if (len >= 9 && data[0] <= 0x0f && len > 12) {
+        parse_8bitdo_report(data, 0);
+        return;
+    }
+
+    parse_standard_hid_report(data, len);
 }
 
 // --- NimBLE-Arduino callbacks -------------------------------------------
+
+// bench injection moved to gated helper above
 
 class BenchWriteCallbacks : public NimBLECharacteristicCallbacks {
     void onWrite(NimBLECharacteristic *chr) override {
         std::string value = chr->getValue();
         if (value.empty()) return;
-        parse_hid_report(reinterpret_cast<const uint8_t *>(value.data()), value.size());
-
-        static const ble_mac_t bench_mac = {{0x02, 0x00, 0x00, 0x00, 0xbe, 0x7c}};
-        s_state.connected_mac = bench_mac;
-        if (!s_state.connected) notify_connection_change(true, &s_state.connected_mac);
-        ESP_LOGD(TAG, "bench HID frame accepted (%u bytes)", (unsigned)value.size());
+        ble_gamepad_bench_inject_hid_report(
+            reinterpret_cast<const uint8_t *>(value.data()), value.size());
     }
 };
 
@@ -316,49 +415,42 @@ static bool connect_to_target(void) {
     }
 
     // Warmup read: HID Report Map (0x2A4B) before notify-subscribe.
-    // Real HID hosts do this; without it the 8BitDo tears down the link
-    // shortly after we subscribe. The bytes are discarded — we only need
-    // the read to register as activity on the link.
+    // Real HID hosts do this; without it the 8BitDo can tear down the link
+    // shortly after subscribe.
     NimBLERemoteCharacteristic *report_map = hid->getCharacteristic(UUID_CHR_REPORT_MAP);
     if (report_map != nullptr) {
         NimBLEAttValue map_data = report_map->readValue();
-        (void)map_data;  // unused
+        (void)map_data;
     }
 
-    // The 8BitDo Ultimate 2 publishes multiple 0x2A4D Report characteristics;
-    // only the second (with notifiable property) carries actual gamepad input.
-    // Iterate all Report characteristics and pick the first notifiable one,
-    // then fall back to indicate if no notify-capable one is found.
-    NimBLERemoteCharacteristic *report = nullptr;
-    bool use_notify = true;
+    // HID Report characteristics are distinguished by their Report Reference
+    // descriptor (0x2908): byte0=report id, byte1=type (1=input, 2=output,
+    // 3=feature). The 8BitDo Ultimate 2 exposes at least two notifiable input
+    // Report chars; handle 25/id=2 stays quiet while handle 29/id=1 carries
+    // gamepad state. Subscribe to every notifiable/indicatable input report.
+    int subscribed_reports = 0;
     std::vector<NimBLERemoteCharacteristic *> *chars = hid->getCharacteristics(true);
     if (chars != nullptr) {
         for (NimBLERemoteCharacteristic *chr : *chars) {
             if (chr == nullptr || !(chr->getUUID() == UUID_CHR_REPORT)) continue;
-            if (chr->canNotify()) {
-                report = chr;
-                use_notify = true;
-                break;
+            uint8_t report_type = 0xff;
+            NimBLERemoteDescriptor *ref = chr->getDescriptor(UUID_DSC_REPORT_REF);
+            if (ref != nullptr) {
+                NimBLEAttValue ref_data = ref->readValue();
+                if (ref_data.size() >= 2) report_type = ref_data[1];
             }
-            if (report == nullptr && chr->canIndicate()) {
-                report = chr;
-                use_notify = false;
+            if ((report_type == 0xff || report_type == 1) && (chr->canNotify() || chr->canIndicate())) {
+                bool use_notify = chr->canNotify();
+                BLE_SERIALF("[BLE] subscribing HID input report handle=%u notify=%d type=%u\r\n",
+                            chr->getHandle(), (int)use_notify, (unsigned)report_type);
+                if (chr->subscribe(use_notify, notify_cb)) subscribed_reports++;
             }
         }
     }
 
-    if (report == nullptr) {
-        ESP_LOGW(TAG, "No notifiable/indicatable HID report characteristic found");
-        client->disconnect();
-        NimBLEDevice::deleteClient(client);
-        start_scan();
-        return false;
-    }
-
-    BLE_SERIALF("[BLE] subscribing HID report use_notify=%d\r\n", (int)use_notify);
-    if (!report->subscribe(use_notify, notify_cb)) {
-        ESP_LOGW(TAG, "HID report subscribe failed");
-        BLE_SERIALF("[BLE] HID subscribe failed\r\n");
+    if (subscribed_reports == 0) {
+        ESP_LOGW(TAG, "No HID input report characteristic subscribed");
+        BLE_SERIALF("[BLE] no HID input report subscribed\r\n");
         client->disconnect();
         NimBLEDevice::deleteClient(client);
         start_scan();
@@ -379,6 +471,12 @@ static bool connect_to_target(void) {
     return true;
 }
 
+static bool is_8bitdo_ultimate_name(NimBLEAdvertisedDevice *device) {
+    if (device == nullptr || !device->haveName()) return false;
+    std::string name = device->getName();
+    return name.find("8BitDo Ultimate") != std::string::npos;
+}
+
 class GamepadAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks {
     void onResult(NimBLEAdvertisedDevice *device) override {
         if (device->haveName()) {
@@ -393,7 +491,11 @@ class GamepadAdvertisedDeviceCallbacks : public NimBLEAdvertisedDeviceCallbacks 
 
         ble_mac_t mac;
         address_to_mac(device->getAddress(), &mac);
-        if (s_state.pairing_state != PAIRING_STATE_ACCEPT && !ble_mac_is_whitelisted(&mac)) {
+        bool pairing_open = (s_state.pairing_state == PAIRING_STATE_ACCEPT);
+        bool whitelisted = ble_mac_is_whitelisted(&mac);
+        bool known_8bitdo_rotation = s_state.auto_reconnect && (nvs_get_count() > 0) &&
+                                     is_8bitdo_ultimate_name(device);
+        if (!pairing_open && !whitelisted && !known_8bitdo_rotation) {
             return;
         }
 
@@ -614,6 +716,13 @@ esp_err_t ble_gamepad_clear_paired_macs(void) {
 esp_err_t ble_gamepad_disconnect(void) {
     if (s_state.client != nullptr && s_state.client->isConnected()) {
         s_state.client->disconnect();
+        return ESP_OK;
+    }
+    if (s_state.connected) {
+        s_state.connected = false;
+        s_state.client = nullptr;
+        s_state.controller_state = ControllerState{};
+        notify_connection_change(false, &s_state.connected_mac);
         return ESP_OK;
     }
     return ESP_ERR_INVALID_STATE;

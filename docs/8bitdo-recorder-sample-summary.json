@@ -1,0 +1,913 @@
+{
+  "transport": "hidapi",
+  "log_file": "C:\\Users\\kbrow\\Documents\\Codex\\combat-robot-v2\\tools\\ble_recordings\\hidapi-20260703-161017.jsonl",
+  "console_log_file": "C:\\Users\\kbrow\\Documents\\Codex\\combat-robot-v2\\tools\\ble_recordings\\hidapi-20260703-161017.console.log",
+  "report_count": 11009,
+  "report_lengths": {
+    "34": 11009
+  },
+  "device": {
+    "path": "\\\\?\\HID#{00001812-0000-1000-8000-00805f9b34fb}_Dev_VID&122dc8_PID&6012_REV&0001_[REDACTED]#b&21505b1b&0&0000#{4d1e55b2-f16f-11cf-88cb-001111000030}",
+    "vendor_id": 11720,
+    "product_id": 24594,
+    "serial_number": "[REDACTED]",
+    "release_number": 1,
+    "manufacturer_string": "",
+    "product_string": "8BitDo Ultimate 2 Wireless",
+    "usage_page": 1,
+    "usage": 5,
+    "interface_number": -1,
+    "bus_type": 2
+  },
+  "button_seen": {
+    "offset0.A": 10996,
+    "offset0.B": 10992,
+    "offset0.X": 10995,
+    "offset0.Y": 10997,
+    "offset0.L1": 10990,
+    "offset0.R1": 10989,
+    "offset0.L2_DIGITAL": 10986,
+    "offset0.SELECT": 10864,
+    "offset0.START": 10910,
+    "offset0.L3": 10897,
+    "offset0.R3": 10898,
+    "offset0.HOME": 10898,
+    "offset1.A": 10864,
+    "offset1.B": 10910,
+    "offset1.X": 10897,
+    "offset1.Y": 10898,
+    "offset1.L1": 10898,
+    "offset1.R1": 10898,
+    "offset1.L2_DIGITAL": 10898,
+    "offset0.R2_DIGITAL": 191,
+    "offset1.R2_DIGITAL": 111,
+    "8bitdo_windows.SELECT": 116,
+    "8bitdo_windows.START": 116,
+    "8bitdo_windows.L3": 117,
+    "8bitdo_windows.HOME": 115,
+    "8bitdo_windows.R3": 116,
+    "8bitdo_windows.R1": 106,
+    "8bitdo_windows.A": 107,
+    "8bitdo_windows.Y": 106,
+    "8bitdo_windows.L2_DIGITAL": 107,
+    "offset1.SELECT": 107,
+    "offset1.R3": 106,
+    "8bitdo_windows.B": 105,
+    "8bitdo_windows.L1": 108,
+    "offset1.START": 105,
+    "offset1.HOME": 108,
+    "8bitdo_windows.X": 106,
+    "8bitdo_windows.R2_DIGITAL": 106,
+    "offset1.L3": 106
+  },
+  "dpad_seen": {
+    "8bitdo_windows.released": 10829,
+    "offset0.N": 10531,
+    "offset1.N": 10469,
+    "8bitdo_windows.N": 48,
+    "8bitdo_windows.S": 42,
+    "8bitdo_windows.W": 45,
+    "8bitdo_windows.E": 45,
+    "offset0.NE": 80,
+    "offset0.E": 70,
+    "offset0.center": 87,
+    "offset0.0x10": 71,
+    "offset0.0x40": 82,
+    "offset0.0x80": 88,
+    "offset1.NE": 118,
+    "offset1.E": 108,
+    "offset1.0x20": 43,
+    "offset1.0x40": 69,
+    "offset1.S": 82,
+    "offset1.center": 91,
+    "offset1.0x10": 29
+  },
+  "per_phase_extremes": {
+    "IDLE:8bitdo_windows": {
+      "samples": 872,
+      "min": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "IDLE:offset0": {
+      "samples": 872,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "IDLE:offset1": {
+      "samples": 872,
+      "min": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_CENTER:8bitdo_windows": {
+      "samples": 612,
+      "min": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_CENTER:offset0": {
+      "samples": 612,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "STICKS_CENTER:offset1": {
+      "samples": 612,
+      "min": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_LEFT_UP:8bitdo_windows": {
+      "samples": 541,
+      "min": {
+        "lx": 110,
+        "ly": 0,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 162,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_LEFT_UP:offset0": {
+      "samples": 541,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 110,
+        "ry": 0,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 162,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "STICKS_LEFT_UP:offset1": {
+      "samples": 541,
+      "min": {
+        "lx": 15,
+        "ly": 110,
+        "rx": 0,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 162,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_RIGHT_RIGHT:8bitdo_windows": {
+      "samples": 641,
+      "min": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 123,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 255,
+        "ry": 130,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_RIGHT_RIGHT:offset0": {
+      "samples": 641,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 123
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 255,
+        "buttons_high": 130
+      }
+    },
+    "STICKS_RIGHT_RIGHT:offset1": {
+      "samples": 641,
+      "min": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 123,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 255,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 130,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_LEFT_DIAG:8bitdo_windows": {
+      "samples": 746,
+      "min": {
+        "lx": 14,
+        "ly": 34,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 133,
+        "ly": 134,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_LEFT_DIAG:offset0": {
+      "samples": 746,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 14,
+        "ry": 34,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 133,
+        "ry": 134,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "STICKS_LEFT_DIAG:offset1": {
+      "samples": 746,
+      "min": {
+        "lx": 15,
+        "ly": 14,
+        "rx": 34,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 133,
+        "rx": 134,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_LEFT_DOWN:8bitdo_windows": {
+      "samples": 570,
+      "min": {
+        "lx": 111,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 127,
+        "ly": 255,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "STICKS_LEFT_DOWN:offset0": {
+      "samples": 570,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 111,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 255,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "STICKS_LEFT_DOWN:offset1": {
+      "samples": 570,
+      "min": {
+        "lx": 15,
+        "ly": 111,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 255,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    },
+    "DPAD:8bitdo_windows": {
+      "samples": 999,
+      "min": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "DPAD:offset0": {
+      "samples": 999,
+      "min": {
+        "lx": 1,
+        "ly": 0,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "DPAD:offset1": {
+      "samples": 999,
+      "min": {
+        "lx": 0,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    },
+    "FACE:8bitdo_windows": {
+      "samples": 1035,
+      "min": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 16,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "FACE:offset0": {
+      "samples": 1035,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 16,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "FACE:offset1": {
+      "samples": 1035,
+      "min": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 16,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    },
+    "BUMPERS:8bitdo_windows": {
+      "samples": 1546,
+      "min": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 128,
+        "rt": 2,
+        "dpad": 15,
+        "buttons_low": 255,
+        "buttons_high": 255
+      }
+    },
+    "BUMPERS:offset0": {
+      "samples": 1546,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 255,
+        "rt": 255,
+        "dpad": 128,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "BUMPERS:offset1": {
+      "samples": 1546,
+      "min": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 255,
+        "rt": 128,
+        "dpad": 2,
+        "buttons_low": 127,
+        "buttons_high": 255
+      }
+    },
+    "STICK_CLICKS:8bitdo_windows": {
+      "samples": 860,
+      "min": {
+        "lx": 118,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 134,
+        "ly": 174,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 64,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "STICK_CLICKS:offset0": {
+      "samples": 860,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 118,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 134,
+        "ry": 174,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "STICK_CLICKS:offset1": {
+      "samples": 860,
+      "min": {
+        "lx": 15,
+        "ly": 118,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 134,
+        "rx": 174,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 64,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    },
+    "MENU:8bitdo_windows": {
+      "samples": 2587,
+      "min": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 127,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 16,
+        "dpad": 15,
+        "buttons_low": 0,
+        "buttons_high": 0
+      }
+    },
+    "MENU:offset0": {
+      "samples": 2587,
+      "min": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      },
+      "max": {
+        "lx": 1,
+        "ly": 15,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 127
+      }
+    },
+    "MENU:offset1": {
+      "samples": 2587,
+      "min": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 0,
+        "buttons_low": 127,
+        "buttons_high": 0
+      },
+      "max": {
+        "lx": 15,
+        "ly": 127,
+        "rx": 127,
+        "ry": 127,
+        "lt": 0,
+        "rt": 0,
+        "dpad": 16,
+        "buttons_low": 127,
+        "buttons_high": 0
+      }
+    }
+  },
+  "decoder_note": "8bitdo_windows is the observed Windows HIDAPI layout: byte0 report id, byte1 hat/dpad, byte2..5 axes, byte6..7 buttons, byte8..9 triggers. offset0/offset1 are retained as raw candidate decodes for comparison."
+}

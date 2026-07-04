@@ -270,6 +270,158 @@ class TestBleGamepadGuiContract:
         b = body.group(0)
         assert "s_state.auto_reconnect = false" in b
 
+
+    def test_8bitdo_ultimate_report_id_layout_matches_capture(self, ble_src_text):
+        # Captured from tools/ble_recordings/hidapi-20260703-161017.jsonl:
+        #   01 0f 7f 7f 7f 7f 00 00 00 00 ...
+        # byte0 is a report id, byte1 is the hat, byte2..5 are axes,
+        # byte6/7 are R2/L2 analog, byte8/9 are button bytes.
+        assert "parse_8bitdo_report" in ble_src_text
+        assert "data[base + 1]" in ble_src_text  # LX
+        assert "data[base + 2]" in ble_src_text  # LY
+        assert "data[base + 3]" in ble_src_text  # RX
+        assert "data[base + 4]" in ble_src_text  # RY
+        assert "rightTrigger = (int)data[base + 5] * 4" in ble_src_text
+        assert "leftTrigger = (int)data[base + 6] * 4" in ble_src_text
+        assert "decode_8bitdo_buttons(data[base + 7], data[base + 8])" in ble_src_text
+        assert "dpad = decode_hat(data[base])" in ble_src_text
+
+    def test_8bitdo_ultimate_button_bits_are_remapped_to_internal_order(self, ble_src_text):
+        # The Windows HIDAPI capture used b0 bits 0,1,3,4 for A,B,X,Y and
+        # b1 bits 2,3,4,5,6 for SELECT,START,HOME,L3,R3. Internally the
+        # UI expects A,B,X,Y,L1,R1,L2,R2,SELECT,START,L3,R3,HOME in bits 0..12.
+        expected = [
+            "if (b0 & 0x01) buttons |= (1u << 0);  // A",
+            "if (b0 & 0x02) buttons |= (1u << 1);  // B",
+            "if (b0 & 0x08) buttons |= (1u << 2);  // X",
+            "if (b0 & 0x10) buttons |= (1u << 3);  // Y",
+            "if (b0 & 0x40) buttons |= (1u << 4);  // L1",
+            "if (b0 & 0x80) buttons |= (1u << 5);  // R1",
+            "if (b1 & 0x01) buttons |= (1u << 6);  // L2 digital",
+            "if (b1 & 0x02) buttons |= (1u << 7);  // R2 digital",
+            "if (b1 & 0x04) buttons |= (1u << 8);  // SELECT / SHARE",
+            "if (b1 & 0x08) buttons |= (1u << 9);  // START / OPTIONS",
+            "if (b1 & 0x20) buttons |= (1u << 10); // L3",
+            "if (b1 & 0x40) buttons |= (1u << 11); // R3",
+            "if (b1 & 0x10) buttons |= (1u << 12); // HOME",
+        ]
+        for needle in expected:
+            assert needle in ble_src_text, f"missing 8BitDo remap: {needle}"
+
+    def test_8bitdo_parser_accepts_report_id_and_hogp_payload_forms(self, ble_src_text):
+        # Windows HIDAPI includes report id 0x01; BLE Report char values often
+        # omit it. Firmware must handle both or the same controller appears
+        # static on the ESP32 even though the host-side capture looks correct.
+        assert "data[0] == 0x01 && data[1] <= 0x0f" in ble_src_text
+        assert "parse_8bitdo_report(data, 1);" in ble_src_text
+        assert "data[0] <= 0x0f && len > 12" in ble_src_text
+        assert "parse_8bitdo_report(data, 0);" in ble_src_text
+
+
+
+    def test_subscribes_all_hid_input_report_characteristics(self, ble_src_text):
+        # Regression: 8BitDo Ultimate 2 exposes multiple notifiable input
+        # Report chars. The first notifiable handle (id=2) can stay quiet;
+        # the real gamepad state arrived on the second input report (id=1).
+        assert "subscribed_reports" in ble_src_text
+        assert "UUID_DSC_REPORT_REF" in ble_src_text
+        assert "report_type == 0xff || report_type == 1" in ble_src_text
+        assert "chr->subscribe(use_notify, notify_cb)" in ble_src_text
+        assert "break;" not in re.search(
+            r"for \(NimBLERemoteCharacteristic \*chr : \*chars\)[\s\S]+?if \(subscribed_reports == 0\)",
+            ble_src_text,
+        ).group(0)
+
+    def test_8bitdo_rotating_address_allowed_after_prior_pair(self, ble_src_text):
+        # Regression: after pairing AE, the controller advertised as AF and
+        # was ignored in IDLE because auto-reconnect only accepted exact MACs.
+        assert "is_8bitdo_ultimate_name" in ble_src_text
+        assert "known_8bitdo_rotation" in ble_src_text
+        assert "s_state.auto_reconnect && (nvs_get_count() > 0)" in ble_src_text
+        assert "!pairing_open && !whitelisted && !known_8bitdo_rotation" in ble_src_text
+
+
+    def test_disconnect_clears_synthetic_bench_connection(self, ble_src_text):
+        m = re.search(r"esp_err_t ble_gamepad_disconnect[\s\S]+?\n\}", ble_src_text)
+        assert m, "ble_gamepad_disconnect() not found"
+        body = m.group(0)
+        assert "if (s_state.connected)" in body
+        assert "s_state.connected = false" in body
+        assert "s_state.controller_state = ControllerState{}" in body
+        assert "notify_connection_change(false" in body
+
+
+    def test_bench_hid_injection_disabled_in_production_builds(self):
+        wc_text = (PROJECT_ROOT / "components" / "web_config" / "src" / "web_config.cpp").read_text()
+        # Look at the enable/disable endpoints as well, since they are dev-only.
+        for ep in ('"/api/bench/hid"', '"/api/bench/hid/enable"', '"/api/bench/hid/disable"'):
+            # Capture the entire endpoint body up to the matching outer close-paren.
+            m = re.search(r'server->on\(' + re.escape(ep) + r'.*?NULL\s*\);', wc_text, re.DOTALL)
+            assert m, f"{ep} block not found"
+            block = m.group(0)
+            assert "#ifndef BENCH_HID_PUBLIC" in block, f"{ep} missing BENCH_HID_PUBLIC guard"
+            assert ("{\"err\":\"disabled\"}" in block
+                    or "{\\\"err\\\":\\\"disabled\\\"}" in block), f"{ep} missing disabled response"
+        # The inject block additionally requires runtime enable.
+        inj = re.search(r'server->on\("/api/bench/hid", HTTP_POST.*?NULL\s*\);', wc_text, re.DOTALL)
+        assert inj, "/api/bench/hid inject block not found"
+        assert "ble_gamepad_bench_is_enabled" in inj.group(0)
+
+    def test_bench_hid_runtime_disable_via_nvs_flag(self):
+        # Public API must expose enable/disable + is_enabled for runtime control.
+        h_text = (PROJECT_ROOT / "components" / "ble_gamepad" / "include" / "ble_gamepad.h").read_text()
+        for fn in ("ble_gamepad_bench_set_enabled", "ble_gamepad_bench_is_enabled",
+                   "ble_gamepad_bench_inject_hid_report"):
+            assert fn in h_text
+            assert f"{fn}" in h_text
+        # Stubbed no-op fallback must exist when BENCH_HID_PUBLIC is off.
+        assert "static inline esp_err_t ble_gamepad_bench_set_enabled" in h_text
+        assert "static inline bool ble_gamepad_bench_is_enabled" in h_text
+        assert "static inline esp_err_t ble_gamepad_bench_inject_hid_report" in h_text
+
+    def test_bench_runtime_flag_default_off(self):
+        # NVS default for bench flag must be off (false / 0), and the
+        # helper is_enabled must consult NVS not a hardcoded true.
+        cpp = (PROJECT_ROOT / "components" / "ble_gamepad" / "src" / "ble_gamepad.cpp").read_text()
+        m = re.search(r"bool ble_gamepad_bench_is_enabled\([\s\S]+?\n\}", cpp)
+        assert m, "is_enabled helper not found"
+        body = m.group(0)
+        assert "nvs_get_u8" in body
+        assert "BLE_BENCH_FLAG_NAMESPACE" in body
+        assert "return false;" in body
+
+    def test_platformio_ini_defaults_bench_to_off(self):
+        # Production env must NOT define BENCH_HID_PUBLIC=1 (no flag = default 0).
+        # A separate dev env is allowed to set it to 1.
+        ini = (PROJECT_ROOT / "platformio.ini").read_text()
+        prod_match = re.search(
+            r"\[env:esp32-c3-devkitc-02\]\n[^\[]*", ini)
+        assert prod_match, "esp32-c3-devkitc-02 env not found"
+        prod_block = prod_match.group(0)
+        assert "BENCH_HID_PUBLIC=1" not in prod_block, (
+            "production env must NOT compile bench code in"
+        )
+        # Dev env must exist with the flag on.
+        dev_match = re.search(
+            r"\[env:esp32-c3-devkitc-02-dev\]\n[^\[]*", ini)
+        assert dev_match, "esp32-c3-devkitc-02-dev env not found"
+        dev_block = dev_match.group(0)
+        assert "BENCH_HID_PUBLIC=1" in dev_block, "dev env must define BENCH_HID_PUBLIC=1"
+
+    def test_bench_hid_endpoint_registered_for_autonomous_parser_replay(self):
+        wc_text = (PROJECT_ROOT / "components" / "web_config" / "src" / "web_config.cpp").read_text()
+        assert '"/api/bench/hid"' in wc_text
+        assert "ble_gamepad_bench_inject_hid_report" in wc_text
+        assert '"hex"' in wc_text
+
+    def test_bench_inject_uses_same_hid_parser(self, ble_src_text):
+        assert "ble_gamepad_bench_inject_hid_report" in ble_src_text
+        m = re.search(r"esp_err_t ble_gamepad_bench_inject_hid_report[\s\S]+?\n\}", ble_src_text)
+        assert m, "bench inject function not found"
+        body = m.group(0)
+        assert "parse_hid_report(data, len)" in body
+        assert "notify_connection_change(true" in body
+
     def test_ws_state_ltrt_mapping_is_not_swapped(self):
         # Regression: the WS payload used to send "lt": cs.rightTrigger
         # and "rt": cs.leftTrigger, which swapped the L2/R2 bars on the

@@ -116,3 +116,13 @@ esp_err_t ble_gamepad_disconnect(void);
 // to update the LED status indicator and broadcast to the web UI.
 typedef void (*ble_connection_callback_t)(bool connected, const ble_mac_t *mac);
 void ble_gamepad_set_connection_callback(ble_connection_callback_t cb);
+
+#ifdef BENCH_HID_PUBLIC
+esp_err_t ble_gamepad_bench_set_enabled(bool enabled);
+bool ble_gamepad_bench_is_enabled(void);
+esp_err_t ble_gamepad_bench_inject_hid_report(const uint8_t *data, uint16_t len);
+#else
+static inline esp_err_t ble_gamepad_bench_set_enabled(bool) { return ESP_ERR_NOT_SUPPORTED; }
+static inline bool ble_gamepad_bench_is_enabled(void) { return false; }
+static inline esp_err_t ble_gamepad_bench_inject_hid_report(const uint8_t *, uint16_t) { return ESP_ERR_NOT_SUPPORTED; }
+#endif

@@ -370,6 +370,100 @@ static void register_routes(void) {
         NULL
     );
 
+    // Bench HID injection. Disabled in production builds: requires both
+    // BENCH_HID_HTTP build flag and an NVS runtime flag.
+    server->on("/api/bench/hid", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+#ifndef BENCH_HID_PUBLIC
+            req->send(404, "application/json", "{\"err\":\"disabled\"}");
+            return;
+#else
+            if (!ble_gamepad_bench_is_enabled()) {
+                req->send(403, "application/json", "{\"err\":\"bench disabled\"}");
+                return;
+            }
+            if (!req->hasParam("hex")) {
+                req->send(400, "application/json", "{\"err\":\"missing hex\"}");
+                return;
+            }
+            String hex = req->getParam("hex")->value();
+            hex.replace(" ", "");
+            hex.replace(":", "");
+            hex.replace("-", "");
+            if ((hex.length() == 0) || ((hex.length() & 1) != 0) || (hex.length() > 128)) {
+                req->send(400, "application/json", "{\"err\":\"bad hex length\"}");
+                return;
+            }
+            uint8_t buf[64];
+            size_t n = hex.length() / 2;
+            auto hexval = [](char c) -> int {
+                if (c >= '0' && c <= '9') return c - '0';
+                if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+                if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+                return -1;
+            };
+            for (size_t i = 0; i < n; i++) {
+                int hi = hexval(hex[2 * i]);
+                int lo = hexval(hex[2 * i + 1]);
+                if (hi < 0 || lo < 0) {
+                    req->send(400, "application/json", "{\"err\":\"bad hex\"}");
+                    return;
+                }
+                buf[i] = (uint8_t)((hi << 4) | lo);
+            }
+            esp_err_t err = ble_gamepad_bench_inject_hid_report(buf, (uint16_t)n);
+            if (err != ESP_OK) {
+                req->send(400, "application/json", "{\"err\":\"inject failed\"}");
+                return;
+            }
+            s_gp.broadcast_pending = true;
+            req->send(200, "application/json", String("{\"ok\":true,\"len\":") + n + "}");
+#endif
+        },
+        NULL
+    );
+
+    // Bench enable/disable endpoints (dev-only; compile-gated).
+    server->on("/api/bench/hid/enable", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+#ifndef BENCH_HID_PUBLIC
+            req->send(404, "application/json", "{\"err\":\"disabled\"}");
+#else
+            esp_err_t err = ble_gamepad_bench_set_enabled(true);
+            req->send(err == ESP_OK ? 200 : 500, "application/json",
+                      err == ESP_OK ? "{\"ok\":true,\"enabled\":true}" : "{\"err\":\"enable failed\"}");
+#endif
+        },
+        NULL
+    );
+    server->on("/api/bench/hid/disable", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+#ifndef BENCH_HID_PUBLIC
+            req->send(404, "application/json", "{\"err\":\"disabled\"}");
+#else
+            esp_err_t err = ble_gamepad_bench_set_enabled(false);
+            req->send(err == ESP_OK ? 200 : 500, "application/json",
+                      err == ESP_OK ? "{\"ok\":true,\"enabled\":false}" : "{\"err\":\"disable failed\"}");
+#endif
+        },
+        NULL
+    );
+    server->on("/api/bench/hid/status", HTTP_GET,
+        [](AsyncWebServerRequest *req) {
+#ifdef BENCH_HID_PUBLIC
+            bool on = ble_gamepad_bench_is_enabled();
+            req->send(200, "application/json",
+                      String("{\"build_flag\":true,\"runtime_enabled\":") + (on ? "true" : "false") + "}");
+#else
+            req->send(200, "application/json", "{\"build_flag\":false,\"runtime_enabled\":false}");
+#endif
+        },
+        NULL
+    );
+
+
+
+
     // Board revision selection. POST /api/board/rev with body
     // "rev=3" or "rev=2" to set the active board revision. Takes
     // effect on next boot. POST /api/board/reset to clear the
