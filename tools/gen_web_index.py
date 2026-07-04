@@ -6,9 +6,67 @@ to /ws, etc. The generator's only job is to escape the raw-literal
 delimiter and emit the file as PROGMEM-friendly C source.
 """
 from __future__ import annotations
-import pathlib, time
+import os, pathlib, sys, time
 
-PROJECT_ROOT = pathlib.Path(r"C:\Users\kbrow\Documents\Codex\combat-robot-v2")
+# Resolve project root. Two cases:
+#   1. Run directly (`python tools/gen_web_index.py`): __file__ is set,
+#      derive PROJECT_ROOT from it.
+#   2. Run via PlatformIO/SCons pre-script: __file__ is stripped from
+#      globals by SCons' `exec()`, so fall back to sys.argv[0] which
+#      SCons populates with the script's own path.
+_legacy_root = pathlib.Path(r"C:\Users\kbrow\Documents\Codex\combat-robot-v2")
+
+
+def _resolve_project_root() -> pathlib.Path:
+    # When PlatformIO invokes this as an SCons pre-script, neither __file__
+    # nor sys.argv[0] are reliable (SCons runs `exec(compile(...))` with
+    # empty argv, and the script's __file__ may be a relative path).
+    # Strategy: try several candidate anchors and pick the first one that
+    # contains docs/config-ui-mockup.html.
+    candidates: list[pathlib.Path] = []
+
+    # 1. PROJECT_ROOT env var (escape hatch for CI / non-standard layouts)
+    env_root = os.environ.get("PROJECT_ROOT")
+    if env_root:
+        candidates.append(pathlib.Path(env_root))
+
+    # 2. Current working directory (PlatformIO runs SCons from project root)
+    candidates.append(pathlib.Path.cwd())
+
+    # 3. The script's own location, derived from co_filename or __file__.
+    #    co_filename is set even under SCons' exec(), but it can be a
+    #    relative path — resolve() against CWD will fix that.
+    here = (
+        globals().get("__file__")
+        or (sys.argv[0] if sys.argv else "")
+        or sys._getframe().f_code.co_filename
+    )
+    if here:
+        script_path = pathlib.Path(here)
+        if not script_path.is_absolute():
+            script_path = (pathlib.Path.cwd() / script_path).resolve()
+        candidates.append(script_path.resolve().parent.parent)
+
+    # 4. Last-resort fallback to Kevin's literal Windows path (laptop only)
+    candidates.append(_legacy_root)
+
+    seen: set[pathlib.Path] = set()
+    for c in candidates:
+        c = c.resolve()
+        if c in seen:
+            continue
+        seen.add(c)
+        if (c / "docs" / "config-ui-mockup.html").exists():
+            return c
+
+    raise SystemExit(
+        "gen_web_index.py: cannot locate docs/config-ui-mockup.html. "
+        f"Tried: {[str(c) for c in candidates]}. "
+        "Set PROJECT_ROOT env var or run from the repo root."
+    )
+
+
+PROJECT_ROOT = pathlib.Path(os.environ.get("PROJECT_ROOT") or _resolve_project_root())
 SRC = PROJECT_ROOT / "docs" / "config-ui-mockup.html"
 OUT = PROJECT_ROOT / "components" / "web_config" / "src" / "web_index_gen.h"
 

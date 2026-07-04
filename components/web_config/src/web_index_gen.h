@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Generated 2026-07-03T23:51:37 from docs/config-ui-mockup.html
+// Generated 2026-07-04T00:38:35 from docs/config-ui-mockup.html
 // Source size: 40068 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
