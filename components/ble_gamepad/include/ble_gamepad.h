@@ -101,6 +101,10 @@ struct ControllerState ble_gamepad_get_state(void);
 // Is a controller currently connected and providing reports?
 bool ble_gamepad_is_connected(void);
 
+// Copy the currently connected controller MAC into out.
+// Returns false when no controller is connected or out is NULL.
+bool ble_gamepad_get_connected_mac(ble_mac_t *out);
+
 // Pairing state machine -----------------------------------------------------
 
 // Get current pairing state.

@@ -470,9 +470,25 @@ class TestBleGamepadGuiContract:
         m = re.search(r"function applyStatus\(s\) \{[\s\S]+?\n  \}\s*\n\s*async function refreshStatus", html)
         assert m, "applyStatus body not found"
         body = m.group(0)
-        assert "setBle(!!s.ble_connected)" in body, (
-            "applyStatus must drive setBle from s.ble_connected"
+        assert "applyConnectedController(!!s.ble_connected, s.ble_mac)" in body, (
+            "applyStatus must drive connected BLE state from /api/status"
         )
+
+    def test_html_connected_mac_updates_from_status_and_ws(self):
+        # Regression: after pairing a new controller, the page showed the
+        # old paired/connected MAC until a manual reload. Status polling and
+        # WS state frames must both flow through the same renderer so the
+        # visible MAC updates live.
+        html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text(encoding="utf-8")
+        assert "function applyConnectedController(connected, mac)" in html
+
+        m = re.search(r"function applyStatus\(s\) \{[\s\S]+?\n  \}\s*\n\s*async function refreshStatus", html)
+        assert m, "applyStatus body not found"
+        assert "applyConnectedController(!!s.ble_connected, s.ble_mac)" in m.group(0)
+
+        m = re.search(r"ws\.onmessage = \(ev\) => \{[\s\S]+?\n    \};", html)
+        assert m, "ws.onmessage body not found"
+        assert "applyConnectedController(!!msg.connected, msg.ble_mac)" in m.group(0)
 
     def test_html_setBle_initialized_on_boot(self):
         # Boot section must call setBle(false) so the indicator shows
@@ -752,6 +768,26 @@ class TestWebConfigApiRoutes:
         # In C source the leading " is escaped, so look for the escaped form.
         assert '\\"lx\\":%d' in wc_text
         assert '\\"buttons\\":%u' in wc_text
+
+    def test_connected_mac_available_to_status_and_ws_feed(self, wc_text):
+        # When a newly paired controller connects, the HTML must learn its
+        # MAC from live firmware state, not from a later page reload.
+        h_text = (PROJECT_ROOT / "components" / "ble_gamepad" / "include" / "ble_gamepad.h").read_text()
+        ble_src = (PROJECT_ROOT / "components" / "ble_gamepad" / "src" / "ble_gamepad.cpp").read_text()
+        assert "ble_gamepad_get_connected_mac" in h_text
+        assert "bool ble_gamepad_get_connected_mac(ble_mac_t *out)" in ble_src
+        assert "ble_gamepad_get_connected_mac(&connected_mac)" in wc_text
+        assert "mac_to_cstr(&connected_mac" in wc_text
+        assert r'\"ble_mac\":\"%s\"' in wc_text
+        assert 'strncpy(out->ble_mac, "connected"' not in wc_text
+
+    def test_bench_control_routes_registered_before_hid_injection(self, wc_text):
+        # ESPAsyncWebServer route matching can let the generic /api/bench/hid
+        # handler shadow /api/bench/hid/enable. Register specific controls
+        # first so live bench verification can enable runtime injection.
+        enable_pos = wc_text.index('"/api/bench/hid/enable"')
+        inject_pos = wc_text.index('"/api/bench/hid"')
+        assert enable_pos < inject_pos
 
     def test_pairing_state_in_ws_feed(self, wc_text):
         # Bug fix: the WS state message must carry a `pairing` field so the

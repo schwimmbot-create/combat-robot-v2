@@ -759,6 +759,32 @@ function setBle(on) {
   text.textContent = state.bleConnected ? 'Connected' : 'Disconnected';
 }
 
+function normalizeMac(mac) {
+  return (typeof mac === 'string' && mac && mac !== '—' && mac !== 'connected') ? mac : '';
+}
+
+function renderPairedMacs(macs) {
+  const list = document.getElementById('mac-list');
+  if (!list) return;
+  state.pairedMacs = Array.isArray(macs) ? macs.filter(Boolean) : [];
+  if (state.pairedMacs.length) {
+    list.innerHTML = '';
+    for (const m of state.pairedMacs) list.appendChild(el('span', { class: 'mac' }, m));
+  } else {
+    list.textContent = 'No controllers paired';
+  }
+}
+
+function applyConnectedController(connected, mac) {
+  setBle(connected);
+  const cleanMac = normalizeMac(mac);
+  const text = document.getElementById('hdr-ble-text');
+  if (text && connected && cleanMac) text.textContent = `Connected · ${cleanMac}`;
+  if (connected && cleanMac && !state.pairedMacs.includes(cleanMac)) {
+    renderPairedMacs([cleanMac, ...state.pairedMacs]);
+  }
+}
+
 // ---- Toast --------------------------------------------------------------
 function toast(msg, kind='ok') {
   const t = document.getElementById('toast');
@@ -892,18 +918,10 @@ function applyStatus(s) {
   document.getElementById('fw-battery').textContent =
     s.battery_mv ? `${(s.battery_mv/1000).toFixed(2)} V (state ${s.battery_state})` : '—';
   document.getElementById('board-rev').textContent = 'v2 (compile-time)';
-  // Drive the BLE header dot from the polled /api/status truth so the
-  // indicator reflects reality even before the first WS frame arrives
-  // (or after a board reboot before reconnect).
-  setBle(!!s.ble_connected);
-  // Paired MACs
-  const list = document.getElementById('mac-list');
-  if (s.paired_macs && s.paired_macs.length) {
-    list.innerHTML = '';
-    for (const m of s.paired_macs) list.appendChild(el('span', { class: 'mac' }, m));
-  } else {
-    list.textContent = 'No controllers paired';
-  }
+  renderPairedMacs(s.paired_macs || []);
+  // Drive the BLE header and visible connected MAC from polled status truth
+  // so a newly paired controller appears without a manual page reload.
+  applyConnectedController(!!s.ble_connected, s.ble_mac);
   // Max paired cap (mirror from status into the input so it always
   // reflects firmware truth after a reboot or NVS change elsewhere).
   if (typeof s.max_paired === 'number' && s.max_paired >= 1 && s.max_paired <= 4) {
@@ -950,7 +968,7 @@ function connectWS() {
       try {
         const msg = JSON.parse(ev.data);
         if (msg.type === 'state') {
-          setBle(!!msg.connected);
+          applyConnectedController(!!msg.connected, msg.ble_mac);
           state.gp = msg.connected ? msg.state : null;
           if (msg.pairing) {
             state.pairingActive = (msg.pairing === 'ACCEPT');

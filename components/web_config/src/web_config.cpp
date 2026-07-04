@@ -74,6 +74,7 @@ static void gamepad_ws_event(AsyncWebSocket *server, AsyncWebSocketClient *clien
                              AwsEventType type, void *arg, uint8_t *data, size_t len);
 static void gamepad_ws_broadcast_now(void);
 static int gamepad_build_state_json(char *buf, size_t buflen);
+static void mac_to_cstr(const ble_mac_t *m, char *buf, size_t len);
 
 static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
     s_gp.connected = connected;
@@ -131,6 +132,11 @@ static void gamepad_ws_event(AsyncWebSocket *server, AsyncWebSocketClient *clien
 // having to poll /api/status every second.
 static int gamepad_build_state_json(char *buf, size_t buflen) {
     struct ControllerState cs = ble_gamepad_get_state();
+    ble_mac_t connected_mac;
+    char mac_buf[18] = "—";
+    if (ble_gamepad_get_connected_mac(&connected_mac)) {
+        mac_to_cstr(&connected_mac, mac_buf, sizeof(mac_buf));
+    }
     const char *pairing_str = "IDLE";
     switch (ble_gamepad_get_pairing_state()) {
         case PAIRING_STATE_IDLE:     pairing_str = "IDLE";     break;
@@ -138,11 +144,12 @@ static int gamepad_build_state_json(char *buf, size_t buflen) {
         case PAIRING_STATE_DISABLED: pairing_str = "DISABLED"; break;
     }
     int n = snprintf(buf, buflen,
-        "{\"type\":\"state\",\"connected\":%s,\"pairing\":\"%s\","
+        "{\"type\":\"state\",\"connected\":%s,\"ble_mac\":\"%s\",\"pairing\":\"%s\","
         "\"state\":{\"lx\":%d,\"ly\":%d,\"rx\":%d,\"ry\":%d,"
                   "\"lt\":%d,\"rt\":%d,"
                   "\"buttons\":%u,\"dpad\":%u}}",
         s_gp.connected ? "true" : "false",
+        mac_buf,
         pairing_str,
         cs.leftStickX, cs.leftStickY, cs.rightStickX, cs.rightStickY,
         cs.leftTrigger, cs.rightTrigger,
@@ -241,11 +248,15 @@ static esp_err_t wifi_clear_credentials(void) {
 
 // --- JSON helpers -----------------------------------------------------
 
-static String mac_to_string(const ble_mac_t *m) {
-    char buf[18];
-    snprintf(buf, sizeof(buf), "%02X:%02X:%02X:%02X:%02X:%02X",
+static void mac_to_cstr(const ble_mac_t *m, char *buf, size_t len) {
+    snprintf(buf, len, "%02X:%02X:%02X:%02X:%02X:%02X",
              m->addr[0], m->addr[1], m->addr[2],
              m->addr[3], m->addr[4], m->addr[5]);
+}
+
+static String mac_to_string(const ble_mac_t *m) {
+    char buf[18];
+    mac_to_cstr(m, buf, sizeof(buf));
     return String(buf);
 }
 
@@ -463,6 +474,44 @@ static void register_routes(void) {
         NULL
     );
 
+    // Bench enable/disable endpoints (dev-only; compile-gated).
+    server->on("/api/bench/hid/enable", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+#ifndef BENCH_HID_PUBLIC
+            req->send(404, "application/json", "{\"err\":\"disabled\"}");
+#else
+            esp_err_t err = ble_gamepad_bench_set_enabled(true);
+            req->send(err == ESP_OK ? 200 : 500, "application/json",
+                      err == ESP_OK ? "{\"ok\":true,\"enabled\":true}" : "{\"err\":\"enable failed\"}");
+#endif
+        },
+        NULL
+    );
+    server->on("/api/bench/hid/disable", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+#ifndef BENCH_HID_PUBLIC
+            req->send(404, "application/json", "{\"err\":\"disabled\"}");
+#else
+            esp_err_t err = ble_gamepad_bench_set_enabled(false);
+            req->send(err == ESP_OK ? 200 : 500, "application/json",
+                      err == ESP_OK ? "{\"ok\":true,\"enabled\":false}" : "{\"err\":\"disable failed\"}");
+#endif
+        },
+        NULL
+    );
+    server->on("/api/bench/hid/status", HTTP_GET,
+        [](AsyncWebServerRequest *req) {
+#ifdef BENCH_HID_PUBLIC
+            bool on = ble_gamepad_bench_is_enabled();
+            req->send(200, "application/json",
+                      String("{\"build_flag\":true,\"runtime_enabled\":") + (on ? "true" : "false") + "}");
+#else
+            req->send(200, "application/json", "{\"build_flag\":false,\"runtime_enabled\":false}");
+#endif
+        },
+        NULL
+    );
+
     // Bench HID injection. Disabled in production builds: requires both
     // BENCH_HID_HTTP build flag and an NVS runtime flag.
     server->on("/api/bench/hid", HTTP_POST,
@@ -515,47 +564,6 @@ static void register_routes(void) {
         },
         NULL
     );
-
-    // Bench enable/disable endpoints (dev-only; compile-gated).
-    server->on("/api/bench/hid/enable", HTTP_POST,
-        [](AsyncWebServerRequest *req) {
-#ifndef BENCH_HID_PUBLIC
-            req->send(404, "application/json", "{\"err\":\"disabled\"}");
-#else
-            esp_err_t err = ble_gamepad_bench_set_enabled(true);
-            req->send(err == ESP_OK ? 200 : 500, "application/json",
-                      err == ESP_OK ? "{\"ok\":true,\"enabled\":true}" : "{\"err\":\"enable failed\"}");
-#endif
-        },
-        NULL
-    );
-    server->on("/api/bench/hid/disable", HTTP_POST,
-        [](AsyncWebServerRequest *req) {
-#ifndef BENCH_HID_PUBLIC
-            req->send(404, "application/json", "{\"err\":\"disabled\"}");
-#else
-            esp_err_t err = ble_gamepad_bench_set_enabled(false);
-            req->send(err == ESP_OK ? 200 : 500, "application/json",
-                      err == ESP_OK ? "{\"ok\":true,\"enabled\":false}" : "{\"err\":\"disable failed\"}");
-#endif
-        },
-        NULL
-    );
-    server->on("/api/bench/hid/status", HTTP_GET,
-        [](AsyncWebServerRequest *req) {
-#ifdef BENCH_HID_PUBLIC
-            bool on = ble_gamepad_bench_is_enabled();
-            req->send(200, "application/json",
-                      String("{\"build_flag\":true,\"runtime_enabled\":") + (on ? "true" : "false") + "}");
-#else
-            req->send(200, "application/json", "{\"build_flag\":false,\"runtime_enabled\":false}");
-#endif
-        },
-        NULL
-    );
-
-
-
 
     // Board revision selection. POST /api/board/rev with body
     // "rev=3" or "rev=2" to set the active board revision. Takes
@@ -767,10 +775,9 @@ void web_config_get_status(web_status_t *out) {
         strncpy(out->wifi_ip, WiFi.localIP().toString().c_str(), sizeof(out->wifi_ip) - 1);
     }
 
-    if (out->ble_connected) {
-        // We don't expose the connected MAC from ble_gamepad_get_state
-        // (only ControllerState is exposed). Could be added in v1.1.
-        strncpy(out->ble_mac, "connected", sizeof(out->ble_mac) - 1);
+    ble_mac_t connected_mac;
+    if (ble_gamepad_get_connected_mac(&connected_mac)) {
+        mac_to_cstr(&connected_mac, out->ble_mac, sizeof(out->ble_mac));
     } else {
         strncpy(out->ble_mac, "—", sizeof(out->ble_mac) - 1);
     }

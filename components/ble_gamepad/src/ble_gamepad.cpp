@@ -739,6 +739,12 @@ bool ble_gamepad_is_connected(void) {
     return s_state.connected;
 }
 
+bool ble_gamepad_get_connected_mac(ble_mac_t *out) {
+    if (!out || !s_state.connected) return false;
+    *out = s_state.connected_mac;
+    return true;
+}
+
 PairingState ble_gamepad_get_pairing_state(void) {
     return s_state.pairing_state;
 }
