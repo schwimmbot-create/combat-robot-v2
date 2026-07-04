@@ -116,6 +116,13 @@ typedef struct {
 #define OC_NVS_NAMESPACE        "output_cfg"
 #define OC_NVS_KEY_BLOB         "cfg_v1"
 #define OC_NVS_KEY_DRIVE_MODE   "drive_v1"
+// Runtime cap on paired BLE controllers (1..BLE_MAX_PAIRED_CONTROLLERS).
+// Defaults to 1 (Kevin's "one controller at a time" model); the upper
+// bound matches the BLE array size. Stored as its own small key so old
+// cfg_v1 blobs remain valid.
+#define OC_NVS_KEY_MAX_PAIRED   "max_paired_v1"
+#define OC_MAX_PAIRED_DEFAULT   1
+#define OC_MAX_PAIRED_CAP       4
 
 // JSON output buffer sizing. Config is ~700 bytes; source-list JSON is
 // larger because it includes 24 id/name/label entries. 2KB covers both
@@ -153,6 +160,13 @@ oc_drive_mode_t output_config_get_drive_mode(void);
 esp_err_t output_config_set_drive_mode(oc_drive_mode_t mode);
 const char *output_config_drive_mode_name(oc_drive_mode_t mode);
 bool output_config_drive_mode_from_str(const char *s, oc_drive_mode_t *out);
+
+// Runtime cap on the BLE whitelist (1..OC_MAX_PAIRED_CAP). Default
+// OC_MAX_PAIRED_DEFAULT when NVS is missing/invalid. Mirrored into the
+// BLE subsystem on first ble_gamepad_set_max_paired() call (typically
+// from web_config after output_config_init()).
+uint8_t output_config_get_max_paired(void);
+esp_err_t output_config_set_max_paired(uint8_t n);
 
 // Commit current in-RAM state to NVS. Setters already commit; this
 // is mostly for the "Reset + save defaults" workflow to be explicit.

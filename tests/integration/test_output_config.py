@@ -95,6 +95,8 @@ class TestOutputConfigHeader:
             "output_config_set_drive_mode",
             "output_config_drive_mode_name",
             "output_config_drive_mode_from_str",
+            "output_config_get_max_paired",
+            "output_config_set_max_paired",
             "output_config_to_json",
             "output_config_sources_to_json",
             "output_config_apply_json_patch",
@@ -599,11 +601,17 @@ class TestOutputConfigPatchParser:
         return OC_SRC.read_text()
 
     def test_patch_accepts_documented_keys(self, src_text):
-        m = re.search(r"apply_patch_one\([^)]*\)[\s\S]+?\n\}", src_text)
+        m = re.search(r"apply_patch_one\(.*\)[\s\S]+?\n\}", src_text)
         body = m.group(0) if m else ""
         for key in ("direction", "servo_mode", "primary", "secondary", "deadzone"):
             assert f'"{key}"' in body, f"patch parser missing key {key}"
         assert '"drive_mode"' in src_text
+        assert '"max_paired"' in src_text
+
+    def test_patch_validates_max_paired_range(self, src_text):
+        # Should refuse max_paired outside [1, OC_MAX_PAIRED_CAP].
+        # The parser validates n < 1 || n > OC_MAX_PAIRED_CAP.
+        assert "n < 1 || n > OC_MAX_PAIRED_CAP" in src_text
 
     def test_patch_validates_direction_values(self, src_text):
         m = re.search(r"apply_patch_one[\s\S]+?\n\}", src_text)
@@ -644,6 +652,29 @@ class TestOutputConfigPatchParser:
         # one patch object, so POST /api/config must accept both.
         assert "strtol(p, &end, 10)" in src_text
         assert "if (*p == ',') p++;" in src_text
+
+    def test_to_json_serializes_max_paired_field(self, src_text):
+        # /api/config JSON must include the runtime cap so the web UI can
+        # pre-fill the input on first load.
+        block = re.search(r"int output_config_to_json[\s\S]+?int output_config_sources_to_json", src_text)
+        assert block, "output_config_to_json missing"
+        body = block.group(0)
+        # The C source contains the escaped JSON fragments, e.g. `,\"max_paired\":`
+        # because the literal is inside a C double-quoted string.
+        assert '\\"max_paired\\"' in body
+        # Field should appear after drive_mode and before "outputs".
+        i_drive = body.find('\\"drive_mode\\"')
+        i_max = body.find('\\"max_paired\\"')
+        i_outputs = body.find('\\"outputs\\"')
+        assert i_drive > 0, "drive_mode literal not found in json output"
+        assert i_max > i_drive, "max_paired must sit after drive_mode"
+        assert i_outputs > i_max, "max_paired must sit before outputs"
+
+    def test_patch_parser_validates_max_paired_bounds(self, src_text):
+        # Belongs in patch-parser class, but we add it here for cohesion
+        # with the other JSON-shape checks. The parser must reject values
+        # outside [1, OC_MAX_PAIRED_CAP] without crashing.
+        assert "n < 1 || n > OC_MAX_PAIRED_CAP" in src_text
 
 
 # ---------------------------------------------------------------------------

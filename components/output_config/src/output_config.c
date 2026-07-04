@@ -17,6 +17,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
+#include <errno.h>
+#include <limits.h>
 
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -82,6 +84,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
 
 static oc_output_cfg_t s_cfg[OC_OUT__COUNT];
 static oc_drive_mode_t s_drive_mode = OC_DRIVE_TANK_SPLIT;
+static uint8_t s_max_paired = OC_MAX_PAIRED_DEFAULT;
 static bool s_loaded = false;
 
 // ---- Small helpers -------------------------------------------------------
@@ -97,6 +100,7 @@ static esp_err_t save_all(void) {
     }
     err = nvs_set_blob(h, OC_NVS_KEY_BLOB, s_cfg, sizeof(s_cfg));
     if (err == ESP_OK) err = nvs_set_u8(h, OC_NVS_KEY_DRIVE_MODE, (uint8_t)s_drive_mode);
+    if (err == ESP_OK) err = nvs_set_u8(h, OC_NVS_KEY_MAX_PAIRED, s_max_paired);
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
     if (err != ESP_OK) {
@@ -123,6 +127,7 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
 void output_config_reset_defaults(void) {
     memcpy(s_cfg, kDefaults, sizeof(s_cfg));
     s_drive_mode = OC_DRIVE_TANK_SPLIT;
+    s_max_paired = OC_MAX_PAIRED_DEFAULT;
 }
 
 esp_err_t output_config_init(void) {
@@ -169,6 +174,18 @@ esp_err_t output_config_init(void) {
         nvs_close(h);
         if (mode_err == ESP_OK && mode < OC_DRIVE__COUNT) {
             s_drive_mode = (oc_drive_mode_t)mode;
+        }
+    }
+
+    // Max paired is its own small key. Missing/out-of-range falls back
+    // to OC_MAX_PAIRED_DEFAULT.
+    s_max_paired = OC_MAX_PAIRED_DEFAULT;
+    if (nvs_open(OC_NVS_NAMESPACE, NVS_READONLY, &h) == ESP_OK) {
+        uint8_t mp = 0;
+        esp_err_t mp_err = nvs_get_u8(h, OC_NVS_KEY_MAX_PAIRED, &mp);
+        nvs_close(h);
+        if (mp_err == ESP_OK && mp >= 1 && mp <= OC_MAX_PAIRED_CAP) {
+            s_max_paired = mp;
         }
     }
     s_loaded = true;
@@ -243,6 +260,16 @@ bool output_config_drive_mode_from_str(const char *s, oc_drive_mode_t *out) {
         }
     }
     return false;
+}
+
+uint8_t output_config_get_max_paired(void) {
+    return s_max_paired;
+}
+
+esp_err_t output_config_set_max_paired(uint8_t n) {
+    if (n < 1 || n > OC_MAX_PAIRED_CAP) return ESP_ERR_INVALID_ARG;
+    s_max_paired = n;
+    return save_all();
 }
 
 esp_err_t output_config_commit(void) {
@@ -320,6 +347,8 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
 
     ok &= json_append_raw(out_buf, out_buf_len, &used, "{\"drive_mode\":");
     ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_mode_name(s_drive_mode));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"max_paired\":");
+    ok &= json_append_int(out_buf, out_buf_len, &used, s_max_paired);
     ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"outputs\":{");
     for (int i = 0; i < OC_OUT__COUNT && ok; i++) {
         if (i > 0) ok &= json_append_raw(out_buf, out_buf_len, &used, ",");
@@ -406,6 +435,23 @@ static bool parse_bare_string_value(const char **cursor, char *dst, size_t dst_l
     if (*p != '"') return false;
     dst[i] = '\0';
     *cursor = p + 1;
+    return true;
+}
+
+// Parse a non-negative integer at `cursor` and advance past it.
+// On success returns true and writes the value to *out. Rejects
+// negative numbers, scientific notation, leading whitespace ints
+// (callers strip whitespace before invoking), and overflow.
+static bool parse_bare_int_value(const char **cursor, int *out) {
+    const char *p = *cursor;
+    char *end = NULL;
+    errno = 0;
+    long v = strtol(p, &end, 10);
+    if (end == p) return false;       // no digits
+    if (errno == ERANGE) return false; // overflow
+    if (v < 0 || v > INT_MAX) return false;
+    *out = (int)v;
+    *cursor = end;
     return true;
 }
 
@@ -552,6 +598,16 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
             if (!parse_bare_string_value(&p, value, sizeof(value))) return ESP_ERR_INVALID_ARG;
             if (!output_config_drive_mode_from_str(value, &mode)) return ESP_ERR_INVALID_ARG;
             s_drive_mode = mode;
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (*p == ',') p++;
+            continue;
+        }
+
+        if (strcmp(key, "max_paired") == 0) {
+            int n;
+            if (!parse_bare_int_value(&p, &n)) return ESP_ERR_INVALID_ARG;
+            if (n < 1 || n > OC_MAX_PAIRED_CAP) return ESP_ERR_INVALID_ARG;
+            s_max_paired = (uint8_t)n;
             while (*p && isspace((unsigned char)*p)) p++;
             if (*p == ',') p++;
             continue;
