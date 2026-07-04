@@ -75,6 +75,13 @@ static int gamepad_build_state_json(char *buf, size_t buflen);
 
 static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
     s_gp.connected = connected;
+    if (connected) {
+        ESP_LOGI(TAG, "BLE controller connected: %02x:%02x:%02x:%02x:%02x:%02x",
+                 mac->addr[0], mac->addr[1], mac->addr[2],
+                 mac->addr[3], mac->addr[4], mac->addr[5]);
+    } else {
+        ESP_LOGI(TAG, "BLE controller disconnected");
+    }
     if (!connected) {
         // Reset sticks/triggers so the UI doesn't show stale values.
         s_gp.lx = s_gp.ly = s_gp.rx = s_gp.ry = 0;
@@ -652,14 +659,16 @@ void web_config_loop(void) {
     }
 
     // ESPAsyncWebServer runs handlers on its own task. We just need
-    // to keep an eye on WiFi state for the captive portal DNS server
-    // (TODO: implement once captive portal is added).
+    // Two cadences:
+    //   - WebSocket gamepad feed: every loop tick (designed for ~10–30 Hz)
+    //   - WiFi reconnect + client cleanup: every 5 s
+    // The previous structure skipped gamepad_ws_tick() inside the 5 s
+    // guard, dropping the live feed to ~0.2 Hz.
     static uint32_t last_check = 0;
     uint32_t now = millis();
-    if (now - last_check < 5000) {
-        gamepad_ws_tick();
-        return;
-    }
+    gamepad_ws_tick();
+
+    if (now - last_check < 5000) return;
     last_check = now;
 
     // If we were in STA and got disconnected, fall back to AP.
@@ -670,7 +679,6 @@ void web_config_loop(void) {
 
     // Drain any dead WS clients so count() stays accurate.
     if (ws) ws->cleanupClients();
-    gamepad_ws_tick();
 }
 
 void web_config_get_status(web_status_t *out) {

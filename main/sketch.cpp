@@ -72,22 +72,13 @@ static void handle_pairing_button(void) {
 
 // --- Connection state callback ----------------------------------------
 //
-// ble_gamepad fires this on every connect/disconnect. We use it to
-// update the LED strip (rainbow when paired/connected, red blinking
-// when not, green pulse when pairing).
-
-static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
-    if (connected) {
-        ESP_LOGI(TAG, "BLE controller connected: %02x:%02x:%02x:%02x:%02x:%02x",
-                 mac->addr[0], mac->addr[1], mac->addr[2],
-                 mac->addr[3], mac->addr[4], mac->addr[5]);
-    } else {
-        ESP_LOGI(TAG, "BLE controller disconnected");
-    }
-    // LED feedback handled inside TaskManager.managerTask via
-    // adjustLedForBattery(). A future enhancement could add a
-    // "pairing state" LED mode here.
-}
+// ble_gamepad fires on_ble_connection_change on every connect/disconnect.
+// There is no per-TU callback chain yet, so the *single* registration
+// site is web_config_init() in components/web_config/src/web_config.cpp
+// (which sets s_gp.broadcast_pending and logs connect/disconnect). If
+// you need to add additional handlers here, extend
+// ble_gamepad_set_connection_callback to support a list, then register
+// each listener from its own TU.
 
 // --- Arduino lifecycle ------------------------------------------------
 
@@ -150,8 +141,11 @@ void setup() {
     // Do not start active BLE scanning yet: ESP32-C3 WiFi and BLE share the
     // 2.4GHz radio, and starting a continuous scan before softAP setup can
     // make the config AP hard to see or associate with.
-    ble_gamepad_set_connection_callback(on_ble_connection_change);
-    boot_trace("ble callback registered; scan deferred until after web_config_init");
+    // NOTE: ble_gamepad_set_connection_callback is registered by web_config_init
+    // (later in setup()) because web_config is the only consumer of the
+    // broadcast_pending flag. The connection log lines that used to live here
+    // were moved into web_config's callback so we keep a single registration site.
+    boot_trace("ble callback deferred to web_config_init");
 
     // Initialize myrobot subsystems (motors, drum, LEDs, battery, etc.).
     boot_trace("taskManager.begin begin");
