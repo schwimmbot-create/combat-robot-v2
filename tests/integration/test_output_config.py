@@ -500,6 +500,36 @@ class TestBleGamepadGuiContract:
             f"triggers swapped in WS payload: {m.group(0)!r}"
         )
 
+    def test_ws_live_feed_rate_stays_below_queue_pressure_threshold(self):
+        # Regression: 30Hz textAll() on ESPAsyncWebServer AP mode can fill
+        # AsyncWebSocket client queues, creating seconds of visible UI lag.
+        wc_text = (PROJECT_ROOT / "components" / "web_config" / "src" / "web_config.cpp").read_text()
+        m = re.search(r"#define\s+GAMEPAD_TICK_HZ\s+(\d+)", wc_text)
+        assert m, "GAMEPAD_TICK_HZ define missing"
+        assert int(m.group(1)) <= 20
+
+    def test_ws_tick_drops_frames_when_clients_not_writable(self):
+        # The WS tick must not queue stale controller states when clients are
+        # backed up. It should cleanup clients and skip textAll() unless all
+        # clients are writable.
+        wc_text = (PROJECT_ROOT / "components" / "web_config" / "src" / "web_config.cpp").read_text()
+        m = re.search(r"static void gamepad_ws_tick\(void\) \{[\s\S]+?\n\}", wc_text)
+        assert m, "gamepad_ws_tick() not found"
+        body = m.group(0)
+        assert "ws->cleanupClients();" in body
+        assert "!ws->availableForWriteAll()" in body
+        assert "s_gp.broadcast_pending = true" in body
+        assert body.index("!ws->availableForWriteAll()") < body.index("ws->textAll(buf)")
+
+    def test_ws_immediate_broadcast_checks_client_writability(self):
+        wc_text = (PROJECT_ROOT / "components" / "web_config" / "src" / "web_config.cpp").read_text()
+        m = re.search(r"static void gamepad_ws_broadcast_now\(void\) \{[\s\S]+?\n\}", wc_text)
+        assert m, "gamepad_ws_broadcast_now() not found"
+        body = m.group(0)
+        assert "ws->cleanupClients();" in body
+        assert "!ws->availableForWriteAll()" in body
+        assert body.index("!ws->availableForWriteAll()") < body.index("ws->textAll(buf)")
+
     def test_mockup_handles_ws_pairing_field(self):
         mockup = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text()
         assert "msg.pairing" in mockup

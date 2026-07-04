@@ -90,7 +90,10 @@ static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
 // --- WebSocket live gamepad feed --------------------------------------
 
 #define GAMEPAD_WS_PATH "/ws"
-#define GAMEPAD_TICK_HZ 30
+// Keep the live controller feed below the ESP32/AP/browser drain rate. Sending
+// faster than clients can consume creates AsyncWebSocket queue backpressure,
+// which shows up in the UI as seconds-old button/stick frames.
+#define GAMEPAD_TICK_HZ 20
 
 static void gamepad_ws_event(AsyncWebSocket *server, AsyncWebSocketClient *client,
                              AwsEventType type, void *arg, uint8_t *data, size_t len) {
@@ -140,26 +143,37 @@ static int gamepad_build_state_json(char *buf, size_t buflen) {
 
 // Broadcast a single state frame immediately to all WS clients (used
 // right after a pairing-state change so the page reflects it without
-// waiting up to 33ms for the next 30Hz tick).
+// waiting for the next live-feed tick).
 static void gamepad_ws_broadcast_now(void) {
     if (!ws) return;
+    ws->cleanupClients();
     uint32_t count = ws->count();
     if (count == 0) {
         if (Serial) Serial.printf("[WS] broadcast skipped count=0\r\n");
+        return;
+    }
+    if (!ws->availableForWriteAll()) {
+        if (Serial) Serial.printf("[WS] broadcast skipped clients not writable\r\n");
         return;
     }
     s_gp.last_send_ms = millis();
     char buf[256];
     int n = gamepad_build_state_json(buf, sizeof(buf));
     if (n < 0) return;
-    if (Serial) Serial.printf("[WS] broadcast count=%u payload=%s\r\n", count, buf);
     ws->textAll(buf);
 }
 
 static void gamepad_ws_tick(void) {
     if (!ws) return;
+    ws->cleanupClients();
     if (ws->count() == 0) {
         s_gp.broadcast_pending = false;
+        return;
+    }
+    if (!ws->availableForWriteAll()) {
+        // Drop this frame instead of queueing stale controller states.
+        // The next tick sends the newest state once the client drains.
+        s_gp.broadcast_pending = true;
         return;
     }
     uint32_t now = millis();
