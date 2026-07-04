@@ -367,8 +367,8 @@ const BOARD_OUTPUT_PROFILES = {
     label: 'Board v2 (current production)',
     note: 'v2 exposes 2 brushed motor outputs, 2 Servo / ESC outputs, UART, Header H1, SW1, and LED1. LED2 / RGB ignored for now because it shares GPIO8/SCL.',
     outputs: [
-      { id: 'M1', display_name: 'Motor 1 / P1', kind: 'motor', detail: 'DRV8871 brushed DC output. GPIO0 = IN1, GPIO1 = IN2.' },
-      { id: 'M2', display_name: 'Motor 2 / P2', kind: 'motor', detail: 'DRV8871 brushed DC output. GPIO21/TXD0 = IN1, GPIO10 = IN2.' },
+      { id: 'M1', display_name: 'Motor 1 / P1', kind: 'motor', runtimeControlled: true, detail: 'DRV8871 brushed DC output. GPIO0 = IN1, GPIO1 = IN2.' },
+      { id: 'M2', display_name: 'Motor 2 / P2', kind: 'motor', runtimeControlled: true, detail: 'DRV8871 brushed DC output. GPIO21/TXD0 = IN1, GPIO10 = IN2.' },
       { id: 'S1', display_name: 'Servo / ESC 1', kind: 'servo', detail: 'GPIO4 servo-style signal. Use for an RC servo or ESC signal input.' },
       { id: 'S2', display_name: 'Servo / ESC 2', kind: 'servo', detail: 'GPIO5 servo-style signal. Use for an RC servo or ESC signal input.' },
     ],
@@ -393,6 +393,17 @@ const DRIVE_MODES = [
   { id: 'arcade_right', label: 'Arcade: right stick throttle + turn', summary: 'One-stick arcade on the right stick. Right Stick Y controls speed; Right Stick X controls steering.' },
   { id: 'arcade_split', label: 'Split arcade: left stick speed + right stick steering', summary: 'Two-stick arcade. Left Stick Y controls speed; Right Stick X controls left/right direction.' },
 ];
+const DRIVE_MODE_SOURCES = {
+  tank_split:   ['LY', 'RY'],
+  arcade_left:  ['LY', 'LX'],
+  arcade_right: ['RY', 'RX'],
+  arcade_split: ['LY', 'RX'],
+};
+
+function runtimeDriveSources(mode = state.drive_mode) {
+  return DRIVE_MODE_SOURCES[mode] || DRIVE_MODE_SOURCES.tank_split;
+}
+
 
 // ---- In-memory state, seeded from /api/config when loaded -------------
 const state = {
@@ -431,12 +442,29 @@ function el(tag, attrs = {}, children = []) {
   return e;
 }
 
-function sourceSelect(name, value) {
+function assignedSourceOwners(exceptOutputId) {
+  const owners = new Map();
+  for (const src of runtimeDriveSources(state.drive_mode)) owners.set(src, 'Driving Style');
+  for (const out of activeBoardProfile().outputs) {
+    if (out.runtimeControlled || out.id === exceptOutputId) continue;
+    const cfg = state.outputs[out.id] || {};
+    for (const src of [cfg.primary, cfg.secondary]) {
+      if (src && src !== 'NONE') owners.set(src, out.display_name);
+    }
+  }
+  return owners;
+}
+
+function sourceSelect(name, value, ownerId) {
   const sel = el('select', { 'data-name': name });
+  const owners = assignedSourceOwners(ownerId);
   for (const s of SOURCES) {
-    const o = el('option', { value: s.id }, s.label);
-    if (s.id === value) o.selected = true;
-    sel.appendChild(o);
+    const owner = owners.get(s.id);
+    const label = owner && s.id !== value ? `${s.label} — Used by ${owner}` : s.label;
+    const option = el('option', { value: s.id }, label);
+    if (s.id === value) option.selected = true;
+    if (owner && s.id !== value) option.disabled = true;
+    sel.appendChild(option);
   }
   return sel;
 }
@@ -622,6 +650,27 @@ function motorMappingSummary(cfg) {
   return `${dir}: ${drive} drives forward/on. Add a reverse-only input if needed.${reversed ? ' Output is flipped.' : ''}`;
 }
 
+function renderRuntimeDriveAssignment(o) {
+  const sources = runtimeDriveSources(state.drive_mode);
+  const mode = DRIVE_MODES.find(m => m.id === state.drive_mode) || DRIVE_MODES[0];
+  let role = 'drive motor';
+  let assigned = sources.join(' + ');
+  if (state.drive_mode === 'tank_split') {
+    role = o.id === 'M1' ? 'left/tank motor' : 'right/tank motor';
+    assigned = o.id === 'M1' ? 'LY' : 'RY';
+  } else if (state.drive_mode === 'arcade_left') {
+    assigned = 'LY throttle + LX turn';
+  } else if (state.drive_mode === 'arcade_right') {
+    assigned = 'RY throttle + RX turn';
+  } else if (state.drive_mode === 'arcade_split') {
+    assigned = 'LY throttle + RX turn';
+  }
+  return el('div', { class: 'summary' }, [
+    el('strong', {}, 'Drive-mode controlled: '),
+    `M1/M2 are controlled by Driving Style, not per-motor input dropdowns. ${o.display_name} follows ${role} from ${mode.label} (${assigned}).`,
+  ]);
+}
+
 function renderOutput(o) {
   // Defensive: if /api/config returned a key we don't have seeded
   // (or `Reset Outputs to Defaults` raced a save), seed minimal defaults
@@ -648,9 +697,9 @@ function renderOutput(o) {
   if (cfg.servo_mode === 'uni') servoSel.value = 'uni';
   servoSel.addEventListener('change', e => { state.outputs[o.id].servo_mode = e.target.value; });
 
-  const primary = sourceSelect('primary', cfg.primary);
+  const primary = sourceSelect('primary', cfg.primary, o.id);
   primary.addEventListener('change', e => { state.outputs[o.id].primary = e.target.value; renderOutputs(); });
-  const secondary = sourceSelect('secondary', cfg.secondary);
+  const secondary = sourceSelect('secondary', cfg.secondary, o.id);
   secondary.addEventListener('change', e => { state.outputs[o.id].secondary = e.target.value; renderOutputs(); });
 
   const dz = el('input', { type: 'number', min: '0', max: '50', step: '1', value: String(cfg.deadzone) });
@@ -664,6 +713,10 @@ function renderOutput(o) {
     el('span', { class: 'id' }, o.id),
   ]));
   if (o.detail) card.appendChild(el('p', { class: 'hint' }, o.detail));
+  if (o.runtimeControlled) {
+    card.appendChild(renderRuntimeDriveAssignment(o));
+    return card;
+  }
 
   const grid = el('div', { class: 'grid-2' });
   grid.appendChild(el('div', {}, [

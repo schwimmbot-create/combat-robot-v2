@@ -945,6 +945,31 @@ class TestConfigUiMockup:
         assert "Saved to NVS and used by the runtime drive mixer after Save." in html
         assert "Drive mode is live:" in html
 
+    def test_motor_inputs_are_shown_as_drive_mode_controlled(self, html):
+        # Runtime evaluation: TaskManager ignores M1/M2 primary dropdowns and
+        # drives motors from output_config_get_drive_mode(). The UI must not
+        # imply M1/M2 have independently assignable controller-source dropdowns.
+        assert "runtimeControlled: true" in html
+        assert "function runtimeDriveSources" in html
+        assert "function renderRuntimeDriveAssignment" in html
+        assert "M1/M2 are controlled by Driving Style" in html
+        assert "Drive-mode controlled" in html
+
+    def test_assignable_sources_are_exclusive_in_outputs_ui(self, html):
+        # A controller source already consumed by Driving Style or another
+        # output must be unavailable in other output dropdowns. This prevents
+        # assigning the same button/axis to multiple systems by accident.
+        for token in (
+            "function assignedSourceOwners(exceptOutputId)",
+            "function sourceSelect(name, value, ownerId)",
+            "option.disabled = true",
+            "Used by ",
+            "runtimeDriveSources(state.drive_mode)",
+            "sourceSelect('primary', cfg.primary, o.id)",
+            "sourceSelect('secondary', cfg.secondary, o.id)",
+        ):
+            assert token in html
+
     def test_controller_ui_has_max_paired_cap(self, html):
         # Controller tab must include the numeric input + Save handler
         # for the BLE whitelist cap. Mirrors BLE_RUNTIME_MAX_PAIRED_CAP = 4
