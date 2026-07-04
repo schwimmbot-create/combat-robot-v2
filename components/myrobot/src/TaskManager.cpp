@@ -70,10 +70,17 @@ void TaskManager::begin(){
 
 
     // create the RTOS task (adjust stack if you overflow)
+    // Stack size bumped 4096 -> 6144 (2026-07-04): managerTask calls into
+    // combined_direction / two_stick_drive / adjustLedForBattery (which
+    // allocates the rainbow color buffer) under one stack frame, which
+    // left no headroom against the ESP32-C3's stack-overflow canary. With
+    // CONFIG_ARDUINO_RUNNING_CORE set to 1 (single-core) and FreeRTOS
+    // configUSE_STACK_OVERFLOW_CHECK enabled, a 4096-byte stack can fire
+    // the canary under sustained rainbow animation.
     xTaskCreatePinnedToCore(
         managerTask,           // function
         "TaskManager",         // name
-        4096,                  // stack size in bytes
+        6144,                  // stack size in bytes
         this,                  // pvParameters
         tskIDLE_PRIORITY + 1,  // priority
         &taskHandle,           // handle
