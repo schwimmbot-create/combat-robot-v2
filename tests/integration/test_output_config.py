@@ -273,6 +273,47 @@ class TestBleGamepadPairingCallbackWiring:
         assert "ble_gamepad_set_pairing_callback" in text
         assert "DEBUG_LED_PIN" in text
 
+    def test_pairing_state_change_on_connect_uses_public_setter(self):
+        # Regression: LED1 kept blinking after a successful pair because
+        # the connect path mutated s_state.pairing_state directly and
+        # skipped the registered pairing callback. The fix is to go
+        # through ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE) on
+        # connect so pairing_cb is invoked and the LED stops blinking.
+        text = self.BLE_SRC.read_text()
+        # Locate the body that handles "subscribed to HID reports" / pair-lock.
+        m = re.search(
+            r"s_state\.connected\s*=\s*true;[\s\S]+?notify_connection_change\(true[\s\S]+?return true;",
+            text)
+        assert m, "connect-lock block not found"
+        body = m.group(0)
+        # Must go through the public setter, not direct field write.
+        assert "s_state.pairing_state = PAIRING_STATE_IDLE" not in body, (
+            "connect path must not mutate s_state.pairing_state directly; "
+            "use ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE) so the "
+            "pairing callback fires and the LED stops blinking."
+        )
+        assert "ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE)" in body
+
+    def test_led1_task_uses_connected_priority_when_not_pairing(self):
+        # The LED task's else branch must drive the pin to:
+        #   HIGH when a controller is connected
+        #   LOW  when neither pairing nor connected
+        # Reading these in the wrong order caused the LED to keep blinking
+        # after a successful pair in the previous build.
+        text = self.SKETCH.read_text()
+        m = re.search(
+            r"static void led1_indicator_task[\s\S]+?vTaskDelay\(pdMS_TO_TICKS\(20\)\);",
+            text)
+        assert m, "led1_indicator_task() body not found"
+        body = m.group(0)
+        # Connected-state pin writes exist and reflect priority.
+        assert "digitalWrite(DEBUG_LED_PIN, connected ? HIGH : LOW)" in body
+        # The LED task must read both flags under the spinlock so the
+        # output never sees a torn read.
+        assert "portENTER_CRITICAL(&g_led1_lock)" in body
+        assert "g_pairing_led_active" in body
+        assert "g_connected_led_active" in body
+
 class TestBleGamepadGuiContract:
     BLE_SRC = PROJECT_ROOT / "components" / "ble_gamepad" / "src" / "ble_gamepad.cpp"
 

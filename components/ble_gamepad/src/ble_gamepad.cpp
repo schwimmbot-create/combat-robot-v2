@@ -509,7 +509,11 @@ static bool connect_to_target(void) {
         ble_gamepad_add_paired_mac(&s_state.connected_mac);
     }
     if (s_state.pairing_timer != NULL) esp_timer_stop(s_state.pairing_timer);
-    s_state.pairing_state = PAIRING_STATE_IDLE;
+    // Go through the public setter so the pairing callback fires and any
+    // listener (LED1 indicator, future buzzer) sees the ACCEPT -> IDLE
+    // transition. Directly mutating s_state.pairing_state would skip
+    // the callback, leaving the LED stuck in blink mode after a pair.
+    ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE);
     notify_connection_change(true, &s_state.connected_mac);
     ESP_LOGI(TAG, "Subscribed to HID reports");
     BLE_SERIALF("[BLE] subscribed pairing=locked\r\n");
