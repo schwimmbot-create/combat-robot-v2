@@ -868,6 +868,22 @@ class TestConfigUiMockup:
         assert "Saved to NVS and used by the runtime drive mixer after Save." in html
         assert "Drive mode is live:" in html
 
+    def test_controller_ui_has_max_paired_cap(self, html):
+        # Controller tab must include the numeric input + Save handler
+        # for the BLE whitelist cap. Mirrors BLE_RUNTIME_MAX_PAIRED_CAP = 4
+        # at the input level (min="1" max="4").
+        assert 'id="max-paired-input"' in html
+        assert 'id="btn-max-paired-save"' in html
+        assert 'min="1"' in html
+        assert 'max="4"' in html
+        # Save handler POSTs to /api/config/max_paired with JSON body.
+        assert "apiPostJSON('/api/config/max_paired'" in html
+        assert "{ max_paired: raw }" in html
+        # State mirror + status/config hydration.
+        assert "max_paired: 1" in html  # default in `state`
+        assert "s.max_paired" in html   # /api/status hydration
+        assert "j.max_paired" in html   # /api/config hydration
+
     def test_output_ui_renders_live_mock_robot_preview(self, html):
         assert "Mock robot output" in html
         assert "function mockDriveOutput(mode, gp)" in html

@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-04T00:38:35 from docs/config-ui-mockup.html
-// Source size: 40068 bytes
+// Generated 2026-07-04T09:35:56 from docs/config-ui-mockup.html
+// Source size: 42360 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -229,6 +229,18 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <p class="meta" style="margin:14px 0 6px;">Paired Controllers</p>
       <div id="mac-list" class="mac-list">—</div>
       <button id="btn-unpair" class="ghost danger" style="width:100%; margin-top:8px;">Clear All Paired Controllers</button>
+
+      <div style="margin-top:14px;">
+        <label class="field" for="max-paired-input">Max paired controllers</label>
+        <input id="max-paired-input" type="number" min="1" max="4" step="1"
+               style="width:80px;" aria-describedby="max-paired-hint" />
+        <p id="max-paired-hint" class="meta" style="margin:6px 0 8px;">
+          Caps how many controllers fit on the whitelist (1-4). Pairing a new
+          controller beyond the cap evicts the oldest. Default 1.
+        </p>
+        <button id="btn-max-paired-save" class="oled" style="margin-top:4px;">Save Cap</button>
+        <span id="max-paired-status" class="meta" style="margin-left:8px;"></span>
+      </div>
     </div>
   </section>
 
@@ -375,6 +387,7 @@ const DRIVE_MODES = [
 // ---- In-memory state, seeded from /api/config when loaded -------------
 const state = {
   drive_mode: 'tank_split',
+  max_paired: 1,
   outputs: {
     M1:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE' },
     M2:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'RY', secondary: 'NONE' },
@@ -836,6 +849,29 @@ document.getElementById('btn-unpair').addEventListener('click', async () => {
   catch (e) { toast('Clear failed: ' + e.message, 'err'); }
 });
 
+// Max-paired cap save. Body: {max_paired: N}. 1..4 enforced on the
+// firmware; mirror in the input's min/max so the browser rejects
+// out-of-range before we even POST.
+document.getElementById('btn-max-paired-save').addEventListener('click', async () => {
+  const inp = document.getElementById('max-paired-input');
+  const raw = parseInt(inp.value, 10);
+  if (!Number.isFinite(raw) || raw < 1 || raw > 4) {
+    document.getElementById('max-paired-status').textContent = 'must be 1-4';
+    toast('max_paired must be in [1, 4]', 'err');
+    return;
+  }
+  try {
+    await apiPostJSON('/api/config/max_paired', { max_paired: raw });
+    state.max_paired = raw;
+    document.getElementById('max-paired-status').textContent = 'saved';
+    toast('Max paired set to ' + raw);
+    refreshStatus();
+  } catch (e) {
+    document.getElementById('max-paired-status').textContent = 'failed';
+    toast('Save failed: ' + e.message, 'err');
+  }
+});
+
 // ---- Board rev wiring ---------------------------------------------------
 document.getElementById('btn-board-2').addEventListener('click', async () => {
   try { await apiPost('/api/board/rev?rev=2'); toast('Board rev set to 2 (effective on next boot)'); refreshStatus(); }
@@ -876,6 +912,13 @@ function applyStatus(s) {
   } else {
     list.textContent = 'No controllers paired';
   }
+  // Max paired cap (mirror from status into the input so it always
+  // reflects firmware truth after a reboot or NVS change elsewhere).
+  if (typeof s.max_paired === 'number' && s.max_paired >= 1 && s.max_paired <= 4) {
+    state.max_paired = s.max_paired;
+    const inp = document.getElementById('max-paired-input');
+    if (inp && document.activeElement !== inp) inp.value = String(s.max_paired);
+  }
   }
 
 async function refreshStatus() {
@@ -890,6 +933,11 @@ async function loadConfig() {
   try {
     const j = await apiGet('/api/config');
     if (DRIVE_MODES.some(m => m.id === j.drive_mode)) state.drive_mode = j.drive_mode;
+    if (typeof j.max_paired === 'number' && j.max_paired >= 1 && j.max_paired <= 4) {
+      state.max_paired = j.max_paired;
+      const inp = document.getElementById('max-paired-input');
+      if (inp) inp.value = String(j.max_paired);
+    }
     for (const k of Object.keys(j.outputs || {})) {
       if (state.outputs[k]) state.outputs[k] = j.outputs[k];
     }
