@@ -76,7 +76,18 @@ static void gamepad_ws_broadcast_now(void);
 static int gamepad_build_state_json(char *buf, size_t buflen);
 static void mac_to_cstr(const ble_mac_t *m, char *buf, size_t len);
 
+// The main TU (sketch.cpp) provides the real implementation. A weak
+// fallback here keeps the web_config component linkable on its own
+// (e.g. for static analysis or unit tests that compile only this TU).
+extern "C" __attribute__((weak)) void main_notify_connected(bool /*connected*/) {}
+
 static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
+    // Mirror connect/disconnect to the LED1 pairing indicator. Keeping
+    // the shim in sketch.cpp means the web_config component does not
+    // have to depend on myrobot/TaskManager. The shim has a weak
+    // fallback defined later in this TU so the web_config archive
+    // still links on its own.
+    main_notify_connected(connected);
     s_gp.connected = connected;
     if (connected) {
         ESP_LOGI(TAG, "BLE controller connected: %02x:%02x:%02x:%02x:%02x:%02x",

@@ -70,6 +70,81 @@ static void handle_pairing_button(void) {
     // Implementation deferred to LATER: see docs/TESTING.md.
 }
 
+// --- LED1 pairing indicator --------------------------------------------
+//
+// LED1 (DEBUG_LED_PIN) is the v2 board's standard LED, wired to the LED
+// class in TaskManager for morse-code patterns. That class can't be
+// driven from the NimBLE pairing callback because the LED's pattern
+// task only knows about enqueuePattern(). For the simple binary
+// "pairing / connected / idle" indicator we want here, driving the pin
+// directly is cleaner. Behavior:
+//   * PAIRING_STATE_ACCEPT  : 250ms on / 250ms off blink
+//   * controller connected : solid ON
+//   * otherwise            : OFF
+// The pairing state machine drives ACCEPT <-> IDLE, and the existing
+// on_ble_connection_change callback in web_config mirrors the
+// connected state. We watch both at 20ms cadence to keep the LED
+// output stable against rapid re-entry into pairing.
+
+static volatile bool g_pairing_led_active = false;
+static volatile bool g_connected_led_active = false;
+static TaskHandle_t g_led1_task = nullptr;
+static portMUX_TYPE g_led1_lock = portMUX_INITIALIZER_UNLOCKED;
+
+static void led1_indicator_task(void *pvParameters) {
+    (void)pvParameters;
+    pinMode(DEBUG_LED_PIN, OUTPUT);
+    digitalWrite(DEBUG_LED_PIN, LOW);
+    bool on = false;
+    TickType_t last = xTaskGetTickCount();
+    for (;;) {
+        bool pairing;
+        bool connected;
+        portENTER_CRITICAL(&g_led1_lock);
+        pairing = g_pairing_led_active;
+        connected = g_connected_led_active;
+        portEXIT_CRITICAL(&g_led1_lock);
+
+        if (pairing) {
+            // 250ms on / 250ms off. Half-period tick is 250ms; we flip
+            // the LED each tick, so duty = 50%.
+            TickType_t now = xTaskGetTickCount();
+            if (now - last >= pdMS_TO_TICKS(250)) {
+                last = now;
+                on = !on;
+                digitalWrite(DEBUG_LED_PIN, on ? HIGH : LOW);
+            }
+        } else {
+            // Reset the phase so the next entry into pairing always
+            // starts on a clean 250ms tick.
+            on = true;
+            last = xTaskGetTickCount();
+            digitalWrite(DEBUG_LED_PIN, connected ? HIGH : LOW);
+        }
+        vTaskDelay(pdMS_TO_TICKS(20));
+    }
+}
+
+static void on_pairing_state_change(PairingState state) {
+    portENTER_CRITICAL(&g_led1_lock);
+    g_pairing_led_active = (state == PAIRING_STATE_ACCEPT);
+    portEXIT_CRITICAL(&g_led1_lock);
+}
+
+// Called from the existing on_ble_connection_change path in
+// web_config via a thin shim. The shim lives in this TU so the
+// web_config component does not have to know about LED1.
+// Exposed as a C symbol with C linkage so the web_config archive
+// can resolve the reference during the static-library link pass
+// (it is compiled before sketch.cpp). The body in this TU is the
+// real implementation; a weak fallback also lives in web_config
+// so non-sketch builds still link.
+extern "C" void main_notify_connected(bool connected) {
+    portENTER_CRITICAL(&g_led1_lock);
+    g_connected_led_active = connected;
+    portEXIT_CRITICAL(&g_led1_lock);
+}
+
 // --- Connection state callback ----------------------------------------
 //
 // ble_gamepad fires on_ble_connection_change on every connect/disconnect.
@@ -171,6 +246,15 @@ void setup() {
     if (err != ESP_OK) boot_tracef("ble_gamepad_start failed: 0x%x", (unsigned)err);
     ESP_ERROR_CHECK(err);
     boot_trace("ble_gamepad_start ok");
+
+    // LED1 pairing-indicator task and the BLE pairing callback. Must be
+    // registered after ble_gamepad_start() so the subsystem is live.
+    if (g_led1_task == nullptr) {
+        xTaskCreatePinnedToCore(
+            led1_indicator_task, "led1_pair", 2048, nullptr,
+            tskIDLE_PRIORITY + 1, &g_led1_task, APP_CPU_NUM);
+    }
+    ble_gamepad_set_pairing_callback(on_pairing_state_change);
 
     // Watchdog: same pattern as v1.3.
     boot_trace("watchdog add begin");

@@ -165,6 +165,13 @@ esp_err_t ble_gamepad_set_max_paired(uint8_t n);
 typedef void (*ble_connection_callback_t)(bool connected, const ble_mac_t *mac);
 void ble_gamepad_set_connection_callback(ble_connection_callback_t cb);
 
+// Called whenever the pairing state machine transitions (IDLE <-> ACCEPT,
+// or back to IDLE on connect/timeout). The LED1 driver in sketch.cpp uses
+// this to blink the debug LED while accepting new controllers. The state
+// argument is the new state.
+typedef void (*ble_pairing_callback_t)(PairingState state);
+void ble_gamepad_set_pairing_callback(ble_pairing_callback_t cb);
+
 #ifdef __cplusplus
 extern "C" {
 #endif

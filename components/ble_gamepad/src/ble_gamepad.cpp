@@ -66,6 +66,7 @@ static struct {
     bool connected;
     ble_mac_t connected_mac;
     ble_connection_callback_t connection_cb;
+    ble_pairing_callback_t pairing_cb;
     esp_timer_handle_t pairing_timer;
     NimBLEClient *client;
     NimBLEServer *bench_server;
@@ -80,6 +81,7 @@ static struct {
     .max_paired = BLE_RUNTIME_MAX_PAIRED_DEFAULT,
     .connected = false,
     .connection_cb = NULL,
+    .pairing_cb = NULL,
     .pairing_timer = NULL,
     .client = NULL,
     .bench_server = NULL,
@@ -769,6 +771,9 @@ esp_err_t ble_gamepad_set_pairing_state(PairingState state) {
     } else {
         stop_scan();
     }
+    // Notify the pairing listener on every real transition so the LED1
+    // driver can blink while accepting new controllers.
+    if (s_state.pairing_cb) s_state.pairing_cb(state);
     return ESP_OK;
 }
 
@@ -834,6 +839,10 @@ esp_err_t ble_gamepad_set_max_paired(uint8_t n) {
 
 void ble_gamepad_set_connection_callback(ble_connection_callback_t cb) {
     s_state.connection_cb = cb;
+}
+
+void ble_gamepad_set_pairing_callback(ble_pairing_callback_t cb) {
+    s_state.pairing_cb = cb;
 }
 
 void ble_gamepad_poll(void) {

@@ -238,6 +238,41 @@ class TestOutputConfigImplementation:
 # prevents that bug class from coming back.
 # ---------------------------------------------------------------------------
 
+class TestBleGamepadPairingCallbackWiring:
+    # Regression: LED1 never blinked in pairing mode because nothing
+    # wired ble_gamepad_set_pairing_state() to the LED driver. The
+    # contract now is that the BLE subsystem must expose a pairing
+    # callback hook and invoke it on every state transition.
+    BLE_HDR = PROJECT_ROOT / "components" / "ble_gamepad" / "include" / "ble_gamepad.h"
+    BLE_SRC = PROJECT_ROOT / "components" / "ble_gamepad" / "src" / "ble_gamepad.cpp"
+    SKETCH  = PROJECT_ROOT / "main" / "sketch.cpp"
+
+    def test_pairing_callback_is_in_public_header(self):
+        text = self.BLE_HDR.read_text()
+        assert "ble_pairing_callback_t" in text
+        assert "ble_gamepad_set_pairing_callback" in text
+
+    def test_pairing_callback_invoked_on_state_change(self):
+        text = self.BLE_SRC.read_text()
+        # Pairing callback must be stored on s_state and invoked at least
+        # at the end of ble_gamepad_set_pairing_state() with the new state.
+        assert "s_state.pairing_cb" in text
+        m = re.search(
+            r"esp_err_t\s+ble_gamepad_set_pairing_state\s*\([\s\S]+?\n\}\s*",
+            text)
+        assert m, "ble_gamepad_set_pairing_state() body not found"
+        body = m.group(0)
+        assert "s_state.pairing_cb" in body, (
+            "set_pairing_state() must invoke s_state.pairing_cb on transition"
+        )
+
+    def test_sketch_wires_pairing_callback_to_led(self):
+        # sketch.cpp must register a pairing callback that drives LED1
+        # so that POST /api/pair/start actually flashes the LED.
+        text = self.SKETCH.read_text()
+        assert "ble_gamepad_set_pairing_callback" in text
+        assert "DEBUG_LED_PIN" in text
+
 class TestBleGamepadGuiContract:
     BLE_SRC = PROJECT_ROOT / "components" / "ble_gamepad" / "src" / "ble_gamepad.cpp"
 
