@@ -28,6 +28,8 @@
 #include <Update.h>
 #include <Preferences.h>
 #include <DNSServer.h>
+#include <cctype>
+#include <cstdlib>
 #include "esp_log.h"
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -260,6 +262,7 @@ static void send_json_status(AsyncWebServerRequest *req) {
     json += "\"ble_connected\":" + String(s.ble_connected ? "true" : "false") + ",";
     json += "\"ble_mac\":\"" + String(s.ble_mac) + "\",";
     json += "\"pairing_state\":\"" + String(s.pairing_state_str) + "\",";
+    json += "\"max_paired\":" + String((unsigned)ble_gamepad_get_max_paired()) + ",";
     json += "\"paired_macs\":[";
     for (int i = 0; i < count; i++) {
         if (i > 0) json += ",";
@@ -372,6 +375,71 @@ static void register_routes(void) {
         },
         NULL
     );
+
+    // Runtime cap on the BLE whitelist. Body: {"max_paired": N} with
+    // 1 <= N <= BLE_MAX_PAIRED_CONTROLLERS. Validates, writes to NVS
+    // via output_config, then mirrors to ble_gamepad_set_max_paired()
+    // so the policy takes effect immediately.
+    server->on("/api/config/max_paired", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+            // Body handler below accumulates the JSON for us.
+            auto *body = static_cast<String *>(req->_tempObject);
+            if (!body) {
+                req->send(400, "application/json",
+                          "{\"err\":\"no body\"}");
+                return;
+            }
+            // Hand-rolled {"max_paired": <digits> } extractor - keep
+            // dependency-free like the rest of the web_config glue.
+            int n = -1;
+            const char *key = "\"max_paired\"";
+            const char *p = strstr(body->c_str(), key);
+            if (p) {
+                p += strlen(key);
+                while (*p && *p != ':') p++;
+                if (*p == ':') {
+                    p++;
+                    while (*p && isspace((unsigned char)*p)) p++;
+                    char *end = nullptr;
+                    long v = strtol(p, &end, 10);
+                    if (end != p) n = (int)v;
+                }
+            }
+            delete body;
+            req->_tempObject = nullptr;
+            if (n < 1 || n > BLE_MAX_PAIRED_CONTROLLERS) {
+                req->send(400, "application/json",
+                          "{\"err\":\"max_paired must be in [1,"
+                          " BLE_MAX_PAIRED_CONTROLLERS]\"}");
+                return;
+            }
+            esp_err_t err = output_config_set_max_paired((uint8_t)n);
+            if (err != ESP_OK) {
+                req->send(500, "application/json",
+                          "{\"err\":\"nvs write failed\"}");
+                return;
+            }
+            err = ble_gamepad_set_max_paired((uint8_t)n);
+            if (err != ESP_OK) {
+                req->send(500, "application/json",
+                          "{\"err\":\"ble set failed\"}");
+                return;
+            }
+            String out = "{\"ok\":true,\"max_paired\":";
+            out += String((unsigned)n);
+            out += "}";
+            req->send(200, "application/json", out);
+        },
+        NULL,
+        [](AsyncWebServerRequest *req, uint8_t *data, size_t len,
+           size_t index, size_t total) {
+            if (!req->_tempObject) {
+                req->_tempObject = new String();
+                static_cast<String *>(req->_tempObject)->reserve(total);
+            }
+            auto *body = static_cast<String *>(req->_tempObject);
+            body->concat(reinterpret_cast<const char *>(data), len);
+        });
 
     server->on("/api/pair/cancel", HTTP_POST,
         [](AsyncWebServerRequest *req) {
@@ -631,6 +699,9 @@ esp_err_t web_config_init(void) {
 
     // Output config must be initialized before we can serve /api/config.
     output_config_init();
+    // Mirror the NVS-backed max-paired setting into the BLE subsystem so
+    // the runtime policy is active before pairing or auto-reconnect begins.
+    ble_gamepad_set_max_paired(output_config_get_max_paired());
 
     server = new AsyncWebServer(80);
     ws = new AsyncWebSocket(GAMEPAD_WS_PATH);
