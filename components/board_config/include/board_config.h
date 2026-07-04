@@ -15,6 +15,10 @@
 
 #include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // ---- Board revision selection ----
 
 #ifndef BOARD_REV
@@ -203,7 +207,15 @@
     #error "Drive motor pins must all be different."
 #endif
 
-// ---- Board info struct (for runtime introspection) ----
+#ifdef __cplusplus
+}  // extern "C"
+#endif
+
+// ---- Board info struct (for runtime introspection, C++ only) --------------
+//
+// BoardInfo uses a std::string-like `const char*` member and is initialized
+// via `inline constexpr`, which require C++. Anything that needs to be
+// visible from C code lives above the extern "C" closure.
 
 struct BoardInfo {
     const char* name;

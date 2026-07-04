@@ -18,6 +18,10 @@
 #include <stdbool.h>
 #include "esp_err.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Initialize WiFi (AP+STA), HTTP server, DNS for captive portal.
 // Must be called AFTER nvs_flash_init() and esp_netif_init().
 // Returns ESP_OK on success.
@@ -44,3 +48,7 @@ struct web_status_t {
 };
 
 void web_config_get_status(web_status_t *out);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif

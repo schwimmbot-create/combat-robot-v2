@@ -1,4 +1,6 @@
-#pragma once
+#ifndef RGBLED_H
+#define RGBLED_H
+
 #include <Arduino.h>
 #include <Adafruit_NeoPixel.h>
 #include "esp_pm.h"
@@ -57,3 +59,4 @@ private:
     esp_pm_lock_handle_t _max_f = nullptr;
   #endif
 };
+#endif  // RGBLED_H

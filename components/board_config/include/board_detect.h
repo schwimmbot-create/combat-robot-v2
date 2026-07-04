@@ -16,8 +16,13 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 #include "esp_err.h"
 #include "board_config.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 // ---- Detection API ----
 
@@ -51,3 +56,7 @@ esp_err_t board_detect_clear_override(void);
 // Check if a NVS override is currently set. Returns true/false.
 // (out_rev is set to the override value if true is returned.)
 bool board_detect_has_override(int *out_rev);
+
+#ifdef __cplusplus
+}  // extern "C"
+#endif
