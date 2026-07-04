@@ -16,8 +16,8 @@ What's verified:
   * The web_config handler exposes /api/config, /api/config/sources,
     and the POST body handler that calls
     output_config_apply_json_patch().
-  * Defaults match the v1.3 combat_robot behavior:
-        M1/M2: LY primary, normal direction, bi servo_mode (motor)
+  * Defaults describe current hard-coded tank drive:
+        M1: LY primary, M2: RY primary, normal direction, bi servo_mode (motor)
         Weapon: RT primary
         S1/S2: NONE, uni
   * Patch parser recognizes direction/servo_mode/primary/secondary/
@@ -139,8 +139,8 @@ class TestOutputConfigImplementation:
             f"source list drift: got {names}, expected {EXPECTED_SOURCES}"
         )
 
-    def test_defaults_match_v1_3(self, src_text):
-        # Defaults: M1/M2 -> LY primary, Weapon -> RT, S1/S2 -> NONE,
+    def test_defaults_match_current_tank_drive(self, src_text):
+        # Defaults: M1 -> LY primary, M2 -> RY primary, Weapon -> RT, S1/S2 -> NONE,
         # all "normal" direction, deadzone 10 (Weapon: 5), uni for servos.
         m = re.search(r"kDefaults\[OC_OUT__COUNT\]\s*=\s*\{([\s\S]+?)\};", src_text)
         assert m, "kDefaults not found"
@@ -148,10 +148,22 @@ class TestOutputConfigImplementation:
 
         # Spot-check each.
         assert re.search(r"OC_OUT_M1\][^}]*OC_SRC_LY", defaults_blob)
-        assert re.search(r"OC_OUT_M2\][^}]*OC_SRC_LY", defaults_blob)
+        assert re.search(r"OC_OUT_M2\][^}]*OC_SRC_RY", defaults_blob)
         assert re.search(r"OC_OUT_WEAPON\][^}]*OC_SRC_RT", defaults_blob)
         assert re.search(r"OC_OUT_S1\][^}]*OC_DIR_NORMAL", defaults_blob)
         assert re.search(r"OC_OUT_S2\][^}]*OC_DIR_NORMAL", defaults_blob)
+
+    def test_runtime_drive_path_uses_negative_y_as_forward(self):
+        # Actual motor control is still hard-coded tank drive, independent of
+        # output_config. HID Y-up decodes negative, then setForwardInputLimits
+        # reverses the forward range so negative Y becomes positive FORWARD PWM.
+        tm = (PROJECT_ROOT / "components" / "myrobot" / "src" / "TaskManager.cpp").read_text()
+        drive = (PROJECT_ROOT / "components" / "myrobot" / "src" / "Drive.cpp").read_text()
+        assert "drive.setForwardInputLimits(511,-512);" in tm
+        assert "_leftDriveInput   = cs.leftStickY;" in tm
+        assert "_rightDriveInput  = cs.rightStickY;" in tm
+        assert "if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE" in drive
+        assert "else{leftMotor.setSpeed(left_speed, FORWARD" in drive
 
     def test_nvs_namespace_is_namespaced(self, header_text):
         assert "OC_NVS_NAMESPACE" in header_text
@@ -770,6 +782,12 @@ class TestConfigUiMockup:
         assert "Drive input (center = stop)" in html
         assert "above center = forward, below center = reverse" in html
         assert "Optional reverse-only input" in html
+
+    def test_output_ui_discloses_fixed_runtime_tank_drive(self, html):
+        assert "Current runtime drive:" in html
+        assert "M1/left = Left Stick Y" in html
+        assert "M2/right = Right Stick Y" in html
+        assert "not yet applied to live motor routing" in html
 
     def test_direction_toggle_input_precedes_label_for_checked_css(self, html):
         # CSS uses `.toggle input:checked + label`; the input must be

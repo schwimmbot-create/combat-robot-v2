@@ -223,6 +223,7 @@
     <div class="card">
       <h2>Motor &amp; Servo Outputs</h2>
       <p class="meta">For drive motors, choose one signed stick axis as the <strong>Drive input</strong>: above center drives forward, below center drives reverse, center is stop. Use <strong>Direction</strong> only if the motor spins the wrong way. Optional reverse-only input is for trigger/button-style controls.</p>
+      <p class="meta"><strong>Current runtime drive:</strong> firmware uses fixed tank drive for now (M1/left = Left Stick Y, M2/right = Right Stick Y). These settings are saved for setup/diagnostics but are not yet applied to live motor routing.</p>
       <div id="outputs"></div>
     </div>
   </section>
@@ -355,7 +356,7 @@ const OUTPUTS = [
 const state = {
   outputs: {
     M1:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE' },
-    M2:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE' },
+    M2:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'RY', secondary: 'NONE' },
     Weapon: { direction: 'normal',  servo_mode: 'bi',  deadzone:  5, primary: 'RT', secondary: 'NONE' },
     S1:     { direction: 'normal',  servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },
     S2:     { direction: 'normal',  servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },

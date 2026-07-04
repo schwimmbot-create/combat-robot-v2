@@ -62,9 +62,9 @@ typedef enum {
 typedef enum {
     OC_SRC_NONE       = 0,
     OC_SRC_LX         = 1,    // left stick X (raw -512..511)
-    OC_SRC_LY         = 2,    // left stick Y (forward/back on M1/M2)
+    OC_SRC_LY         = 2,    // left stick Y (left drive forward/back)
     OC_SRC_RX         = 3,    // right stick X (turn)
-    OC_SRC_RY         = 4,    // right stick Y (forward/back weapon)
+    OC_SRC_RY         = 4,    // right stick Y (right drive forward/back)
     OC_SRC_LT         = 5,    // left trigger  (0..1023)
     OC_SRC_RT         = 6,    // right trigger (weapon)
     OC_SRC_BTN_A      = 7,

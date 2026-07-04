@@ -61,13 +61,13 @@ static const char *const kSourceDisplayNames[OC_SRC__COUNT] = {
 
 // ---- In-RAM state --------------------------------------------------------
 
-// Defaults match the v1.3 combat_robot behavior:
-//   M1/M2: tank-mix from sticks
+// Defaults describe the current hard-coded tank-drive behavior:
+//   M1: left stick Y, M2: right stick Y
 //   Weapon: right trigger
 //   S1/S2: unassigned
 static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
     [OC_OUT_M1]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_LY, OC_SRC_NONE },
-    [OC_OUT_M2]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_LY, OC_SRC_NONE },
+    [OC_OUT_M2]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_RY, OC_SRC_NONE },
     [OC_OUT_WEAPON] = { OC_DIR_NORMAL, OC_SERVO_BI,   5, OC_SRC_RT, OC_SRC_NONE },
     [OC_OUT_S1]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_NONE, OC_SRC_NONE },
     [OC_OUT_S2]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_NONE, OC_SRC_NONE },
