@@ -35,6 +35,7 @@ void Buttons::taskLoop() {
     TickType_t lastWake        = xTaskGetTickCount();
     const TickType_t debounceTicks  = pdMS_TO_TICKS(DEBOUNCE_TIME);
     const TickType_t longPressTicks = pdMS_TO_TICKS(LONG_PRESS_TIME);
+    const TickType_t hold5sTicks    = pdMS_TO_TICKS(HOLD_5S_TIME);
     const TickType_t pollInterval   = pdMS_TO_TICKS(BUTTON_READ_WAIT);
 
     ESP_ERROR_CHECK(esp_task_wdt_add(NULL));
@@ -57,6 +58,11 @@ void Buttons::taskLoop() {
                     pressTick = now;
                 } else if (eventSent == false && (now - pressTick >= longPressTicks)) {
                     lastEvent = BUTTON_LONG;
+                    eventSent = true;
+                } else if (eventSent == false && (now - pressTick >= hold5sTicks)) {
+                    // Re-arm the long-press guard so the same press can
+                    // still fire 1s -> 5s without spamming the queue.
+                    lastEvent = BUTTON_HOLD_5S;
                     eventSent = true;
                 }
             } else {

@@ -294,13 +294,93 @@ class TestBleGamepadPairingCallbackWiring:
         )
         assert "ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE)" in body
 
+class TestSw1LongPressClearsAndPairs:
+    # SW1 is the v2 board's MODE_BUTTON_PIN (GPIO5). Holding it for 5s
+    # must clear the controller whitelist and enter pairing mode. The
+    # HTML must auto-reflect the new state without a page reload.
+    CONST_HDR  = PROJECT_ROOT / "components" / "myrobot" / "include" / "Constants.h"
+    BTN_SRC    = PROJECT_ROOT / "components" / "myrobot" / "src" / "Buttons.cpp"
+    BTN_HDR    = PROJECT_ROOT / "components" / "myrobot" / "include" / "Buttons.h"
+    TM_SRC     = PROJECT_ROOT / "components" / "myrobot" / "src" / "TaskManager.cpp"
+    HTML_FILE  = PROJECT_ROOT / "docs" / "config-ui-mockup.html"
+
+    def test_hold_5s_event_is_in_public_enum(self):
+        text = self.CONST_HDR.read_text()
+        assert "BUTTON_HOLD_5S" in text
+        # 5000ms threshold must live in Constants.h so it can be tuned
+        # without touching the Buttons implementation.
+        m = re.search(r"#define\s+HOLD_5S_TIME\s+(\d+)", text)
+        assert m, "HOLD_5S_TIME not defined in Constants.h"
+        assert int(m.group(1)) == 5000, "HOLD_5S_TIME must be 5000ms"
+
+    def test_buttons_emits_hold_5s_after_threshold(self):
+        text = self.BTN_SRC.read_text()
+        # The task loop must compare the press duration against the
+        # 5-second threshold and emit BUTTON_HOLD_5S without losing the
+        # existing BUTTON_LONG event.
+        assert "HOLD_5S_TIME" in text
+        assert "BUTTON_HOLD_5S" in text
+        # The hold-5s branch must live next to the BUTTON_LONG branch
+        # and use the same eventSent guard.
+        m = re.search(
+            r"now\s*-\s*pressTick\s*>=\s*longPressTicks[\s\S]*?now\s*-\s*pressTick\s*>=\s*hold5sTicks[\s\S]*?BUTTON_HOLD_5S[\s\S]*?eventSent\s*=\s*true",
+            text)
+        assert m, "5s hold branch missing or not guarded by eventSent"
+        # Hold-5s must not regress BUTTON_LONG.
+        assert "BUTTON_LONG" in text
+
+    def test_taskmanager_reacts_to_hold_5s_by_clearing_and_pairing(self):
+        text = self.TM_SRC.read_text()
+        # The managerTask switch on buttonVal must handle BUTTON_HOLD_5S
+        # by clearing the whitelist (which also enters pairing).
+        m = re.search(
+            r"ButtonPress\s+buttonVal\s*=\s*self->buttons\.checkForPress\(\)[\s\S]+?switch\(buttonVal\)[\s\S]+?default:\s*\n\s*break;",
+            text)
+        assert m, "buttonVal switch block not found"
+        body = m.group(0)
+        assert "case BUTTON_HOLD_5S" in body, "BUTTON_HOLD_5S not handled"
+        assert "ble_gamepad_clear_paired_macs" in body, (
+            "5s hold must clear the whitelist so a fresh controller can pair"
+        )
+
+    def test_clear_paired_macs_enters_pairing(self):
+        # The existing helper must end with set_pairing_state(ACCEPT) so
+        # the new HTML/LED wiring reacts automatically. This test is the
+        # safety net that keeps both the LED indicator and the WS state
+        # frame in sync with the button-driven clear.
+        text = (PROJECT_ROOT / "components" / "ble_gamepad" / "src" / "ble_gamepad.cpp").read_text()
+        m = re.search(
+            r"esp_err_t ble_gamepad_clear_paired_macs\s*\([\s\S]+?\n\}",
+            text)
+        assert m, "ble_gamepad_clear_paired_macs() not found"
+        body = m.group(0)
+        assert "ble_gamepad_set_pairing_state(PAIRING_STATE_ACCEPT)" in body
+
+    def test_html_documents_hold_5s_gesture(self):
+        # The pairing card on the Controller tab must surface the
+        # SW1-hold-5s gesture so users know the keyboard-free path exists.
+        text = self.HTML_FILE.read_text()
+        assert "SW1" in text
+        assert "hold SW1 5s" in text
+        # The hint should sit inside the same pairing-action container as
+        # the Enter Pairing button, so users see it together on screen.
+        # Allow some surrounding whitespace/markup between the button and
+        # the hint, but keep it tight (no more than a 500-byte offset).
+        idx_pair = text.find("btn-pair")
+        idx_hint = text.find("hold SW1 5s")
+        assert idx_hint > 0, "hold-SW1 hint not found in HTML"
+        assert idx_hint < idx_pair + 500, (
+            "hold-SW1 hint must live near the pair button so users see it"
+        )
+
+
     def test_led1_task_uses_connected_priority_when_not_pairing(self):
         # The LED task's else branch must drive the pin to:
         #   HIGH when a controller is connected
         #   LOW  when neither pairing nor connected
         # Reading these in the wrong order caused the LED to keep blinking
         # after a successful pair in the previous build.
-        text = self.SKETCH.read_text()
+        text = (PROJECT_ROOT / "main" / "sketch.cpp").read_text()
         m = re.search(
             r"static void led1_indicator_task[\s\S]+?vTaskDelay\(pdMS_TO_TICKS\(20\)\);",
             text)
@@ -313,7 +393,6 @@ class TestBleGamepadPairingCallbackWiring:
         assert "portENTER_CRITICAL(&g_led1_lock)" in body
         assert "g_pairing_led_active" in body
         assert "g_connected_led_active" in body
-
 class TestBleGamepadGuiContract:
     BLE_SRC = PROJECT_ROOT / "components" / "ble_gamepad" / "src" / "ble_gamepad.cpp"
 

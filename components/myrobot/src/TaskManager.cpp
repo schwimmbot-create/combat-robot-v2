@@ -6,6 +6,7 @@
 #include <Drive.h>
 #include <PowerFunctions.h>
 #include <Buttons.h>
+#include "ble_gamepad.h"
 #include "esp_log.h"
 #include "LED.h"
 #include "rgbLED.h"
@@ -166,9 +167,20 @@ void TaskManager::managerTask(void* pvParameters) {
 
             case BUTTON_LONG:
             ESP_LOGI(TAG,"Button: Long Press");
-            self->led.enqueuePattern(".-.", false, 255);                  
+            self->led.enqueuePattern(".-.", false, 255);
             break;
-            
+
+            case BUTTON_HOLD_5S: {
+            // SW1 held for >= 5 seconds. Clear the whitelist (which
+            // disconnects the active controller and ends by entering
+            // pairing) so a fresh controller can be paired. The
+            // existing LED1 indicator task and HTML/WS auto-reflect
+            // are already wired to react to that state transition.
+            ESP_LOGI(TAG, "Button: Hold 5s — clear whitelist and pair");
+            ble_gamepad_clear_paired_macs();
+            }
+            break;
+
             default:
             break;
         }

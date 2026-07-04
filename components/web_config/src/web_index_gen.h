@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-04T15:06:18 from docs/config-ui-mockup.html
-// Source size: 48788 bytes
+// Generated 2026-07-04T16:02:54 from docs/config-ui-mockup.html
+// Source size: 48888 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -225,6 +225,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button id="btn-pair" class="oled" style="flex:1; margin-top:0">Enter Pairing Mode</button>
         <button id="btn-cancel-pair" class="ghost" disabled>Cancel</button>
+        <p class="meta" style="margin:6px 0 0; font-size:12px;">hold SW1 5s to clear &amp; pair</p>
       </div>
       <p class="meta" style="margin:14px 0 6px;">Paired Controllers</p>
       <div id="mac-list" class="mac-list">—</div>
