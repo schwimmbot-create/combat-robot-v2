@@ -533,7 +533,10 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
         if (*p != '"') return ESP_ERR_INVALID_ARG;
         size_t klen = (size_t)(p - key_start);
         char key[24] = {0};
-        if (klen >= sizeof(key)) return ESP_ERR_INVALID_ARG;
+        // sizeof(key) is 24; allow klen in [0, 23] so we always have room
+        // for a NUL terminator at key[klen]. A klen of 24 would otherwise
+        // write past the buffer (memcpy + later null-termination).
+        if (klen >= sizeof(key) - 1) return ESP_ERR_INVALID_ARG;
         memcpy(key, key_start, klen);
         p++;
 
