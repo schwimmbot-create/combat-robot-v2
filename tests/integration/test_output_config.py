@@ -827,6 +827,16 @@ class TestConfigUiMockup:
         assert "Saved to NVS and used by the runtime drive mixer after Save." in html
         assert "Drive mode is live:" in html
 
+    def test_output_ui_renders_live_mock_robot_preview(self, html):
+        assert "Mock robot output" in html
+        assert "function mockDriveOutput(mode, gp)" in html
+        assert "function renderMockRobot(out)" in html
+        assert "mock-left-dir" in html
+        assert "mock-right-dir" in html
+        assert "mock-left-bar" in html
+        assert "mock-right-bar" in html
+        assert "state.mockDrive = mockDriveOutput(state.drive_mode, state.gp);" in html
+
     def test_direction_toggle_input_precedes_label_for_checked_css(self, html):
         # CSS uses `.toggle input:checked + label`; the input must be
         # appended immediately before the label or the selected option will

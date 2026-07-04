@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-03T23:17:39 from docs/config-ui-mockup.html
-// Source size: 36131 bytes
+// Generated 2026-07-03T23:51:37 from docs/config-ui-mockup.html
+// Source size: 40068 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -181,6 +181,12 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
     border: 1px solid var(--border); background: rgba(255,255,255,0.03);
     font-size: 12px; color: var(--muted); }
   .summary strong { color: var(--fg); }
+  .mock-bot { display: grid; gap: 10px; margin-top: 10px; }
+  .mock-row { display: grid; grid-template-columns: 52px 76px 1fr 34px; gap: 8px; align-items: center; }
+  .mock-dir { font: 700 11px/1 ui-monospace, "SF Mono", Menlo, monospace; color: var(--muted); text-transform: uppercase; }
+  .mock-track { height: 14px; border-radius: 999px; overflow: hidden; background: #0b0d12; border: 1px solid var(--border); }
+  .mock-fill { height: 100%; width: 0%; background: var(--good); transition: width 80ms linear, background 80ms linear; }
+  .mock-fill.reverse { background: var(--bad); }
 </style>
 </head>
 <body>
@@ -377,6 +383,7 @@ const state = {
     S2:     { direction: 'normal',  servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },
   },
   gp: null,
+  mockDrive: null,
   bleConnected: false,
   pairingActive: false,
   pairedMacs: [],
@@ -459,6 +466,68 @@ function sourceLabel(id) {
   return src ? src.label.replace('— none —', 'none') : id;
 }
 
+function arduinoMap(x, inMin, inMax, outMin, outMax) {
+  return Math.trunc(((x - inMin) * (outMax - outMin)) / (inMax - inMin)) + outMin;
+}
+
+function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+
+function mockMotor(speed) {
+  const pwm = clamp(Math.abs(speed), 0, 255);
+  if (pwm === 0) return { direction: 'stop', pwm: 0 };
+  return { direction: speed < 0 ? 'reverse' : 'forward', pwm };
+}
+
+function mockDriveOutput(mode, gp) {
+  if (!gp) {
+    return {
+      mode,
+      inputs: { note: 'waiting for controller' },
+      left: { direction: 'stop', pwm: 0 },
+      right: { direction: 'stop', pwm: 0 },
+    };
+  }
+  const lx = (typeof gp.lx === 'number') ? gp.lx : 0;
+  const ly = (typeof gp.ly === 'number') ? gp.ly : 0;
+  const rx = (typeof gp.rx === 'number') ? gp.rx : 0;
+  const ry = (typeof gp.ry === 'number') ? gp.ry : 0;
+  const fwd = v => arduinoMap(v, 511, -512, -255, 255);
+  const turn = v => arduinoMap(v, -512, 511, -255, 255);
+  let left = 0, right = 0, inputs = {};
+  if (mode === 'arcade_left') {
+    const x = turn(lx), y = fwd(ly);
+    left = y + x; right = y - x; inputs = { throttle: 'LY', turn: 'LX' };
+  } else if (mode === 'arcade_right') {
+    const x = turn(rx), y = fwd(ry);
+    left = y + x; right = y - x; inputs = { throttle: 'RY', turn: 'RX' };
+  } else if (mode === 'arcade_split') {
+    const x = turn(rx), y = fwd(ly);
+    left = y + x; right = y - x; inputs = { throttle: 'LY', turn: 'RX' };
+  } else {
+    left = fwd(ly); right = fwd(ry); inputs = { left: 'LY', right: 'RY' };
+  }
+  return { mode, inputs, left: mockMotor(left), right: mockMotor(right) };
+}
+
+function setMockMotor(prefix, cmd) {
+  const dir = document.getElementById(`mock-${prefix}-dir`);
+  const pwm = document.getElementById(`mock-${prefix}-pwm`);
+  const bar = document.getElementById(`mock-${prefix}-bar`);
+  if (!dir || !pwm || !bar) return;
+  dir.textContent = cmd.direction;
+  pwm.textContent = String(cmd.pwm);
+  bar.style.width = `${(cmd.pwm / 255 * 100).toFixed(1)}%`;
+  bar.classList.toggle('reverse', cmd.direction === 'reverse');
+}
+
+function renderMockRobot(out) {
+  if (!out) return;
+  setMockMotor('left', out.left);
+  setMockMotor('right', out.right);
+  const detail = document.getElementById('mock-detail');
+  if (detail) detail.textContent = `${out.mode}: ${Object.entries(out.inputs).map(([k,v]) => `${k}=${v}`).join(', ')}`;
+}
+
 function driveModeSummary(mode) {
   const m = DRIVE_MODES.find(x => x.id === mode) || DRIVE_MODES[0];
   return m.summary;
@@ -489,6 +558,22 @@ function renderDriveModeCard() {
     el('div', {}, [
       el('label', { class: 'field' }, 'Runtime mapping'),
       el('p', { class: 'summary' }, driveModeSummary(state.drive_mode)),
+    ]),
+  ]));
+  card.appendChild(el('div', { class: 'summary' }, [
+    el('strong', {}, 'Mock robot output'),
+    el('span', { id: 'mock-detail', style: 'margin-left:6px' }, 'waiting for controller'),
+  ]));
+  card.appendChild(el('div', { class: 'mock-bot' }, [
+    el('div', { class: 'mock-row' }, [
+      el('span', {}, 'Left'), el('span', { id: 'mock-left-dir', class: 'mock-dir' }, 'stop'),
+      el('div', { class: 'mock-track' }, el('div', { id: 'mock-left-bar', class: 'mock-fill' })),
+      el('span', { id: 'mock-left-pwm', class: 'meta' }, '0'),
+    ]),
+    el('div', { class: 'mock-row' }, [
+      el('span', {}, 'Right'), el('span', { id: 'mock-right-dir', class: 'mock-dir' }, 'stop'),
+      el('div', { class: 'mock-track' }, el('div', { id: 'mock-right-bar', class: 'mock-fill' })),
+      el('span', { id: 'mock-right-pwm', class: 'meta' }, '0'),
     ]),
   ]));
   return card;
@@ -654,6 +739,8 @@ function liveTick() {
   drawStick(document.getElementById('rs'), rx, ry);
   document.getElementById('lt-bar').style.width = (lt / 1023 * 100).toFixed(1) + '%';
   document.getElementById('rt-bar').style.width = (rt / 1023 * 100).toFixed(1) + '%';
+  state.mockDrive = mockDriveOutput(state.drive_mode, state.gp);
+  renderMockRobot(state.mockDrive);
   renderButtonChips(gp);
 }
 

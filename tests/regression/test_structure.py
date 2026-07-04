@@ -37,13 +37,13 @@ BYTE_IDENTICAL_FILES = [
     "components/myrobot/include/LED.h",
     "components/myrobot/include/PowerFunctions.h",
     "components/myrobot/include/rgbLED.h",
-    "components/myrobot/include/TaskManager.h",
+
     "components/myrobot/src/Adafruit_NeoPixel.cpp",
     "components/myrobot/src/Buttons.cpp",
     "components/myrobot/src/Drive.cpp",
     "components/myrobot/src/PowerFunctions.cpp",
     "components/myrobot/src/rgbLED.cpp",
-    "components/myrobot/src/TaskManager.cpp",
+
     "components/myrobot/src/esp.c",
 ]
 
@@ -65,6 +65,13 @@ INTENTIONALLY_MODIFIED_FILES = {
     "components/myrobot/src/LED.cpp":
         "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
         "ledcChangeFrequency(). ledcWrite now uses LED_PWM_CHANNEL.",
+    "components/myrobot/include/TaskManager.h":
+        "Added cached turn-axis inputs so the runtime can switch between "
+        "tank and arcade drive modes selected from output_config.",
+    "components/myrobot/src/TaskManager.cpp":
+        "Added output_config-backed drive mode selection. Runtime now switches "
+        "between two_stick_drive() tank control and combined_direction() arcade "
+        "control without reflashing.",
 }
 
 # All ported files (union of both lists)
