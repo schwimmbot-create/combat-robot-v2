@@ -498,6 +498,34 @@ class TestBleGamepadGuiContract:
         tail = html[html.rfind("// ---- Boot"):]
         assert "setBle(false)" in tail, "boot section must initialize setBle(false)"
 
+    def test_outputs_page_uses_board_v2_inventory(self):
+        html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text(encoding="utf-8")
+        assert "const BOARD_OUTPUT_PROFILES" in html
+        assert "board_v2" in html
+        for token in (
+            "Motor 1 / P1",
+            "Motor 2 / P2",
+            "Servo / ESC 1",
+            "Servo / ESC 2",
+            "UART",
+            "Header H1",
+            "LED1",
+            "SW1",
+            "LED2 / RGB ignored for now",
+        ):
+            assert token in html
+
+        output_block = re.search(r"const BOARD_OUTPUT_PROFILES = \{[\s\S]+?\n\};", html)
+        assert output_block, "BOARD_OUTPUT_PROFILES missing"
+        board_v2 = output_block.group(0)
+        assert "Weapon / ESC" not in board_v2
+        assert "id: 'Weapon'" not in board_v2
+
+        render_body = re.search(r"function renderOutputs\([\s\S]+?\n\}", html)
+        assert render_body, "renderOutputs() missing"
+        assert "activeBoardProfile()" in render_body.group(0)
+        assert "renderBoardIoCard" in html
+
     def test_html_renderOutput_seeds_missing_cfg(self):
         # renderOutput(o) must not throw when state.outputs[o.id] is
         # undefined (e.g. partial /api/config response). It should seed

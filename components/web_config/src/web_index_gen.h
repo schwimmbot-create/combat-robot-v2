@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-04T12:05:01 from docs/config-ui-mockup.html
-// Source size: 43026 bytes
+// Generated 2026-07-04T12:53:04 from docs/config-ui-mockup.html
+// Source size: 45475 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -370,13 +370,31 @@ const SOURCES = [
   { id: 'DPAD_RIGHT',label: 'D-Pad Right' },
 ];
 const BUTTONS = ['A','B','X','Y','L1','R1','L2','R2','SELECT','START','L3','R3','HOME'];
-const OUTPUTS = [
-  { id: 'M1',     display_name: 'Drive Motor 1' },
-  { id: 'M2',     display_name: 'Drive Motor 2' },
-  { id: 'Weapon', display_name: 'Weapon / ESC'  },
-  { id: 'S1',     display_name: 'Servo 1' },
-  { id: 'S2',     display_name: 'Servo 2' },
-];
+const BOARD_OUTPUT_PROFILES = {
+  board_v2: {
+    label: 'Board v2 (current production)',
+    note: 'v2 exposes 2 brushed motor outputs, 2 Servo / ESC outputs, UART, Header H1, SW1, and LED1. LED2 / RGB ignored for now because it shares GPIO8/SCL.',
+    outputs: [
+      { id: 'M1', display_name: 'Motor 1 / P1', kind: 'motor', detail: 'DRV8871 brushed DC output. GPIO0 = IN1, GPIO1 = IN2.' },
+      { id: 'M2', display_name: 'Motor 2 / P2', kind: 'motor', detail: 'DRV8871 brushed DC output. GPIO21/TXD0 = IN1, GPIO10 = IN2.' },
+      { id: 'S1', display_name: 'Servo / ESC 1', kind: 'servo', detail: 'GPIO4 servo-style signal. Use for an RC servo or ESC signal input.' },
+      { id: 'S2', display_name: 'Servo / ESC 2', kind: 'servo', detail: 'GPIO5 servo-style signal. Use for an RC servo or ESC signal input.' },
+    ],
+    io: [
+      { id: 'UART', display_name: 'UART', status: 'Reserved', detail: 'Board UART pads/header for future telemetry or debug accessories; not currently controller-mapped.' },
+      { id: 'H1', display_name: 'Header H1', status: 'Spare header', detail: 'Free spare header on v2; keep unassigned until the attached accessory is known.' },
+      { id: 'SW1', display_name: 'SW1', status: 'Free switch input', detail: 'GPIO6 / MODE_BUTTON. Good candidate for a physical pairing button.' },
+      { id: 'LED1', display_name: 'LED1', status: 'Standard LED', detail: 'GPIO7 debug LED. Can blink HIGH/LOW, e.g. pairing indicator.' },
+      { id: 'LED2', display_name: 'LED2 / RGB ignored for now', status: 'Ignored', detail: 'RGB LED shares the GPIO8/SCL line; leave it out of the outputs workflow for now.' },
+    ],
+  },
+  board_v3: {
+    label: 'Board v3 (not fabricated)',
+    note: 'Placeholder: v3 will get its own output profile after hardware is verified.',
+    outputs: [],
+    io: [],
+  },
+};
 const DRIVE_MODES = [
   { id: 'tank_split',   label: 'Tank: left stick = left side, right stick = right side', summary: 'Best for direct combat tank control. Left Stick Y drives M1/left; Right Stick Y drives M2/right.' },
   { id: 'arcade_left',  label: 'Arcade: left stick throttle + turn', summary: 'One-stick arcade. Left Stick Y controls speed; Left Stick X controls steering.' },
@@ -631,7 +649,7 @@ function renderOutput(o) {
     }
   });
 
-  const isServo = (o.id === 'S1' || o.id === 'S2');
+  const isServo = o.kind === 'servo' || o.id === 'S1' || o.id === 'S2';
   const servoSel = el('select', { 'data-name': 'servo_mode' },
     [ el('option', { value: 'bi'  }, 'Bidirectional'),
       el('option', { value: 'uni' }, 'Uni-directional') ]);
@@ -653,6 +671,7 @@ function renderOutput(o) {
     el('h3', {}, o.display_name),
     el('span', { class: 'id' }, o.id),
   ]));
+  if (o.detail) card.appendChild(el('p', { class: 'hint' }, o.detail));
 
   const grid = el('div', { class: 'grid-2' });
   grid.appendChild(el('div', {}, [
@@ -700,11 +719,36 @@ function renderOutput(o) {
   return card;
 }
 
+function activeBoardProfile() {
+  const rev = String(state.board.rev || '2');
+  if (rev.includes('3')) return BOARD_OUTPUT_PROFILES.board_v3;
+  return BOARD_OUTPUT_PROFILES.board_v2;
+}
+
+function renderBoardIoCard(io) {
+  const card = el('article', { class: 'output board-io', 'data-io': io.id });
+  card.appendChild(el('header', {}, [
+    el('h3', {}, io.display_name),
+    el('span', { class: 'id' }, io.id),
+  ]));
+  card.appendChild(el('div', { class: 'summary' }, [
+    el('strong', {}, io.status + ': '),
+    io.detail,
+  ]));
+  return card;
+}
+
 function renderOutputs() {
   const root = document.getElementById('outputs');
+  const profile = activeBoardProfile();
   root.innerHTML = '';
+  root.appendChild(el('div', { class: 'summary' }, [
+    el('strong', {}, profile.label + ': '),
+    profile.note,
+  ]));
   root.appendChild(renderDriveModeCard());
-  for (const o of OUTPUTS) root.appendChild(renderOutput(o));
+  for (const o of profile.outputs) root.appendChild(renderOutput(o));
+  for (const io of profile.io) root.appendChild(renderBoardIoCard(io));
 }
 
 // ---- Live controller visualization -------------------------------------
