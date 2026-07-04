@@ -91,6 +91,10 @@ class TestOutputConfigHeader:
             "output_config_set_servo_mode",
             "output_config_set_deadzone",
             "output_config_set_source",
+            "output_config_get_drive_mode",
+            "output_config_set_drive_mode",
+            "output_config_drive_mode_name",
+            "output_config_drive_mode_from_str",
             "output_config_to_json",
             "output_config_sources_to_json",
             "output_config_apply_json_patch",
@@ -154,16 +158,43 @@ class TestOutputConfigImplementation:
         assert re.search(r"OC_OUT_S2\][^}]*OC_DIR_NORMAL", defaults_blob)
 
     def test_runtime_drive_path_uses_negative_y_as_forward(self):
-        # Actual motor control is still hard-coded tank drive, independent of
-        # output_config. HID Y-up decodes negative, then setForwardInputLimits
-        # reverses the forward range so negative Y becomes positive FORWARD PWM.
+        # HID Y-up decodes negative, then setForwardInputLimits reverses the
+        # forward range so negative Y becomes positive FORWARD PWM.
         tm = (PROJECT_ROOT / "components" / "myrobot" / "src" / "TaskManager.cpp").read_text()
         drive = (PROJECT_ROOT / "components" / "myrobot" / "src" / "Drive.cpp").read_text()
         assert "drive.setForwardInputLimits(511,-512);" in tm
         assert "_leftDriveInput   = cs.leftStickY;" in tm
         assert "_rightDriveInput  = cs.rightStickY;" in tm
+        assert "_leftTurnInput    = cs.leftStickX;" in tm
+        assert "_rightTurnInput   = cs.rightStickX;" in tm
         assert "if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE" in drive
         assert "else{leftMotor.setSpeed(left_speed, FORWARD" in drive
+
+    def test_runtime_drive_mode_switches_mixers(self):
+        tm = (PROJECT_ROOT / "components" / "myrobot" / "src" / "TaskManager.cpp").read_text()
+        assert '#include "output_config.h"' in tm
+        assert "output_config_init();" in tm
+        assert "switch(output_config_get_drive_mode())" in tm
+        assert "case OC_DRIVE_ARCADE_LEFT:" in tm
+        assert "combined_direction(self->_leftTurnInput, self->_leftDriveInput" in tm
+        assert "case OC_DRIVE_ARCADE_RIGHT:" in tm
+        assert "combined_direction(self->_rightTurnInput, self->_rightDriveInput" in tm
+        assert "case OC_DRIVE_ARCADE_SPLIT:" in tm
+        assert "combined_direction(self->_rightTurnInput, self->_leftDriveInput" in tm
+        assert "case OC_DRIVE_TANK_SPLIT:" in tm
+        assert "two_stick_drive(self->_leftDriveInput, self->_rightDriveInput" in tm
+
+    def test_drive_modes_are_serialized_and_patchable(self, src_text, header_text):
+        for tok in ("OC_DRIVE_TANK_SPLIT", "OC_DRIVE_ARCADE_LEFT",
+                    "OC_DRIVE_ARCADE_RIGHT", "OC_DRIVE_ARCADE_SPLIT"):
+            assert tok in header_text
+        for tok in ("tank_split", "arcade_left", "arcade_right", "arcade_split"):
+            assert tok in src_text
+        assert "OC_NVS_KEY_DRIVE_MODE" in header_text
+        assert '"drive_mode"' in src_text
+        assert "output_config_drive_mode_from_str" in src_text
+        assert "nvs_set_u8(h, OC_NVS_KEY_DRIVE_MODE" in src_text
+        assert "nvs_get_u8(h, OC_NVS_KEY_DRIVE_MODE" in src_text
 
     def test_nvs_namespace_is_namespaced(self, header_text):
         assert "OC_NVS_NAMESPACE" in header_text
@@ -562,6 +593,7 @@ class TestOutputConfigPatchParser:
         body = m.group(0) if m else ""
         for key in ("direction", "servo_mode", "primary", "secondary", "deadzone"):
             assert f'"{key}"' in body, f"patch parser missing key {key}"
+        assert '"drive_mode"' in src_text
 
     def test_patch_validates_direction_values(self, src_text):
         m = re.search(r"apply_patch_one[\s\S]+?\n\}", src_text)
@@ -774,6 +806,10 @@ class TestConfigUiMockup:
                     "A", "B", "X", "Y", "L1", "R1", "L2", "R2", "NONE"):
             assert f"'{tok}'" in body or f'"{tok}"' in body
 
+    def test_output_ui_reset_defaults_match_tank_drive(self, html):
+        assert "state.drive_mode = 'tank_split';" in html
+        assert "M2:     { direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'RY'" in html
+
     def test_output_ui_explains_signed_stick_mapping(self, html):
         # UX regression: assigning Left Stick Y to a drive motor means the
         # one signed axis drives both directions (above center forward,
@@ -783,11 +819,13 @@ class TestConfigUiMockup:
         assert "above center = forward, below center = reverse" in html
         assert "Optional reverse-only input" in html
 
-    def test_output_ui_discloses_fixed_runtime_tank_drive(self, html):
-        assert "Current runtime drive:" in html
-        assert "M1/left = Left Stick Y" in html
-        assert "M2/right = Right Stick Y" in html
-        assert "not yet applied to live motor routing" in html
+    def test_output_ui_renders_drive_mode_selector(self, html):
+        assert "const DRIVE_MODES = [" in html
+        for mode in ("tank_split", "arcade_left", "arcade_right", "arcade_split"):
+            assert mode in html
+        assert "Driving Style" in html
+        assert "Saved to NVS and used by the runtime drive mixer after Save." in html
+        assert "Drive mode is live:" in html
 
     def test_direction_toggle_input_precedes_label_for_checked_css(self, html):
         # CSS uses `.toggle input:checked + label`; the input must be
@@ -814,7 +852,7 @@ class TestConfigUiMockup:
         m = re.search(r"function editableOutputPatch[\s\S]+?document.getElementById\('btn-save'", html)
         assert m, "editableOutputPatch/save block missing"
         body = m.group(0)
-        for field in ("direction", "servo_mode", "deadzone", "primary", "secondary"):
+        for field in ("drive_mode", "direction", "servo_mode", "deadzone", "primary", "secondary"):
             assert field in body
         assert "display_name" not in body
         assert "id:" not in body

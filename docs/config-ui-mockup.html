@@ -223,7 +223,7 @@
     <div class="card">
       <h2>Motor &amp; Servo Outputs</h2>
       <p class="meta">For drive motors, choose one signed stick axis as the <strong>Drive input</strong>: above center drives forward, below center drives reverse, center is stop. Use <strong>Direction</strong> only if the motor spins the wrong way. Optional reverse-only input is for trigger/button-style controls.</p>
-      <p class="meta"><strong>Current runtime drive:</strong> firmware uses fixed tank drive for now (M1/left = Left Stick Y, M2/right = Right Stick Y). These settings are saved for setup/diagnostics but are not yet applied to live motor routing.</p>
+      <p class="meta"><strong>Drive mode is live:</strong> choose Tank or Arcade below, then Save. The individual output cards are still setup/diagnostic metadata for direction, labels, and future per-output routing.</p>
       <div id="outputs"></div>
     </div>
   </section>
@@ -351,9 +351,16 @@ const OUTPUTS = [
   { id: 'S1',     display_name: 'Servo 1' },
   { id: 'S2',     display_name: 'Servo 2' },
 ];
+const DRIVE_MODES = [
+  { id: 'tank_split',   label: 'Tank: left stick = left side, right stick = right side', summary: 'Best for direct combat tank control. Left Stick Y drives M1/left; Right Stick Y drives M2/right.' },
+  { id: 'arcade_left',  label: 'Arcade: left stick throttle + turn', summary: 'One-stick arcade. Left Stick Y controls speed; Left Stick X controls steering.' },
+  { id: 'arcade_right', label: 'Arcade: right stick throttle + turn', summary: 'One-stick arcade on the right stick. Right Stick Y controls speed; Right Stick X controls steering.' },
+  { id: 'arcade_split', label: 'Split arcade: left stick speed + right stick steering', summary: 'Two-stick arcade. Left Stick Y controls speed; Right Stick X controls left/right direction.' },
+];
 
 // ---- In-memory state, seeded from /api/config when loaded -------------
 const state = {
+  drive_mode: 'tank_split',
   outputs: {
     M1:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE' },
     M2:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'RY', secondary: 'NONE' },
@@ -442,6 +449,41 @@ window.addEventListener('hashchange', () => showTab(tabFromHash()));
 function sourceLabel(id) {
   const src = SOURCES.find(s => s.id === id);
   return src ? src.label.replace('— none —', 'none') : id;
+}
+
+function driveModeSummary(mode) {
+  const m = DRIVE_MODES.find(x => x.id === mode) || DRIVE_MODES[0];
+  return m.summary;
+}
+
+function renderDriveModeCard() {
+  const card = el('article', { class: 'output drive-mode' });
+  card.appendChild(el('header', {}, [
+    el('h3', {}, 'Driving Style'),
+    el('span', { class: 'id' }, 'live'),
+  ]));
+  const sel = el('select', { 'data-name': 'drive_mode' });
+  for (const m of DRIVE_MODES) {
+    const opt = el('option', { value: m.id }, m.label);
+    if (m.id === state.drive_mode) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener('change', e => {
+    state.drive_mode = e.target.value;
+    renderOutputs();
+  });
+  card.appendChild(el('div', { class: 'grid-2' }, [
+    el('div', {}, [
+      el('label', { class: 'field' }, 'Drive mode'),
+      sel,
+      el('p', { class: 'hint' }, 'Saved to NVS and used by the runtime drive mixer after Save.'),
+    ]),
+    el('div', {}, [
+      el('label', { class: 'field' }, 'Runtime mapping'),
+      el('p', { class: 'summary' }, driveModeSummary(state.drive_mode)),
+    ]),
+  ]));
+  return card;
 }
 
 function motorMappingSummary(cfg) {
@@ -555,6 +597,7 @@ function renderOutput(o) {
 function renderOutputs() {
   const root = document.getElementById('outputs');
   root.innerHTML = '';
+  root.appendChild(renderDriveModeCard());
   for (const o of OUTPUTS) root.appendChild(renderOutput(o));
 }
 
@@ -647,7 +690,7 @@ async function apiPostJSON(path, body) {
 
 // ---- Save / Reset wiring -----------------------------------------------
 function editableOutputPatch(outputs) {
-  const patch = {};
+  const patch = { drive_mode: state.drive_mode };
   for (const [id, cfg] of Object.entries(outputs)) {
     patch[id] = {
       direction: cfg.direction,
@@ -669,9 +712,10 @@ document.getElementById('btn-save').addEventListener('click', async () => {
 
 document.getElementById('btn-reset').addEventListener('click', () => {
   if (!confirm('Reset all outputs to defaults? (this just reverts the form — click Save to persist)')) return;
+  state.drive_mode = 'tank_split';
   state.outputs = {
     M1:     { direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE' },
-    M2:     { direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE' },
+    M2:     { direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'RY', secondary: 'NONE' },
     Weapon: { direction: 'normal', servo_mode: 'bi',  deadzone:  5, primary: 'RT', secondary: 'NONE' },
     S1:     { direction: 'normal', servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },
     S2:     { direction: 'normal', servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },
@@ -750,6 +794,7 @@ async function refreshStatus() {
 async function loadConfig() {
   try {
     const j = await apiGet('/api/config');
+    if (DRIVE_MODES.some(m => m.id === j.drive_mode)) state.drive_mode = j.drive_mode;
     for (const k of Object.keys(j.outputs || {})) {
       if (state.outputs[k]) state.outputs[k] = j.outputs[k];
     }

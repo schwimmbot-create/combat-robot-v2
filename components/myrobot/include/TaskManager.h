@@ -40,6 +40,8 @@ private:
     volatile bool    _isConnected;
     volatile int16_t _leftDriveInput;
     volatile int16_t _rightDriveInput;
+    volatile int16_t _leftTurnInput;
+    volatile int16_t _rightTurnInput;
     volatile int16_t _forwardEscInput;
     volatile int16_t _reverseEscInput;
     volatile bool pendingUpdate;

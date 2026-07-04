@@ -9,6 +9,7 @@
 #include "esp_log.h"
 #include "LED.h"
 #include "rgbLED.h"
+#include "output_config.h"
 #include <Adafruit_NeoPixel.h>
 #include "esp_pm.h"
 
@@ -27,6 +28,8 @@ TaskManager::TaskManager()
     _isConnected(false),
     _leftDriveInput(0),
     _rightDriveInput(0),
+    _leftTurnInput(0),
+    _rightTurnInput(0),
     _forwardEscInput(0),
     _reverseEscInput(0),
     lastUpdateTime(0),
@@ -38,6 +41,8 @@ TaskManager::TaskManager()
 
 void TaskManager::begin(){
 
+
+    output_config_init();
 
     drive.begin();
     drive.setForwardInputLimits(511,-512);
@@ -95,7 +100,21 @@ void TaskManager::managerTask(void* pvParameters) {
                 if( self->batteryState != BATTERY_LOW || !ENABLE_LOW_BATTERY_SHUTDOWN){
                     //Put in things that can be ONLY be updated if the battery is not low
                     //This is the safer section as it protects the battery from overdrain
-                    self->drive.two_stick_drive(self->_leftDriveInput, self->_rightDriveInput, self->currentOrientation);
+                    switch(output_config_get_drive_mode()) {
+                        case OC_DRIVE_ARCADE_LEFT:
+                            self->drive.combined_direction(self->_leftTurnInput, self->_leftDriveInput, self->currentOrientation);
+                            break;
+                        case OC_DRIVE_ARCADE_RIGHT:
+                            self->drive.combined_direction(self->_rightTurnInput, self->_rightDriveInput, self->currentOrientation);
+                            break;
+                        case OC_DRIVE_ARCADE_SPLIT:
+                            self->drive.combined_direction(self->_rightTurnInput, self->_leftDriveInput, self->currentOrientation);
+                            break;
+                        case OC_DRIVE_TANK_SPLIT:
+                        default:
+                            self->drive.two_stick_drive(self->_leftDriveInput, self->_rightDriveInput, self->currentOrientation);
+                            break;
+                    }
                     self->drum.setSpeed(self->_forwardEscInput, self->_reverseEscInput);
                     self->motorsStopped = false;
                 }
@@ -162,6 +181,8 @@ void TaskManager::update(bool isConnected, const ControllerState& cs){
     _isConnected = isConnected;
     _leftDriveInput   = cs.leftStickY;
     _rightDriveInput  = cs.rightStickY;
+    _leftTurnInput    = cs.leftStickX;
+    _rightTurnInput   = cs.rightStickX;
     _forwardEscInput  = cs.rightTrigger;
     _reverseEscInput  = cs.leftTrigger;
     processButtons(cs);

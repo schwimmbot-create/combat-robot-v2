@@ -59,6 +59,13 @@ static const char *const kSourceDisplayNames[OC_SRC__COUNT] = {
     "D-Pad Right",
 };
 
+static const char *const kDriveModeNames[OC_DRIVE__COUNT] = {
+    "tank_split",
+    "arcade_left",
+    "arcade_right",
+    "arcade_split",
+};
+
 // ---- In-RAM state --------------------------------------------------------
 
 // Defaults describe the current hard-coded tank-drive behavior:
@@ -74,6 +81,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
 };
 
 static oc_output_cfg_t s_cfg[OC_OUT__COUNT];
+static oc_drive_mode_t s_drive_mode = OC_DRIVE_TANK_SPLIT;
 static bool s_loaded = false;
 
 // ---- Small helpers -------------------------------------------------------
@@ -88,10 +96,11 @@ static esp_err_t save_all(void) {
         return err;
     }
     err = nvs_set_blob(h, OC_NVS_KEY_BLOB, s_cfg, sizeof(s_cfg));
+    if (err == ESP_OK) err = nvs_set_u8(h, OC_NVS_KEY_DRIVE_MODE, (uint8_t)s_drive_mode);
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
     if (err != ESP_OK) {
-        ESP_LOGE(TAG, "nvs_set_blob/commit failed: %s", esp_err_to_name(err));
+        ESP_LOGE(TAG, "nvs_set/commit failed: %s", esp_err_to_name(err));
     }
     return err;
 }
@@ -113,6 +122,7 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
 
 void output_config_reset_defaults(void) {
     memcpy(s_cfg, kDefaults, sizeof(s_cfg));
+    s_drive_mode = OC_DRIVE_TANK_SPLIT;
 }
 
 esp_err_t output_config_init(void) {
@@ -148,6 +158,18 @@ esp_err_t output_config_init(void) {
 
     if (!loaded_from_nvs) {
         output_config_reset_defaults();
+    }
+
+    // Drive mode is stored as its own small key so old cfg_v1 blobs remain
+    // valid. Missing/invalid values fall back to split tank drive.
+    s_drive_mode = OC_DRIVE_TANK_SPLIT;
+    if (nvs_open(OC_NVS_NAMESPACE, NVS_READONLY, &h) == ESP_OK) {
+        uint8_t mode = 0;
+        esp_err_t mode_err = nvs_get_u8(h, OC_NVS_KEY_DRIVE_MODE, &mode);
+        nvs_close(h);
+        if (mode_err == ESP_OK && mode < OC_DRIVE__COUNT) {
+            s_drive_mode = (oc_drive_mode_t)mode;
+        }
     }
     s_loaded = true;
     return ESP_OK;
@@ -195,6 +217,32 @@ esp_err_t output_config_set_source(oc_output_id_t id,
     s_cfg[id].primary = primary;
     s_cfg[id].secondary = secondary;
     return save_all();
+}
+
+oc_drive_mode_t output_config_get_drive_mode(void) {
+    return s_drive_mode;
+}
+
+esp_err_t output_config_set_drive_mode(oc_drive_mode_t mode) {
+    if ((unsigned)mode >= OC_DRIVE__COUNT) return ESP_ERR_INVALID_ARG;
+    s_drive_mode = mode;
+    return save_all();
+}
+
+const char *output_config_drive_mode_name(oc_drive_mode_t mode) {
+    if ((unsigned)mode >= OC_DRIVE__COUNT) return "tank_split";
+    return kDriveModeNames[mode];
+}
+
+bool output_config_drive_mode_from_str(const char *s, oc_drive_mode_t *out) {
+    if (!s || !out) return false;
+    for (int i = 0; i < OC_DRIVE__COUNT; i++) {
+        if (strcasecmp(s, kDriveModeNames[i]) == 0) {
+            *out = (oc_drive_mode_t)i;
+            return true;
+        }
+    }
+    return false;
 }
 
 esp_err_t output_config_commit(void) {
@@ -270,7 +318,9 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
     size_t used = 0;
     bool ok = true;
 
-    ok &= json_append_raw(out_buf, out_buf_len, &used, "{\"outputs\":{");
+    ok &= json_append_raw(out_buf, out_buf_len, &used, "{\"drive_mode\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_mode_name(s_drive_mode));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"outputs\":{");
     for (int i = 0; i < OC_OUT__COUNT && ok; i++) {
         if (i > 0) ok &= json_append_raw(out_buf, out_buf_len, &used, ",");
         const oc_output_cfg_t *c = &s_cfg[i];
@@ -342,11 +392,8 @@ static const char *find_key(const char *json, const char *key) {
 
 // Parse a string value at `cursor`, advancing it past the closing quote.
 // On success writes up to dst_len bytes (NUL-terminated). Returns true.
-static bool parse_string_value(const char **cursor, char *dst, size_t dst_len) {
+static bool parse_bare_string_value(const char **cursor, char *dst, size_t dst_len) {
     const char *p = *cursor;
-    while (*p && isspace((unsigned char)*p)) p++;
-    if (*p != ':') return false;
-    p++;
     while (*p && isspace((unsigned char)*p)) p++;
     if (*p != '"') return false;
     p++;
@@ -360,6 +407,14 @@ static bool parse_string_value(const char **cursor, char *dst, size_t dst_len) {
     dst[i] = '\0';
     *cursor = p + 1;
     return true;
+}
+
+static bool parse_string_value(const char **cursor, char *dst, size_t dst_len) {
+    const char *p = *cursor;
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (*p != ':') return false;
+    p++;
+    return parse_bare_string_value(&p, dst, dst_len) && (*cursor = p, true);
 }
 
 bool output_config_id_from_str(const char *s, oc_output_id_t *out) {
@@ -487,6 +542,17 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
         if (*p != ':') return ESP_ERR_INVALID_ARG;
         p++;
         while (*p && isspace((unsigned char)*p)) p++;
+
+        if (strcmp(key, "drive_mode") == 0) {
+            char value[24] = {0};
+            oc_drive_mode_t mode;
+            if (!parse_bare_string_value(&p, value, sizeof(value))) return ESP_ERR_INVALID_ARG;
+            if (!output_config_drive_mode_from_str(value, &mode)) return ESP_ERR_INVALID_ARG;
+            s_drive_mode = mode;
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (*p == ',') p++;
+            continue;
+        }
 
         // remember body start, find matching closing brace (simple depth count)
         if (*p != '{') return ESP_ERR_INVALID_ARG;

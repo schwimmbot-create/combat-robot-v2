@@ -49,6 +49,16 @@ typedef enum {
     OC_SERVO_UNI  = 1,
 } oc_servo_mode_t;
 
+// Drive mixer mode. This is live runtime behavior: TaskManager reads
+// it each control update and chooses the appropriate Drive mixer.
+typedef enum {
+    OC_DRIVE_TANK_SPLIT   = 0,    // left Y = left side, right Y = right side
+    OC_DRIVE_ARCADE_LEFT  = 1,    // left Y throttle, left X turn
+    OC_DRIVE_ARCADE_RIGHT = 2,    // right Y throttle, right X turn
+    OC_DRIVE_ARCADE_SPLIT = 3,    // left Y throttle, right X turn
+    OC_DRIVE__COUNT       = 4,
+} oc_drive_mode_t;
+
 // Available controller input sources the UI can choose from. This
 // list intentionally matches the standard HID gamepad report layout
 // described in the project's esp32-ble-gamepad-integration skill:
@@ -105,6 +115,7 @@ typedef struct {
 
 #define OC_NVS_NAMESPACE        "output_cfg"
 #define OC_NVS_KEY_BLOB         "cfg_v1"
+#define OC_NVS_KEY_DRIVE_MODE   "drive_v1"
 
 // JSON output buffer sizing. Config is ~700 bytes; source-list JSON is
 // larger because it includes 24 id/name/label entries. 2KB covers both
@@ -135,6 +146,13 @@ esp_err_t output_config_set_deadzone(oc_output_id_t id, uint8_t deadzone_pct);
 esp_err_t output_config_set_source(oc_output_id_t id,
                                    oc_source_id_t primary,
                                    oc_source_id_t secondary);
+
+// Live drive mixer mode. Stored separately from the per-output blob so
+// older cfg_v1 blobs remain valid.
+oc_drive_mode_t output_config_get_drive_mode(void);
+esp_err_t output_config_set_drive_mode(oc_drive_mode_t mode);
+const char *output_config_drive_mode_name(oc_drive_mode_t mode);
+bool output_config_drive_mode_from_str(const char *s, oc_drive_mode_t *out);
 
 // Commit current in-RAM state to NVS. Setters already commit; this
 // is mostly for the "Reset + save defaults" workflow to be explicit.
