@@ -36,7 +36,7 @@ BYTE_IDENTICAL_FILES = [
     "components/myrobot/include/Drum.h",
     "components/myrobot/include/LED.h",
     "components/myrobot/include/PowerFunctions.h",
-    "components/myrobot/include/rgbLED.h",
+
 
     "components/myrobot/src/Adafruit_NeoPixel.cpp",
     "components/myrobot/src/Buttons.cpp",
@@ -68,6 +68,9 @@ INTENTIONALLY_MODIFIED_FILES = {
     "components/myrobot/include/TaskManager.h":
         "Added cached turn-axis inputs so the runtime can switch between "
         "tank and arcade drive modes selected from output_config.",
+    "components/myrobot/include/rgbLED.h":
+        "Standardised include guard and added extern C guards for mixed "
+        "C/C++ include safety.",
     "components/myrobot/src/TaskManager.cpp":
         "Added output_config-backed drive mode selection. Runtime now switches "
         "between two_stick_drive() tank control and combined_direction() arcade "
