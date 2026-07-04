@@ -1,143 +1,147 @@
-# Combat Robot v2 — local quickstart
+# Combat Robot v2 — cross-platform quickstart
 
-> Read [`docs/AGENT.md`](docs/AGENT.md) first. This file is the *short*
-> version for getting unblocked on this Linux box.
-
-## What this repo is
-
-ESP32-C3 BLE combat-robot controller: NimBLE host that pairs an 8BitDo
-Ultimate 2 gamepad, runs the v1.3 `myrobot` drive/drum/task pipeline,
-and exposes a mobile-friendly web UI (REST + WebSocket) for NVS-persisted
-per-output config.
+ESP32-C3 BLE combat-robot controller: NimBLE host for the 8BitDo controller,
+`myrobot` drive/drum/task pipeline, and a mobile web UI for REST/WebSocket
+configuration.
 
 - **Upstream:** <https://github.com/schwimmbot-create/combat-robot-v2>
-- **Author:** Kevin Brown (schwimmflugel.com)
-- **Local clone:** `~/projects/combat-robot-controller-v2/`
-- **HEAD at clone:** `9ad95fe` (master) — "test: add mock robot drive preview and simulator"
+- **Primary firmware env:** `esp32-c3-devkitc-02`
+- **Dev firmware env:** `esp32-c3-devkitc-02-dev` (`BENCH_HID_PUBLIC=1`)
 
-## Toolchain — what's installed on this box
+## One command surface for Linux / macOS / Windows
 
-| Tool | Version | Location | How installed |
-|---|---|---|---|
-| `python3` (system) | 3.12.3 | `/usr/bin/python3` | distro |
-| `uv` | latest | `~/.local/bin/uv` | already on PATH |
-| `gcc`, `make`, `cmake` | — | system | already present |
-| `platformio` (Core) | 6.1.19 | `.venv/bin/pio` | `make setup` |
-| `pytest` | 9.1.1 | `.venv/bin/pytest` | `make setup` |
-| `bleak` | ≥ 0.22 | `.venv/bin/python -m bleak` | `make setup` |
-| `esptool` | (bundled) | downloaded by PIO | implicit, on first `make build` |
-| ESP-IDF + xtensa toolchain | — | `~/.platformio/packages/` | downloaded by PIO, on first `make build` (~5–15 min, ~1 GB) |
-
-**Not installed and not needed for now:**
-
-- `ninja-build` — PlatformIO's Arduino build path doesn't require it on
-  this project. If you switch a component to `framework = espidf`, install
-  it: `sudo apt-get install -y ninja-build`.
-- `python3-venv` system pkg — `uv` provides its own venv bootstrap.
-
-## Quickstart
+Use Python directly everywhere:
 
 ```bash
-cd ~/projects/combat-robot-controller-v2
-
-# One-time setup (~10 s; ESP-IDF + toolchain come later on first build)
-make setup
-
-# Fast loop — static tests, no hardware needed
-make test                 # 292 passed, 22 skipped (v1 reference absent), ~0.5 s
-
-# BLE bench, no board attached
-make bench-scan           # prints every BLE device; looks for "CombatRobot-v2"
-
-# Firmware build (downloads ESP-IDF + toolchain on first run, ~5–15 min)
-make build                # default env: esp32-c3-devkitc-02
-
-# Build + flash + serial monitor (USB cable attached, /dev/ttyACM0 by default)
-make flash PORT=/dev/ttyACM0
-make monitor PORT=/dev/ttyACM0
+python tools/dev.py setup
+python tools/dev.py test
+python tools/dev.py build --env esp32-c3-devkitc-02-dev
+python tools/dev.py flash --env esp32-c3-devkitc-02-dev --port COM6
+python tools/dev.py monitor --port COM6
 ```
 
-### Build environments
+On Windows, run those from Git Bash, Windows Terminal, PowerShell, or cmd from
+the repo root. If your launcher is `py` instead of `python`, use:
+
+```powershell
+py -3 tools/dev.py setup
+py -3 tools/dev.py flash --env esp32-c3-devkitc-02-dev --port COM6
+```
+
+If you have `make`, the Makefile is just a thin wrapper around the same script:
+
+```bash
+make setup
+make test
+make build ENV=esp32-c3-devkitc-02-dev
+make flash ENV=esp32-c3-devkitc-02-dev PORT=COM6
+make monitor PORT=COM6
+```
+
+## Setup
+
+```bash
+cd path/to/combat-robot-v2
+python tools/dev.py setup
+```
+
+`setup` creates `.venv/` and installs:
+
+- PlatformIO
+- pytest
+- bleak
+
+It uses `uv` when available, otherwise falls back to Python's built-in `venv` +
+`pip`. ESP32 toolchains are downloaded by PlatformIO on the first build.
+
+Check what the wrapper detected:
+
+```bash
+python tools/dev.py info
+```
+
+## Serial ports by OS
+
+Defaults are intentionally simple and overrideable:
+
+| OS | Default port | Typical alternatives |
+|---|---|---|
+| Windows | `COM6` | `COM3`, `COM4`, Device Manager → Ports |
+| Linux | `/dev/ttyACM0` | `/dev/ttyACM1`, `/dev/ttyUSB0` |
+| macOS | `/dev/cu.usbmodem1101` | `/dev/cu.usbserial-*`, `/dev/cu.usbmodem*` |
+
+Override the port every time if needed:
+
+```bash
+python tools/dev.py flash --port COM9
+python tools/dev.py monitor --port /dev/ttyACM1
+python tools/dev.py flash --port /dev/cu.usbmodem2101
+```
+
+## Fast loop
+
+```bash
+# Static/unit/integration tests, no hardware needed
+python tools/dev.py test
+
+# Build firmware
+python tools/dev.py build --env esp32-c3-devkitc-02-dev
+
+# Flash board
+python tools/dev.py flash --env esp32-c3-devkitc-02-dev --port COM6
+
+# Serial monitor. Close this before flashing again.
+python tools/dev.py monitor --port COM6
+```
+
+The monitor holds RTS/DTR low to avoid spurious ESP32-C3 resets:
+
+```text
+--rts 0 --dtr 0 --no-reconnect
+```
+
+## Build environments
 
 | Env | Board | Notes |
 |---|---|---|
-| `esp32-c3-devkitc-02` | ESP32-C3 DevKitM-1 (RISC-V) | **primary target**, BLE-only |
-| `esp32-c3-devkitc-02-dev` | same board | adds `-D BENCH_HID_PUBLIC=1` — anyone can pair, dev only |
-| `esp32dev` | original ESP32 (Xtensa) | legacy sanity check |
+| `esp32-c3-devkitc-02` | ESP32-C3 DevKitM-1 | primary BLE-only target |
+| `esp32-c3-devkitc-02-dev` | same board | dev build; public BLE bench service enabled |
+| `esp32dev` | original ESP32 | legacy sanity check |
 | `esp32-s3-devkitc-1` | ESP32-S3 | sibling-radio bench test |
 | `esp32-c6-devkitc-1` | ESP32-C6 | 802.15.4 sibling |
 | `esp32-h2-devkitm-1` | ESP32-H2 | Thread/Zigbee sibling |
 
-Switch with `make build ENV=esp32-s3-devkitc-1`, etc.
-
-## BLE bench — driving the board from your laptop
+## BLE bench / mock input
 
 ```bash
-# Find the board (advertises as "CombatRobot-v2")
-make bench-scan
+# Scan for BLE devices / CombatRobot-v2
+python tools/dev.py bench-scan
 
-# Write a neutral synthetic HID frame (no real gamepad needed)
-BENCH_MAC=AA:BB:CC:DD:EE:FF make bench-write
+# Write a neutral synthetic HID frame
+python tools/dev.py bench-write --mac AA:BB:CC:DD:EE:FF
 ```
 
-Full CLI: `python tools/pc_ble_bench.py {scan,notify,write} --help`
-
-## Files in this repo that *I* added
-
-| File | Why |
-|---|---|
-| `Makefile` | one-command wrapper around `pio`, `pytest`, `pc_ble_bench.py`. Honors `ENV=`, `PORT=`, `BAUD=`, `BENCH_MAC=`. |
-| `QUICKSTART.md` | this file |
-| `.venv/` | gitignored-by-convention; project-local Python 3.12 venv with platformio + pytest + bleak |
-
-**Files I edited:**
-
-| File | What changed | Why |
-|---|---|---|
-| `tools/gen_web_index.py` | resolves `PROJECT_ROOT` from `__file__` instead of hard-coded `C:\Users\kbrow\Documents\Codex\combat-robot-v2` | the build's pre-script failed on this Linux box; still works on your Windows laptop because it falls back to the literal path if the file is found there |
-
-## Things you should do manually
-
-1. **Decide whether to commit `gen_web_index.py` patch.** It's a clear
-   improvement (cross-platform, no behavior change on your laptop), but
-   I didn't touch git because I wasn't sure if you'd prefer to push it
-   upstream as a PR or keep it local. `git diff tools/gen_web_index.py`
-   shows the patch.
-
-2. **Add `.venv/` to `.gitignore`** if you want this to stay clean.
-   Currently the repo's `.gitignore` covers `.pio/`, `__pycache__/`,
-   etc. but not `.venv/`. One-line addition:
-
-   ```bash
-   echo ".venv/" >> .gitignore
-   ```
-
-3. **(Optional) Install `ninja-build`** for faster ESP-IDF builds if you
-   ever switch a component away from Arduino:
-
-   ```bash
-   sudo apt-get install -y ninja-build
-   ```
-
-   Not needed for the current Arduino framework path.
-
-4. **USB device detection:** the box already has `/dev/ttyACM0` attached.
-   Confirm it's actually the C3 (not a leftover from another project):
-
-   ```bash
-   ls -l /dev/ttyACM0
-   dmesg | tail -20 | grep -i cdc      # ESP32-C3 native USB CDC shows up here
-   ```
-
-   If `ttyACM0` belongs to something else, your real C3 is likely
-   `ttyACM1` or `ttyUSB0` — use `PORT=/dev/ttyACM1 make flash`.
-
-## Pre-flight checklist (per docs/TESTING.md)
+Full bench CLI remains available:
 
 ```bash
-make test           # 292 tests, must be green
-make build          # firmware compiles, ends with size summary
-make bench-scan     # board is advertising as CombatRobot-v2
-make flash          # "Hash of data verified" at the end
-make monitor        # boot banner prints, no double-reset
+python tools/pc_ble_bench.py --help
+```
+
+Mock robot drive simulator:
+
+```bash
+python tools/mock_robot_drive.py --mode arcade_split --ly -508 --rx 511
+```
+
+## Troubleshooting flash/monitor
+
+- Close `monitor` before `flash`; only one process can own the serial port.
+- If upload fails once, unplug/replug or tap reset/boot, then retry.
+- Start with USB serial before chasing BLE/Wi-Fi. The ESP32-C3 may be alive even
+  if the AP or BLE path is not reachable.
+- After flashing, the robot AP should be reachable at:
+
+```text
+Combat-Robot-049D
+http://192.168.4.1/
 ```

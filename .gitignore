@@ -10,7 +10,8 @@ cmake-build-*/
 /CMakeLists.txt
 /dependencies.lock
 
-# Test artifacts
+# Test/dev artifacts
+.venv/
 .pytest_cache/
 htmlcov/
 .coverage
