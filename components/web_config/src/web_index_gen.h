@@ -3,7 +3,7 @@
 
 #pragma once
 
-// Generated 2026-07-05T16:22:30 from docs/config-ui-mockup.html
+// Generated 2026-07-05T16:55:40 from docs/config-ui-mockup.html
 // Source size: 53571 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
@@ -279,7 +279,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
       </div>
       <div class="grid-2" style="margin-top:10px;">
         <label class="field">Cell count
-          <input id="battery-cell-count" type="number" min="2" max="6" step="1" style="width:100%; margin-top:4px;">
+          <input id="battery-cell-count" type="number" min="1" max="8" step="1" style="width:100%; margin-top:4px;">
         </label>
         <label class="field">Cutoff remaining %
           <input id="battery-cutoff-percent" type="number" min="0" max="80" step="1" style="width:100%; margin-top:4px;">
@@ -1065,10 +1065,10 @@ document.getElementById('btn-board-reset').addEventListener('click', async () =>
 document.getElementById('btn-battery-save').addEventListener('click', async () => {
   const cells = parseInt(document.getElementById('battery-cell-count').value, 10);
   const cutoff = parseInt(document.getElementById('battery-cutoff-percent').value, 10);
-  if (!Number.isFinite(cells) || cells < 2 || cells > 6 ||
+  if (!Number.isFinite(cells) || cells < 1 || cells > 8 ||
       !Number.isFinite(cutoff) || cutoff < 0 || cutoff > 80) {
     document.getElementById('battery-save-status').textContent = 'check ranges';
-    toast('Battery settings must be 2–6 cells and 0–80% cutoff', 'err');
+    toast('Battery settings must be 1–8 cells and 0–80% cutoff', 'err');
     return;
   }
   try {

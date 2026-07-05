@@ -21,8 +21,8 @@ extern "C" {
 #define BC_NVS_KEY_CUTOFF_PERCENT "cutoff_pct_v1"
 
 #define BC_CELL_COUNT_DEFAULT       3
-#define BC_CELL_COUNT_MIN           2
-#define BC_CELL_COUNT_MAX           6
+#define BC_CELL_COUNT_MIN           1
+#define BC_CELL_COUNT_MAX           8
 
 // Default mirrors the old 3.60 V/cell cutoff when using the 3.30–4.20 V
 // percent model: (3.60 - 3.30) / (4.20 - 3.30) ~= 33%.

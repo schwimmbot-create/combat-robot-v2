@@ -1404,6 +1404,40 @@ class TestBatteryManagementContract:
         assert "cell_count" in src and "cutoff_percent" in src
         assert "invalid battery config" in src
 
+    def test_battery_cell_count_supports_1_through_8(self):
+        header = self.BATTERY_H.read_text()
+        src = self.BATTERY_C.read_text()
+        html = self.MOCKUP.read_text()
+        # Header bounds (server-side validation).
+        assert "BC_CELL_COUNT_MIN 1" in header or "BC_CELL_COUNT_MIN           1" in header, header
+        assert "BC_CELL_COUNT_MAX 8" in header or "BC_CELL_COUNT_MAX           8" in header, header
+        # Runtime guard rejects 0 and 9.
+        assert "valid_cells" in src
+        assert "BC_CELL_COUNT_MIN" in src and "BC_CELL_COUNT_MAX" in src
+        # Web UI input + save handler both allow 1..8.
+        assert 'id="battery-cell-count" type="number" min="1" max="8"' in html, (
+            "cell-count input must allow 1..8 cells"
+        )
+        save_block = html.split("// ---- Battery config wiring", 1)[1]
+        assert "cells < 1 || cells > 8" in save_block, save_block
+
+    def test_apply_status_updates_battery_dom_rows_each_poll(self):
+        """Voltage / percent / state / cutoff rows must reflect /api/status."""
+        html = self.MOCKUP.read_text()
+        for needle in (
+            "battery-voltage",
+            "battery-percent",
+            "battery-state",
+            "battery-cutoff-mv",
+            "setInterval(() => { liveTick(); refreshStatus(); }, 1000);",
+            "state.battery",
+        ):
+            assert needle in html, f"missing {needle}"
+        # applyStatus must read battery_mv from /api/status, not a stale state only.
+        apply_block = html.split("function applyStatus", 1)[1].split("// ---- ", 1)[0]
+        assert "s.battery_mv" in apply_block, "applyStatus must read s.battery_mv"
+        assert "battery-voltage" in apply_block and "battery-percent" in apply_block
+
     def test_settings_ui_can_view_and_set_battery_config(self):
         html = self.MOCKUP.read_text()
         for needle in [
