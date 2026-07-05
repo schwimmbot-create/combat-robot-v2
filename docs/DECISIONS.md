@@ -243,11 +243,11 @@ Xbox 360, PS4 (DualShock 4), and other classic-BT controllers do **not work** on
 
 **Lesson:** Profile before optimizing. Don't assume the suspected heavy thing is actually heavy.
 
-### L5. `delay()` + `vTaskDelay()` in the main loop caps control rate
+### L5. Main loop cadence is part of input latency
 
-`vTaskDelay(pdMS_TO_TICKS(100))` in `loop()` caps the control rate at 10Hz. For a combat robot, 50Hz feels noticeably more responsive. This is a tuning concern, not a BLE rewrite concern, but worth flagging.
+`loop()` now yields with `vTaskDelay(pdMS_TO_TICKS(20))`, so the gamepad → `TaskManager` control path runs at roughly 50Hz instead of the old 10Hz v1.3 cadence. That keeps the firmware responsive while still yielding to NimBLE, WiFi, AsyncTCP, and the watchdog.
 
-**Lesson:** The loop's worst-case latency is its control rate. Don't put unconditional delays in there.
+**Lesson:** The loop's worst-case latency is its control rate. Keep unconditional delays short and covered by a pre-flash test.
 
 ### L6. Pairing mode "lock after first connect" needs an unlock path
 

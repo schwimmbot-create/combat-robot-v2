@@ -315,7 +315,7 @@ void loop() {
     // Feed the watchdog.
     esp_task_wdt_reset();
 
-    // Same 10Hz cadence as v1.3. See docs/DECISIONS.md L5 — could be
-    // tightened to 50Hz for more responsive combat driving.
-    vTaskDelay(pdMS_TO_TICKS(100));
+    // 50Hz control cadence: responsive enough for combat driving while still
+    // yielding to NimBLE, WiFi, AsyncTCP, and the watchdog.
+    vTaskDelay(pdMS_TO_TICKS(20));
 }

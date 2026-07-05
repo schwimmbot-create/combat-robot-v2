@@ -110,6 +110,25 @@ class TestSdkConfig:
             )
 
 
+# ---------- Runtime cadence ----------
+
+class TestRuntimeCadence:
+    """Stop-sign tests for control-loop responsiveness."""
+
+    SKETCH = PROJECT_ROOT / "main" / "sketch.cpp"
+
+    def test_main_loop_control_cadence_is_at_least_50hz(self):
+        text = self.SKETCH.read_text()
+        loop = re.search(r"void loop\(\)\s*\{[\s\S]+?^\}", text, re.M)
+        assert loop, "main loop() not found"
+        delays = [int(v) for v in re.findall(r"vTaskDelay\(pdMS_TO_TICKS\((\d+)\)\)", loop.group(0))]
+        assert delays, "loop() must yield with vTaskDelay(pdMS_TO_TICKS(...))"
+        assert max(delays) <= 20, (
+            "main loop controls motors and websocket ticks; unconditional delays above "
+            "20ms cap combat driving below 50Hz"
+        )
+
+
 # ---------- Board config check ----------
 
 class TestBoardConfig:
