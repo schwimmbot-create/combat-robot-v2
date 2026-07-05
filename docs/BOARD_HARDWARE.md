@@ -85,11 +85,11 @@ The v2 schematic source is parseable but uses geometry-based connectivity (no ex
 | USB_DP / DN | GPIO18, GPIO19 | USB data lines | Both boards identical |
 | SDA, SCL | GPIO2, GPIO8 | I2C bus (LSM6DS IMU) | Both boards identical |
 | BATT_MEAS | GPIO3 (ADC) | Battery voltage divider | Both boards identical |
-| MOTOR1_IN1, MOTOR1_IN2 | GPIO0, GPIO1 (via 220Ω) | Motor 1 H-bridge IN pins | **Confirmed by U2/U3 = DRV8871 footprint** |
-| MOTOR2_IN1, MOTOR2_IN2 | TXD0 (GPIO21), GPIO10 (via 220Ω) | Motor 2 H-bridge IN pins | **Same pattern as v3** |
-| SERVO1, SERVO2 | GPIO4, GPIO5 | Servo outputs | Both boards have CN1/CN2 servos |
-| MODE_BUTTON | GPIO6 | Mode select button | Has 10K pullup to 3V3 |
-| DEBUG_LED | GPIO7 (via 220Ω) | Status LED | LED1 = FC-DA1608BK-470H10 |
+| MOTOR1_IN1, MOTOR1_IN2 | GPIO1, GPIO3 (via 220Ω) | Motor 1 H-bridge IN pins | Live v2 firmware/harness map |
+| MOTOR2_IN1, MOTOR2_IN2 | GPIO6, GPIO7 (via 220Ω) | Motor 2 H-bridge IN pins | Live v2 firmware/harness map |
+| SERVO1, SERVO2 | GPIO4, GPIO8 | Servo / auxiliary outputs | GPIO5 is SW1 on live v2 |
+| MODE_BUTTON / SW1 | GPIO5 | Mode select button | Kevin verified live v2 SW1 is IO5 |
+| DEBUG_LED / LED1 | GPIO10 (via 220Ω) | Status LED | Kevin verified live v2 LED1 is IO10 |
 | 5V_EXT_EN | RXD0 (GPIO20) | Enable signal for 5V eFuse | TPS259241 eFuse control |
 | BOOT | GPIO9 | ESP32 boot mode | Pressed at boot = download mode |
 
@@ -104,13 +104,13 @@ The v3 schematic source uses geometry-based connectivity but I extracted the pin
 | 6 | GPIO2 | SDA | I2C SDA, 10K pullup |
 | 7 | GPIO3 | BATT_MEAS | Battery ADC |
 | 9 | EN | (RESET) | Reset circuit |
-| 13 | GPIO0 | MOTOR1_IN1 | via R3 220Ω |
-| 14 | GPIO1 | MOTOR1_IN2 | via R4 220Ω |
-| 17 | GPIO10 | MOTOR2_IN2 | via R5 220Ω |
+| 13 | GPIO0 | BATT_MEAS | ADC battery divider |
+| 14 | GPIO1 | MOTOR1_IN1 | via 220Ω |
+| 17 | GPIO10 | DEBUG_LED / LED1 | via 220Ω |
 | 19 | GPIO4 | SERVO1 | |
-| 20 | GPIO5 | SERVO2 | |
-| 21 | GPIO6 | MODE_BUTTON | |
-| 22 | GPIO7 | DEBUG_LED | via R6 220Ω |
+| 20 | GPIO5 | MODE_BUTTON / SW1 | verified live v2 |
+| 21 | GPIO6 | MOTOR2_IN1 | via 220Ω |
+| 22 | GPIO7 | MOTOR2_IN2 | via 220Ω |
 | 23 | GPIO8 | SCL | I2C SCL, 10K pullup |
 | 24 | GPIO9 | BOOT | 10K pullup + button |
 | 27 | GPIO18 | DN | USB D- |
@@ -264,7 +264,7 @@ If we map these to schematic functions (which are the SAME on v2 and v3):
 | `DEBUG_LED_PIN` = 10 | GPIO10 | MOTOR2_IN2 | ❌ Motor is the debug LED?! |
 | `BATT_MEAS_PIN` = 0 | GPIO0 | MOTOR1_IN1 | ❌ Motor pin being read as ADC?! |
 
-**Almost everything in v1.3 is misconfigured.** This is either:
+**Historical note:** the earlier board_config draft incorrectly treated this v1.3-style map as stale. Kevin verified live v2 LED1=IO10 and SW1=IO5, so the legacy aliases are the correct live-board map for those functions. This section remains as a cautionary history, not an instruction to remap LED1/SW1 to IO7/IO6. Earlier analysis was either:
 1. **v1.3 never actually worked** and the user is misremembering / never tested it
 2. **The v1.3 code is for a different, undocumented board variant** that has these pin assignments
 3. **The user's hardware is actually different** from the schematic I have

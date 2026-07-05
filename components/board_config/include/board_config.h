@@ -76,13 +76,13 @@ extern "C" {
     #define BOARD_NAME                "Generic Robot Controller v2"
     #define BOARD_REVISION_STRING     "v2 (current production)"
 
-    // ESP32-C3-MINI-1 GPIO assignments
-    #define PIN_MOTOR1_IN1            0    // GPIO0  -> DRV8871 IN1 (M1)
-    #define PIN_MOTOR1_IN2            1    // GPIO1  -> DRV8871 IN2 (M1)
-    #define PIN_MOTOR2_IN1            21   // TXD0   -> DRV8871 IN1 (M2)
-    #define PIN_MOTOR2_IN2            10   // GPIO10 -> DRV8871 IN2 (M2)
-    #define PIN_SERVO1                4    // GPIO4  -> CN? SERVO1
-    #define PIN_SERVO2                5    // GPIO5  -> CN? SERVO2
+    // ESP32-C3-MINI-1 GPIO assignments (live v2 board / existing firmware map)
+    #define PIN_MOTOR1_IN1            1    // GPIO1  -> DRV8871 IN1 (M1)
+    #define PIN_MOTOR1_IN2            3    // GPIO3  -> DRV8871 IN2 (M1)
+    #define PIN_MOTOR2_IN1            6    // GPIO6  -> DRV8871 IN1 (M2)
+    #define PIN_MOTOR2_IN2            7    // GPIO7  -> DRV8871 IN2 (M2)
+    #define PIN_SERVO1                4    // GPIO4  -> SERVO / ESC 1
+    #define PIN_SERVO2                8    // GPIO8  -> SERVO / ESC 2 / LED2 line on current v2 harness
 
     // Drum: NOT on v2 schematic. v1.3 firmware's `Drum` class may be
     // driving a non-existent pin. Set to HAS_DRUM=0 until verified.
@@ -90,9 +90,9 @@ extern "C" {
     #define HAS_DRUM                  0
 
     // Sensors / UI
-    #define PIN_BATT_MEAS             3    // GPIO3  -> ADC battery divider
-    #define PIN_MODE_BUTTON           6    // GPIO6  -> MODE_BUTTON
-    #define PIN_DEBUG_LED             7    // GPIO7  -> LED1 (debug)
+    #define PIN_BATT_MEAS             0    // GPIO0  -> ADC battery divider
+    #define PIN_MODE_BUTTON           5    // GPIO5  -> SW1 / MODE_BUTTON
+    #define PIN_DEBUG_LED             10   // GPIO10 -> LED1 (debug)
     #define PIN_NEOPIXEL              8    // GPIO8  -> WS2812 LED (also I2C SCL!)
 
     // I2C bus (shared: IMU on SDA/SCL, but also NEOPIXEL on same pins?)
@@ -192,9 +192,9 @@ extern "C" {
     #error "PIN_BOOT_BUTTON must be GPIO9 (the ESP32-C3 strapping pin)."
 #endif
 
-// Battery ADC MUST be on an ADC-capable pin.
-#if PIN_BATT_MEAS != 3
-    #error "PIN_BATT_MEAS must be GPIO3 (ADC1_CH3 on ESP32-C3)."
+// Battery ADC MUST be on the live v2 battery-divider pin (ADC-capable GPIO0).
+#if BOARD_REV == 2 && PIN_BATT_MEAS != 0
+    #error "BOARD_REV=2 PIN_BATT_MEAS must be GPIO0 on the live v2 board."
 #endif
 
 // Drive motor pins must be unique.

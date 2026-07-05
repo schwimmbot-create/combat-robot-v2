@@ -170,9 +170,9 @@ We need a real web config UI anyway, so this gets rewritten from scratch.
 ### D7. Pairing model: button-triggered with NVS whitelist ✅
 
 **Decision:**
-- Physical button (existing `MODE_BUTTON_PIN` GPIO5) cycles modes: NORMAL → PAIRING → UNPAIR.
-- Long-press (3s) in PAIRING mode = erase whitelist and enter "accept any" mode for 60s.
-- HTML UI has equivalent buttons.
+- Physical button (existing `MODE_BUTTON_PIN` GPIO5 / SW1 on live v2) is the local pairing control.
+- Hold SW1 for 5s = erase stored controllers and enter `PAIRING_STATE_ACCEPT`.
+- HTML UI has equivalent buttons and auto-reflects pairing / paired state via status polling + WebSocket updates.
 - NVS stores up to 4 whitelisted controller MACs.
 - After first controller connects, lock to that MAC (your existing behavior).
 

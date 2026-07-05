@@ -85,16 +85,16 @@ struct ControllerState {
 #define ESC_1_PIN 4
 #define ESC_2_PIN 8
 
-// Legacy myrobot pin aliases. Keep these aligned with
-// components/board_config/include/board_config.h for BOARD_REV=2.
-#define DRIVE_MOTOR1_1_PIN 0
-#define DRIVE_MOTOR1_2_PIN 1
-#define DRIVE_MOTOR2_1_PIN 21
-#define DRIVE_MOTOR2_2_PIN 10
+// Legacy myrobot pin aliases. Keep these aligned with the live v2 board.
+// Kevin verified v2 LED1 is IO10 and SW1 / ModeButton is IO5.
+#define DRIVE_MOTOR1_1_PIN 1
+#define DRIVE_MOTOR1_2_PIN 3
+#define DRIVE_MOTOR2_1_PIN 6
+#define DRIVE_MOTOR2_2_PIN 7
 
-#define MODE_BUTTON_PIN 6
-#define DEBUG_LED_PIN 7
-#define BATT_MEAS_PIN 3
+#define MODE_BUTTON_PIN 5
+#define DEBUG_LED_PIN 10
+#define BATT_MEAS_PIN 0
 
 //Naming
 #define LEFT 1

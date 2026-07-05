@@ -134,38 +134,40 @@ class TestBoardConfig:
         text = path.read_text()
         assert "BOARD_REV == 3" in text, "Must support BOARD_REV=3 (next rev)"
 
-    def test_motor1_pins_correct_v2(self):
-        """v1.3 had MOTOR1_2_PIN=3 (BATT_MEAS pin!). v2 must have it on GPIO1."""
+    def test_motor1_pins_match_live_v2_firmware_map(self):
+        """Live v2 board uses the existing firmware pin map for drive motors."""
         path = PROJECT_ROOT / "components/board_config/include/board_config.h"
         text = path.read_text()
-        m = re.search(r"#if BOARD_REV == 2.*?#define\s+PIN_MOTOR1_IN2\s+(\d+)", text, re.S)
-        assert m, "PIN_MOTOR1_IN2 not defined in v2 block"
-        assert int(m.group(1)) == 1, (
-            f"PIN_MOTOR1_IN2 should be GPIO1, got GPIO{m.group(1)}. "
-            "v1.3 had this on GPIO3 (which is BATT_MEAS)."
-        )
+        block = re.search(r"#if BOARD_REV == 2(?P<body>.*?)#elif BOARD_REV == 3", text, re.S)
+        assert block, "BOARD_REV == 2 block missing"
+        body = block.group("body")
+        assert int(re.search(r"#define\s+PIN_MOTOR1_IN1\s+(\d+)", body).group(1)) == 1
+        assert int(re.search(r"#define\s+PIN_MOTOR1_IN2\s+(\d+)", body).group(1)) == 3
+        assert int(re.search(r"#define\s+PIN_MOTOR2_IN1\s+(\d+)", body).group(1)) == 6
+        assert int(re.search(r"#define\s+PIN_MOTOR2_IN2\s+(\d+)", body).group(1)) == 7
 
-    def test_battery_adc_correct_v2(self):
-        """v1.3 had BATT_MEAS_PIN=0 (MOTOR1_IN1 pin!). v2 must have it on GPIO3."""
+    def test_battery_adc_matches_live_v2_firmware_map(self):
         path = PROJECT_ROOT / "components/board_config/include/board_config.h"
         text = path.read_text()
         m = re.search(r"#if BOARD_REV == 2.*?#define\s+PIN_BATT_MEAS\s+(\d+)", text, re.S)
         assert m, "PIN_BATT_MEAS not defined in v2 block"
-        assert int(m.group(1)) == 3, (
-            f"PIN_BATT_MEAS should be GPIO3 (the only ADC pin), got GPIO{m.group(1)}. "
-            "v1.3 had this on GPIO0 (which is MOTOR1_IN1)."
-        )
+        assert int(m.group(1)) == 0
 
     def test_mode_button_correct_v2(self):
-        """v1.3 had MODE_BUTTON_PIN=5 (SERVO2 pin!). v2 must have it on GPIO6."""
+        """Kevin verified live v2 SW1 / ModeButton is IO5."""
         path = PROJECT_ROOT / "components/board_config/include/board_config.h"
         text = path.read_text()
         m = re.search(r"#if BOARD_REV == 2.*?#define\s+PIN_MODE_BUTTON\s+(\d+)", text, re.S)
         assert m
-        assert int(m.group(1)) == 6, (
-            f"PIN_MODE_BUTTON should be GPIO6, got GPIO{m.group(1)}. "
-            "v1.3 had this on GPIO5 (which is SERVO2)."
-        )
+        assert int(m.group(1)) == 5, f"PIN_MODE_BUTTON should be IO5, got IO{m.group(1)}"
+
+    def test_debug_led_correct_v2(self):
+        """Kevin verified live v2 LED1 is IO10."""
+        path = PROJECT_ROOT / "components/board_config/include/board_config.h"
+        text = path.read_text()
+        m = re.search(r"#if BOARD_REV == 2.*?#define\s+PIN_DEBUG_LED\s+(\d+)", text, re.S)
+        assert m
+        assert int(m.group(1)) == 10, f"PIN_DEBUG_LED should be IO10, got IO{m.group(1)}"
 
 
 # ---------- ControllerState compatibility ----------

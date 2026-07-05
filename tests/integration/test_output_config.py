@@ -326,6 +326,9 @@ class TestLegacyMyrobotPinsMatchBoardConfig:
         assert self._define(constants, "MODE_BUTTON_PIN") == self._v2_define(board, "PIN_MODE_BUTTON")
         assert self._define(constants, "DEBUG_LED_PIN") == self._v2_define(board, "PIN_DEBUG_LED")
         assert self._define(constants, "BATT_MEAS_PIN") == self._v2_define(board, "PIN_BATT_MEAS")
+        # Live-board correction from Kevin: v2 SW1/ModeButton is IO5 and LED1 is IO10.
+        assert self._define(constants, "MODE_BUTTON_PIN") == 5
+        assert self._define(constants, "DEBUG_LED_PIN") == 10
 
 class TestLed1GpioOwnership:
     # Regression: LED1 (DEBUG_LED_PIN) must not be claimed by the LEDC
@@ -386,7 +389,7 @@ class TestLed1GpioOwnership:
         assert "digitalWrite(led_pin" in text
 
 class TestSw1LongPressClearsAndPairs:
-    # SW1 is the v2 board's MODE_BUTTON_PIN (GPIO6). Holding it for 5s
+    # SW1 is the v2 board's MODE_BUTTON_PIN (GPIO5). Holding it for 5s
     # must clear the controller whitelist and enter pairing mode. The
     # HTML must auto-reflect the new state without a page reload.
     CONST_HDR  = PROJECT_ROOT / "components" / "myrobot" / "include" / "Constants.h"
