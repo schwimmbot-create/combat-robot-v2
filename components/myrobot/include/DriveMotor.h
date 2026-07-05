@@ -8,7 +8,9 @@
 class DriveMotor{
     
     public:
-        DriveMotor(byte fwd_pin, byte rev_pin, bool flip_direction = false);
+        DriveMotor(byte fwd_pin, byte rev_pin,
+                   byte fwd_channel, byte rev_channel,
+                   bool flip_direction = false);
         void begin();
         void setSpeed(uint16_t speed, byte direction, byte orientation = RIGHTSIDE_UP);
 

@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-05T16:03:41 from docs/config-ui-mockup.html
-// Source size: 53334 bytes
+// Generated 2026-07-05T16:22:30 from docs/config-ui-mockup.html
+// Source size: 53571 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -269,7 +269,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
     </div>
 
     <div class="card">
-      <h2>Battery</h2>
+      <h2>Battery Settings</h2>
       <p class="meta">Live pack voltage is sampled on the robot. Set the LiPo cell count and the estimated percent remaining where the robot should enter low-voltage cutoff.</p>
       <div class="kv">
         <span class="k">Voltage</span><span class="v" id="battery-voltage">—</span>
@@ -323,6 +323,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
         <span class="k">Board</span><span class="v" id="fw-board">—</span>
         <span class="k">Battery</span><span class="v" id="fw-battery">—</span>
       </div>
+      <button class="oled" id="btn-battery-settings-link" style="width:100%; margin-top:10px;">Battery Settings</button>
     </div>
     <div class="card">
       <h2>About</h2>
@@ -559,6 +560,7 @@ function showTab(name) {
 document.querySelectorAll('nav.tabs button').forEach(b => {
   b.addEventListener('click', () => showTab(b.dataset.tab));
 });
+document.getElementById('btn-battery-settings-link').addEventListener('click', () => showTab('settings'));
 const TAB_NAMES = ['controller', 'outputs', 'settings', 'about'];
 function tabFromHash() {
   const h = (location.hash || '#controller').slice(1);

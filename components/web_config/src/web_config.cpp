@@ -337,6 +337,48 @@ static void register_routes(void) {
         req->send(resp);
     });
 
+    // Register more-specific /api/config/* routes before /api/config.
+    // ESPAsyncWebServer can otherwise let the generic route swallow them.
+    server->on("/api/config/battery", HTTP_GET, [](AsyncWebServerRequest *req) {
+        static char buf[BC_JSON_BUF_SIZE];
+        int n = battery_config_to_json(buf, sizeof(buf));
+        if (n < 0) {
+            req->send(500, "application/json", "{\"err\":\"encode\"}");
+            return;
+        }
+        AsyncWebServerResponse *resp = req->beginResponse(200, "application/json", buf);
+        resp->addHeader("Cache-Control", "no-store");
+        req->send(resp);
+    });
+
+    server->on("/api/config/battery", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+            auto *body = static_cast<String *>(req->_tempObject);
+            if (!body) {
+                req->send(400, "application/json", "{\"err\":\"no body\"}");
+                return;
+            }
+            esp_err_t err = battery_config_apply_json_patch(body->c_str());
+            delete body;
+            req->_tempObject = nullptr;
+            if (err != ESP_OK) {
+                req->send(400, "application/json", "{\"err\":\"invalid battery config\"}");
+                return;
+            }
+            req->send(200, "application/json", "{\"ok\":true}");
+        },
+        NULL,
+        [](AsyncWebServerRequest *req, uint8_t *data, size_t len,
+           size_t index, size_t total) {
+            if (!req->_tempObject) {
+                req->_tempObject = new String();
+                static_cast<String *>(req->_tempObject)->reserve(total);
+            }
+            auto *body = static_cast<String *>(req->_tempObject);
+            body->concat(reinterpret_cast<const char *>(data), len);
+        });
+
+
     server->on("/api/config", HTTP_GET, [](AsyncWebServerRequest *req) {
         static char buf[OC_JSON_BUF_SIZE];
         int n = output_config_to_json(buf, sizeof(buf));
@@ -461,45 +503,6 @@ static void register_routes(void) {
             out += String((unsigned)n);
             out += "}";
             req->send(200, "application/json", out);
-        },
-        NULL,
-        [](AsyncWebServerRequest *req, uint8_t *data, size_t len,
-           size_t index, size_t total) {
-            if (!req->_tempObject) {
-                req->_tempObject = new String();
-                static_cast<String *>(req->_tempObject)->reserve(total);
-            }
-            auto *body = static_cast<String *>(req->_tempObject);
-            body->concat(reinterpret_cast<const char *>(data), len);
-        });
-
-    server->on("/api/config/battery", HTTP_GET, [](AsyncWebServerRequest *req) {
-        static char buf[BC_JSON_BUF_SIZE];
-        int n = battery_config_to_json(buf, sizeof(buf));
-        if (n < 0) {
-            req->send(500, "application/json", "{\"err\":\"encode\"}");
-            return;
-        }
-        AsyncWebServerResponse *resp = req->beginResponse(200, "application/json", buf);
-        resp->addHeader("Cache-Control", "no-store");
-        req->send(resp);
-    });
-
-    server->on("/api/config/battery", HTTP_POST,
-        [](AsyncWebServerRequest *req) {
-            auto *body = static_cast<String *>(req->_tempObject);
-            if (!body) {
-                req->send(400, "application/json", "{\"err\":\"no body\"}");
-                return;
-            }
-            esp_err_t err = battery_config_apply_json_patch(body->c_str());
-            delete body;
-            req->_tempObject = nullptr;
-            if (err != ESP_OK) {
-                req->send(400, "application/json", "{\"err\":\"invalid battery config\"}");
-                return;
-            }
-            req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL,
         [](AsyncWebServerRequest *req, uint8_t *data, size_t len,

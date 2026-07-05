@@ -7,9 +7,13 @@
 static const char* TAG = "DriveMotor";
 
 
-DriveMotor::DriveMotor(byte fwd_pin, byte rev_pin, bool flip_direction){
+DriveMotor::DriveMotor(byte fwd_pin, byte rev_pin,
+                       byte fwd_channel, byte rev_channel,
+                       bool flip_direction){
     _fwd_pin = fwd_pin;
     _rev_pin = rev_pin;
+    _fwd_channel = fwd_channel;
+    _rev_channel = rev_channel;
     _flip_direction = flip_direction;
 }
 
@@ -18,12 +22,12 @@ void DriveMotor::begin() {
     // v2.0.14 Arduino-ESP32 requires: bind pin to channel, then set
     // frequency. v1.3 used a single ledcAttach() call that did both.
     // ledcAttachPin returns void in v2.0.14, so we just call it.
-    ledcAttachPin(_fwd_pin, DRIVE_MOTOR_FWD_PWM_CHANNEL);
-    if (ledcChangeFrequency(DRIVE_MOTOR_FWD_PWM_CHANNEL, DRIVE_MOTOR_PWM_FREQ, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
+    ledcAttachPin(_fwd_pin, _fwd_channel);
+    if (ledcChangeFrequency(_fwd_channel, DRIVE_MOTOR_PWM_FREQ, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
         ESP_LOGE(TAG, "Failed to set FWD PWM frequency");
     }
-    ledcAttachPin(_rev_pin, DRIVE_MOTOR_REV_PWM_CHANNEL);
-    if (ledcChangeFrequency(DRIVE_MOTOR_REV_PWM_CHANNEL, DRIVE_MOTOR_PWM_FREQ, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
+    ledcAttachPin(_rev_pin, _rev_channel);
+    if (ledcChangeFrequency(_rev_channel, DRIVE_MOTOR_PWM_FREQ, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
         ESP_LOGE(TAG, "Failed to set REV PWM frequency");
     }
     setSpeed(0, STOP, RIGHTSIDE_UP);
@@ -55,18 +59,18 @@ void DriveMotor::setSpeed(uint16_t speed, byte direction, byte orientation){
         ESP_LOGD(TAG, "Motor Stopped");
         // v2.0.14 ledcWrite returns void; use the explicit channel
         // (not the pin number, which was the v1.3 hack).
-        ledcWrite(DRIVE_MOTOR_FWD_PWM_CHANNEL, 0);
-        ledcWrite(DRIVE_MOTOR_REV_PWM_CHANNEL, 0);
+        ledcWrite(_fwd_channel, 0);
+        ledcWrite(_rev_channel, 0);
     }
     else if( direction == FORWARD){
         ESP_LOGD(TAG, "Forward: %d", speed);
-        ledcWrite(DRIVE_MOTOR_FWD_PWM_CHANNEL, 255);
-        ledcWrite(DRIVE_MOTOR_REV_PWM_CHANNEL, 255-speed);
+        ledcWrite(_fwd_channel, 255);
+        ledcWrite(_rev_channel, 255-speed);
     }
     else if( direction == REVERSE ){
         ESP_LOGD(TAG, "Reverse: %d", speed);
-        ledcWrite(DRIVE_MOTOR_FWD_PWM_CHANNEL, 255-speed);
-        ledcWrite(DRIVE_MOTOR_REV_PWM_CHANNEL, 255);
+        ledcWrite(_fwd_channel, 255-speed);
+        ledcWrite(_rev_channel, 255);
     }
 
 }

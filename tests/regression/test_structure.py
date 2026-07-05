@@ -54,11 +54,19 @@ INTENTIONALLY_MODIFIED_FILES = {
     "components/myrobot/include/Constants.h":
         "Removed C++ default member initializers (made it C-compatible); "
         "removed controllerState::connected (moved to ble_gamepad_is_connected()); "
-        "added LEDC channel defines (DRIVE_MOTOR_FWD_PWM_CHANNEL etc).",
+        "added per-physical-output LEDC channel defines so M1 and M2 don't "
+        "share PWM channels.",
+    "components/myrobot/include/DriveMotor.h":
+        "DriveMotor constructor now receives per-instance LEDC channel ids; "
+        "shared static drive channels made the right-stick write overwrite M1.",
+    "components/myrobot/src/Drive.cpp":
+        "Passes unique M1/M2 forward/reverse LEDC channels into each DriveMotor "
+        "so tank mode keeps left and right sticks independent.",
     "components/myrobot/src/DriveMotor.cpp":
         "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
         "ledcChangeFrequency(). ledcWrite now uses explicit channel constants "
-        "instead of pin numbers (v1.3 used the pin as the channel).",
+        "instead of pin numbers (v1.3 used the pin as the channel); channels "
+        "are per-instance so M1 and M2 do not alias.",
     "components/myrobot/src/Drum.cpp":
         "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
         "ledcChangeFrequency(). ledcWrite now uses ESC_PWM_CHANNEL.",
@@ -177,11 +185,39 @@ class TestIntentionallyModified:
         assert "pinMode(led_pin, OUTPUT)" in text
         assert "digitalWrite(led_pin" in text
 
-    def test_constants_h_has_ledc_channels(self):
+    def test_constants_h_has_unique_ledc_channels_per_output(self):
         text = (PROJECT_ROOT / "components/myrobot/include/Constants.h").read_text()
-        for name in ("DRIVE_MOTOR_FWD_PWM_CHANNEL", "DRIVE_MOTOR_REV_PWM_CHANNEL",
-                     "ESC_PWM_CHANNEL", "LED_PWM_CHANNEL"):
-            assert name in text, f"Constants.h should define {name}"
+        names = (
+            "DRIVE_MOTOR1_FWD_PWM_CHANNEL",
+            "DRIVE_MOTOR1_REV_PWM_CHANNEL",
+            "DRIVE_MOTOR2_FWD_PWM_CHANNEL",
+            "DRIVE_MOTOR2_REV_PWM_CHANNEL",
+            "ESC_PWM_CHANNEL",
+        )
+        values = {}
+        for name in names:
+            m = re.search(rf"#define\s+{name}\s+(\d+)", text)
+            assert m, f"Constants.h should define {name}"
+            values[name] = int(m.group(1))
+        assert len(set(values.values())) == len(values), (
+            "Each physical PWM output needs its own LEDC channel; shared drive "
+            f"channels make the last motor write control multiple motors: {values}"
+        )
+
+    def test_drivemotor_uses_instance_ledc_channels(self):
+        header = (PROJECT_ROOT / "components/myrobot/include/DriveMotor.h").read_text()
+        src = (PROJECT_ROOT / "components/myrobot/src/DriveMotor.cpp").read_text()
+        assert re.search(
+            r"DriveMotor\s*\(\s*byte\s+fwd_pin\s*,\s*byte\s+rev_pin\s*,\s*byte\s+fwd_channel\s*,\s*byte\s+rev_channel",
+            header,
+            re.S,
+        )
+        assert "ledcAttachPin(_fwd_pin, _fwd_channel)" in src
+        assert "ledcAttachPin(_rev_pin, _rev_channel)" in src
+        assert "ledcWrite(_fwd_channel" in src
+        assert "ledcWrite(_rev_channel" in src
+        assert "DRIVE_MOTOR_FWD_PWM_CHANNEL" not in src
+        assert "DRIVE_MOTOR_REV_PWM_CHANNEL" not in src
 
     def test_constants_h_is_c_compatible(self):
         """Constants.h is included from BOTH C and C++ files; no C++ features."""

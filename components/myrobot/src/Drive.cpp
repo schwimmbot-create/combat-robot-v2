@@ -7,8 +7,14 @@
 static const char* TAG = "Drive";
 
 
-Drive::Drive(): leftMotor(DRIVE_MOTOR1_1_PIN, DRIVE_MOTOR1_2_PIN, false), 
-rightMotor(DRIVE_MOTOR2_1_PIN, DRIVE_MOTOR2_2_PIN, false){
+Drive::Drive(): leftMotor(DRIVE_MOTOR1_1_PIN, DRIVE_MOTOR1_2_PIN,
+                          DRIVE_MOTOR1_FWD_PWM_CHANNEL,
+                          DRIVE_MOTOR1_REV_PWM_CHANNEL,
+                          false),
+rightMotor(DRIVE_MOTOR2_1_PIN, DRIVE_MOTOR2_2_PIN,
+           DRIVE_MOTOR2_FWD_PWM_CHANNEL,
+           DRIVE_MOTOR2_REV_PWM_CHANNEL,
+           false){
     setForwardInputLimits();
     setLateralInputLimits();
     //setPwmResolution();

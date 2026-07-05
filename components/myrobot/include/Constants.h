@@ -19,16 +19,20 @@ const char VERSION[] = "Version 1.3";
 #define DRIVE_MOTOR_PWM_RESOLUTION 8
 // LEDC channels for the v2.0.14 Arduino-ESP32 framework. The v1.3
 // framework didn't expose channels (it hid them behind ledcAttach).
-#define DRIVE_MOTOR_FWD_PWM_CHANNEL 0
-#define DRIVE_MOTOR_REV_PWM_CHANNEL 1
+// Each physical PWM output needs its own LEDC channel. Sharing a channel
+// between M1 and M2 makes the second setSpeed() write drive both motors.
+#define DRIVE_MOTOR1_FWD_PWM_CHANNEL 0
+#define DRIVE_MOTOR1_REV_PWM_CHANNEL 1
+#define DRIVE_MOTOR2_FWD_PWM_CHANNEL 2
+#define DRIVE_MOTOR2_REV_PWM_CHANNEL 3
 
 //Settings for DShot125 Signal
 #define ESC_PWM_FREQ 2000
 #define ESC_PWM_RESOLUTION 8
-#define ESC_PWM_CHANNEL 2
+#define ESC_PWM_CHANNEL 4
 
 // LED channel for the on-board status LED (debug LED).
-#define LED_PWM_CHANNEL 3
+#define LED_PWM_CHANNEL 5
 #define ESC_MIN_PULSEWIDTH 125 //Minimum pulsewidth in microseconds
 #define ESC_MID_PULSEWIDTH 188 //Middle pulsewidth(uSec) - Used for reverse motor
 #define ESC_MAX_PULSEWIDTH 250 //Maximum pulsewidth in microseconds

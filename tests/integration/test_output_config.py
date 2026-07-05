@@ -1395,7 +1395,10 @@ class TestBatteryManagementContract:
 
     def test_battery_config_endpoint_exists_and_validates_ranges(self):
         src = self.WEB_CONFIG.read_text()
-        assert '"/api/config/battery"' in src
+        assert src.find('"/api/config/battery"') < src.find('"/api/config"'), (
+            "ESPAsyncWebServer matches /api/config before /api/config/battery; "
+            "register the more-specific battery route first."
+        )
         assert "HTTP_GET" in src and "battery_config_to_json" in src
         assert "HTTP_POST" in src and "battery_config_apply_json_patch" in src
         assert "cell_count" in src and "cutoff_percent" in src
@@ -1404,6 +1407,8 @@ class TestBatteryManagementContract:
     def test_settings_ui_can_view_and_set_battery_config(self):
         html = self.MOCKUP.read_text()
         for needle in [
+            'Battery Settings',
+            'id="btn-battery-settings-link"',
             'id="battery-voltage"',
             'id="battery-percent"',
             'id="battery-state"',
