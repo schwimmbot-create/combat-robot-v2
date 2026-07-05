@@ -624,20 +624,19 @@ class TestBleGamepadGuiContract:
         # Windows HIDAPI includes report id 0x01; BLE Report char values often
         # omit it. Firmware must handle both or the same controller appears
         # static on the ESP32 even though the host-side capture looks correct.
-        assert "data[0] == 0x01 && data[1] <= 0x0f" in ble_src_text
+        assert "len >= 10 && data[0] == 0x01 && data[1] <= 0x0f" in ble_src_text
         assert "parse_8bitdo_report(data, 1);" in ble_src_text
-        # 2026-07-04 fix: removed the `len > 12` skip that silently dropped
-        # 10–12 byte no-report-id reports; now any report with `data[0] <= 0x0f`
-        # is accepted (the function-level len < 10 guard covers the floor).
-        assert "data[0] <= 0x0f" in ble_src_text
+        # 2026-07-05 fix: standard HID reports are 8-9 bytes; the old dispatcher
+        # returned on len < 10 and silently dropped valid 9-byte reports such as
+        # X/Y/RX/RY/buttons/L2/R2/hat. That made fresh controller input look dead
+        # until a controller sent a longer vendor-specific report.
+        assert "if (len < 8) return;" in ble_src_text
+        assert "if (len < 10) return;" not in ble_src_text
+        assert "len >= 9 && data[0] <= 0x0f" in ble_src_text
         assert "len > 12" not in ble_src_text, (
             "stale len > 12 condition silently drops short 8BitDo reports"
         )
         assert "parse_8bitdo_report(data, 0);" in ble_src_text
-        # Also assert the hard floor for the parser dispatcher.
-        assert "if (len < 10)" in ble_src_text, (
-            "parse_hid_report must reject reports shorter than 10 bytes"
-        )
 
 
 

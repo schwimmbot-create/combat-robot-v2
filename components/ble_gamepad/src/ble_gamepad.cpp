@@ -340,23 +340,25 @@ static void parse_standard_hid_report(const uint8_t *data, uint16_t len) {
 
 static void parse_hid_report(const uint8_t *data, uint16_t len) {
     if (data == nullptr) return;
-    // Hard upper bound: parse_8bitdo_report reads up to data[base+8] (9 bytes)
-    // and parse_standard_hid_report reads up to data[8] — reject anything
-    // shorter than 10 bytes to keep both parsers in-bounds.
-    if (len < 10) return;
+    // Standard HID gamepad reports may be as short as 8 bytes (axes,
+    // buttons, triggers) and are 9 bytes when the hat/dpad byte is present.
+    // The old len < 10 floor silently dropped valid 9-byte reports, which
+    // made fresh controller input appear dead until a longer vendor report
+    // arrived. Keep per-layout length guards below so 8BitDo parsing stays
+    // in-bounds while standard reports are accepted immediately.
+    if (len < 8) return;
 
     // 8BitDo Ultimate 2 over Windows HIDAPI emits 34-byte reports with a
     // leading report-id byte: 01 0f 7f 7f 7f 7f 00 00 00 00 ... .
     // NimBLE's Report characteristic may deliver the same payload without
     // the report-id, so accept both base offsets.
-    if (data[0] == 0x01 && data[1] <= 0x0f) {
+    if (len >= 10 && data[0] == 0x01 && data[1] <= 0x0f) {
         parse_8bitdo_report(data, 1);
         return;
     }
-    // No report-id prefix: 8BitDo variant begins with 0x0f as a hat/dpad
-    // byte, never 0x01. Use len >= 10 (not > 12) — the previous condition
-    // silently dropped reports of length 10–12 in this branch.
-    if (data[0] <= 0x0f) {
+    // No report-id prefix: 8BitDo variant begins with the hat/dpad byte.
+    // parse_8bitdo_report(base=0) reads through data[8], so require len >= 9.
+    if (len >= 9 && data[0] <= 0x0f) {
         parse_8bitdo_report(data, 0);
         return;
     }
