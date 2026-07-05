@@ -113,6 +113,6 @@ test set is the source of `tests/integration/test_pre_flash.py`'s
 | Mobile-friendly tabbed web UI (Controller / Outputs / Settings / About) | ✅ |
 | OTA `.bin` upload | ✅ |
 | Apply config to motor/servo driver | ⏳ Not wired into `myrobot` yet |
-| Battery mV reading on status card | ⏳ TODO in `PowerFunctions::getBatteryMillivolts` |
+| Battery mV/% reading + cell count/cutoff config | ✅ NVS-backed via `battery_config`, visible in Settings/About |
 | LED effect library | ⏳ Phase 2 |
 | v3 board pin map | ⏳ Defined in `board_config.h`, no fabricated board yet |

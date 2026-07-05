@@ -1,0 +1,9 @@
+{
+    "name": "battery_config",
+    "version": "0.1.0",
+    "description": "NVS-backed battery safety configuration for cell count and cutoff percent",
+    "build": {
+        "srcDir": "src",
+        "includeDir": "include"
+    }
+}

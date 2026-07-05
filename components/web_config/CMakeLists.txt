@@ -5,6 +5,7 @@ set(requires
         ble_gamepad
         board_config
         board_detect
+        battery_config
         output_config)
 
 idf_component_register(SRCS "${srcs}"

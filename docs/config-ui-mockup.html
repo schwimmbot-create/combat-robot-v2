@@ -261,6 +261,28 @@
     </div>
 
     <div class="card">
+      <h2>Battery</h2>
+      <p class="meta">Live pack voltage is sampled on the robot. Set the LiPo cell count and the estimated percent remaining where the robot should enter low-voltage cutoff.</p>
+      <div class="kv">
+        <span class="k">Voltage</span><span class="v" id="battery-voltage">—</span>
+        <span class="k">Remaining</span><span class="v" id="battery-percent">—</span>
+        <span class="k">State</span><span class="v" id="battery-state">—</span>
+        <span class="k">Cutoff</span><span class="v" id="battery-cutoff-mv">—</span>
+      </div>
+      <div class="grid-2" style="margin-top:10px;">
+        <label class="field">Cell count
+          <input id="battery-cell-count" type="number" min="2" max="6" step="1" style="width:100%; margin-top:4px;">
+        </label>
+        <label class="field">Cutoff remaining %
+          <input id="battery-cutoff-percent" type="number" min="0" max="80" step="1" style="width:100%; margin-top:4px;">
+        </label>
+      </div>
+      <p class="meta" style="margin:8px 0;">Default is 3S at 33%, matching the old ~3.60 V/cell cutoff. Range: 2–6 cells, 0–80%.</p>
+      <button id="btn-battery-save" class="oled" style="margin-top:4px;">Save Battery Settings</button>
+      <span id="battery-save-status" class="meta" style="margin-left:8px;"></span>
+    </div>
+
+    <div class="card">
       <h2>Board Revision</h2>
       <p class="meta">v2 (current production) is the default. Override to use v3 if you've flashed the v3 pin map.</p>
       <div class="kv">
@@ -424,7 +446,7 @@ const state = {
   pairedMacs: [],
   wifi: { mode: '—', ip: '—', ssid: '—' },
   board: { rev: '—' },
-  battery: { mv: '—', state: '—' },
+  battery: { mv: '—', pct: '—', state: '—', cell_count: 3, cutoff_percent: 33, cutoff_mv: '—' },
 };
 
 // ---- DOM helpers --------------------------------------------------------
@@ -1029,6 +1051,29 @@ document.getElementById('btn-board-reset').addEventListener('click', async () =>
   catch (e) { toast('Failed: ' + e.message, 'err'); }
 });
 
+// ---- Battery config wiring ---------------------------------------------
+document.getElementById('btn-battery-save').addEventListener('click', async () => {
+  const cells = parseInt(document.getElementById('battery-cell-count').value, 10);
+  const cutoff = parseInt(document.getElementById('battery-cutoff-percent').value, 10);
+  if (!Number.isFinite(cells) || cells < 2 || cells > 6 ||
+      !Number.isFinite(cutoff) || cutoff < 0 || cutoff > 80) {
+    document.getElementById('battery-save-status').textContent = 'check ranges';
+    toast('Battery settings must be 2–6 cells and 0–80% cutoff', 'err');
+    return;
+  }
+  try {
+    await apiPostJSON('/api/config/battery', { cell_count: cells, cutoff_percent: cutoff });
+    state.battery.cell_count = cells;
+    state.battery.cutoff_percent = cutoff;
+    document.getElementById('battery-save-status').textContent = 'saved';
+    toast('Battery settings saved');
+    refreshStatus();
+  } catch (e) {
+    document.getElementById('battery-save-status').textContent = 'failed';
+    toast('Battery save failed: ' + e.message, 'err');
+  }
+});
+
 // ---- /api/status polling -----------------------------------------------
 function applyStatus(s) {
   state.pairingActive = (s.pairing_state === 'ACCEPT');
@@ -1040,8 +1085,23 @@ function applyStatus(s) {
   document.getElementById('wifi-ip').textContent = s.wifi_ip || '—';
   document.getElementById('wifi-ssid').textContent = wifiMode === 'AP' ? (s.wifi_ap_mode ? '(this AP)' : '—') : '—';
   document.getElementById('fw-version').textContent = s.firmware_version || '—';
-  document.getElementById('fw-battery').textContent =
-    s.battery_mv ? `${(s.battery_mv/1000).toFixed(2)} V (state ${s.battery_state})` : '—';
+  const battMv = Number(s.battery_mv || 0);
+  const battPct = Number(s.battery_pct || 0);
+  const battState = Number(s.battery_state || 0);
+  const battCells = Number(s.battery_cell_count || state.battery.cell_count || 3);
+  const battCutoffPct = Number(s.battery_cutoff_pct ?? state.battery.cutoff_percent ?? 33);
+  const battCutoffMv = Number(s.battery_cutoff_mv || 0);
+  state.battery = { mv: battMv, pct: battPct, state: battState, cell_count: battCells, cutoff_percent: battCutoffPct, cutoff_mv: battCutoffMv };
+  const batteryText = battMv ? `${(battMv/1000).toFixed(2)} V · ${battPct}% · state ${battState}` : '—';
+  document.getElementById('fw-battery').textContent = batteryText;
+  document.getElementById('battery-voltage').textContent = battMv ? `${(battMv/1000).toFixed(2)} V` : '—';
+  document.getElementById('battery-percent').textContent = battMv ? `${battPct}%` : '—';
+  document.getElementById('battery-state').textContent = battState ? String(battState) : '—';
+  document.getElementById('battery-cutoff-mv').textContent = battCutoffMv ? `${(battCutoffMv/1000).toFixed(2)} V (${battCutoffPct}%)` : '—';
+  const cellInput = document.getElementById('battery-cell-count');
+  const cutoffInput = document.getElementById('battery-cutoff-percent');
+  if (cellInput && document.activeElement !== cellInput) cellInput.value = String(battCells);
+  if (cutoffInput && document.activeElement !== cutoffInput) cutoffInput.value = String(battCutoffPct);
   document.getElementById('board-rev').textContent = 'v2 (compile-time)';
   renderPairedMacs(s.paired_macs || []);
   // Drive the BLE header and visible connected MAC from polled status truth
@@ -1076,6 +1136,15 @@ async function loadConfig() {
     for (const k of Object.keys(j.outputs || {})) {
       if (state.outputs[k]) state.outputs[k] = j.outputs[k];
     }
+    try {
+      const b = await apiGet('/api/config/battery');
+      if (typeof b.cell_count === 'number') state.battery.cell_count = b.cell_count;
+      if (typeof b.cutoff_percent === 'number') state.battery.cutoff_percent = b.cutoff_percent;
+      const cellInput = document.getElementById('battery-cell-count');
+      const cutoffInput = document.getElementById('battery-cutoff-percent');
+      if (cellInput) cellInput.value = String(state.battery.cell_count);
+      if (cutoffInput) cutoffInput.value = String(state.battery.cutoff_percent);
+    } catch (e) { /* battery defaults shown */ }
     renderOutputs();
   } catch (e) { /* defaults shown */ }
 }

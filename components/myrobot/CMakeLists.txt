@@ -14,6 +14,7 @@ set(srcs
 
 set(requires
         arduino
+        battery_config
         output_config)
 
 idf_component_register(SRCS "${srcs}"

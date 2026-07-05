@@ -41,8 +41,12 @@ struct web_status_t {
     char wifi_ip[16];
     char ble_mac[18];      // "AA:BB:CC:DD:EE:FF" or "—"
     char paired_count[4];
-    uint16_t battery_mv;   // millivolts
-    uint8_t battery_state; // 1=good 2=warn 3=low
+    uint16_t battery_mv;         // millivolts
+    uint8_t battery_pct;         // estimated remaining percent, 0..100
+    uint8_t battery_state;       // 1=good 2=warn 3=low
+    uint8_t battery_cell_count;  // configured LiPo cell count
+    uint8_t battery_cutoff_pct;  // configured percent remaining at cutoff
+    uint16_t battery_cutoff_mv;  // computed pack cutoff in millivolts
     const char *pairing_state_str;
     const char *firmware_version;
 };

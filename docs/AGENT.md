@@ -22,6 +22,7 @@ returning after a long break. Read this before touching anything.
 | Change pin assignments | `components/board_config/include/board_config.h`. Compile-time `BOARD_REV`. `platformio.ini` currently has `-D BOARD_REV=2`. |
 | Change the AP password | `components/web_config/src/web_config.cpp` — `AP_DEFAULT_PASSWORD` macro. |
 | Change WiFi STA credentials at runtime | `api/wifi` POST endpoint (not yet implemented; the AP fallback is currently automatic). |
+| Change battery cell count / low-voltage cutoff percent | `components/battery_config/` for NVS schema + validation, `components/myrobot/src/PowerFunctions.cpp` for runtime cutoff/percent math, `docs/config-ui-mockup.html` for Settings UI. |
 | Add a new REST endpoint | `components/web_config/src/web_config.cpp::register_routes()`. JSON: use `output_config_to_json`-style hand-rolled writer for small payloads, or pull in ArduinoJson. |
 | Add a new tab to the web UI | `docs/config-ui-mockup.html`: add `<button data-tab="X">` and a `<section class="panel" data-panel="X">`, plus a `showTab('X')` hook in JS. |
 | Add a new WebSocket message | Firmware: extend `gamepad_build_state_json()` in `web_config.cpp`. Page side: handle `msg.type === '...'` in the WS onmessage handler in the mockup. |

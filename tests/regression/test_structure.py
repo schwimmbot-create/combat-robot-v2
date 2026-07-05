@@ -86,6 +86,13 @@ INTENTIONALLY_MODIFIED_FILES = {
         "for 5s clears the controller whitelist and enters pairing mode; uses "
         "independent one-shot guards so the 1s long event does not suppress the "
         "5s hold event.",
+    "components/myrobot/include/PowerFunctions.h":
+        "Exposed live battery millivolts/percent/state accessors so web_config "
+        "can report pack voltage and cutoff settings.",
+    "components/myrobot/src/PowerFunctions.cpp":
+        "Uses battery_config cell-count and cutoff-percent settings instead of "
+        "compile-time-only NUM_OF_CELLS/MIN_MVOLT_PER_CELL thresholds; publishes "
+        "live voltage/percent/state for /api/status.",
 }
 
 # All ported files (union of both lists)
@@ -437,3 +444,13 @@ class TestPinDefines:
             if v1_norm != exp_norm:
                 issues.append(f"{name}: v1='{v1_val}' expected='{expected}'")
         assert not issues, "Pin defines drifted from expected:\n  " + "\n  ".join(issues)
+
+def test_powerfunctions_uses_battery_config_accessors():
+    header = (PROJECT_ROOT / "components/myrobot/include/PowerFunctions.h").read_text()
+    src = (PROJECT_ROOT / "components/myrobot/src/PowerFunctions.cpp").read_text()
+    assert "getLastBatteryMillivolts" in header
+    assert "getLastBatteryPercent" in header
+    assert "battery_cutoff_millivolts" in header
+    assert "battery_config_get_cell_count" in src
+    assert "battery_config_get_cutoff_percent" in src
+    assert "s_lastBatteryMillivolts" in src

@@ -1346,3 +1346,73 @@ class TestConfigUiMockup:
         assert "new WebSocket" in gen_html
         assert "/ws`" in gen_html
         assert "msg.type === 'state'" in gen_html
+
+class TestBatteryManagementContract:
+    """Battery telemetry/config must be visible and tunable from the web UI."""
+
+    ROOT = PROJECT_ROOT
+    WEB_CONFIG = ROOT / "components" / "web_config" / "src" / "web_config.cpp"
+    WEB_HEADER = ROOT / "components" / "web_config" / "include" / "web_config.h"
+    POWER_CPP = ROOT / "components" / "myrobot" / "src" / "PowerFunctions.cpp"
+    POWER_H = ROOT / "components" / "myrobot" / "include" / "PowerFunctions.h"
+    MOCKUP = ROOT / "docs" / "config-ui-mockup.html"
+    PLATFORMIO = ROOT / "platformio.ini"
+    BATTERY_H = ROOT / "components" / "battery_config" / "include" / "battery_config.h"
+    BATTERY_C = ROOT / "components" / "battery_config" / "src" / "battery_config.c"
+
+    def test_battery_config_component_is_registered(self):
+        assert self.BATTERY_H.exists(), "battery_config public header missing"
+        assert self.BATTERY_C.exists(), "battery_config implementation missing"
+        header = self.BATTERY_H.read_text()
+        src = self.BATTERY_C.read_text()
+        pio = self.PLATFORMIO.read_text()
+        assert "battery_config_init" in header
+        assert "battery_config_to_json" in header
+        assert "battery_config_apply_json_patch" in header
+        assert "BC_NVS_NAMESPACE" in header and "battery_cfg" in header
+        assert "nvs_set_u8" in src and "nvs_commit" in src
+        assert "-I components/battery_config/include" in pio
+
+    def test_power_functions_exposes_live_voltage_and_configurable_thresholds(self):
+        header = self.POWER_H.read_text()
+        src = self.POWER_CPP.read_text()
+        assert "getBatteryMillivolts" in header
+        assert "battery_config_get_cell_count" in src
+        assert "battery_config_get_cutoff_percent" in src
+        assert "BATTERY_EMPTY_MV_PER_CELL" in src
+        assert "BATTERY_FULL_MV_PER_CELL" in src
+        assert "shutdownVoltage_mV = battery_cutoff_millivolts" in src
+
+    def test_status_json_reports_voltage_percent_cell_count_and_cutoff(self):
+        header = self.WEB_HEADER.read_text()
+        src = self.WEB_CONFIG.read_text()
+        for field in ["battery_mv", "battery_pct", "battery_cell_count", "battery_cutoff_pct", "battery_cutoff_mv"]:
+            assert field in header, f"web_status_t missing {field}"
+            assert f"\\\"{field}\\\"" in src, f"/api/status JSON missing {field}"
+        assert "PowerFunctions::getLastBatteryMillivolts" in src
+        assert "battery_config_get_cell_count" in src
+        assert "battery_config_get_cutoff_percent" in src
+
+    def test_battery_config_endpoint_exists_and_validates_ranges(self):
+        src = self.WEB_CONFIG.read_text()
+        assert '"/api/config/battery"' in src
+        assert "HTTP_GET" in src and "battery_config_to_json" in src
+        assert "HTTP_POST" in src and "battery_config_apply_json_patch" in src
+        assert "cell_count" in src and "cutoff_percent" in src
+        assert "invalid battery config" in src
+
+    def test_settings_ui_can_view_and_set_battery_config(self):
+        html = self.MOCKUP.read_text()
+        for needle in [
+            'id="battery-voltage"',
+            'id="battery-percent"',
+            'id="battery-state"',
+            'id="battery-cell-count"',
+            'id="battery-cutoff-percent"',
+            'id="battery-cutoff-mv"',
+            'id="btn-battery-save"',
+            '/api/config/battery',
+            'battery_cell_count',
+            'battery_cutoff_pct',
+        ]:
+            assert needle in html

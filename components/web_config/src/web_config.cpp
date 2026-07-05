@@ -19,6 +19,8 @@
 #include "board_config.h"
 #include "board_detect.h"
 #include "output_config.h"
+#include "battery_config.h"
+#include "PowerFunctions.h"
 #include "Constants.h"
 
 #include <Arduino.h>
@@ -295,7 +297,11 @@ static void send_json_status(AsyncWebServerRequest *req) {
     json += "\"wifi_ap_mode\":" + String(s.wifi_ap_mode ? "true" : "false") + ",";
     json += "\"wifi_ip\":\"" + String(s.wifi_ip) + "\",";
     json += "\"battery_mv\":" + String(s.battery_mv) + ",";
+    json += "\"battery_pct\":" + String(s.battery_pct) + ",";
     json += "\"battery_state\":" + String(s.battery_state) + ",";
+    json += "\"battery_cell_count\":" + String(s.battery_cell_count) + ",";
+    json += "\"battery_cutoff_pct\":" + String(s.battery_cutoff_pct) + ",";
+    json += "\"battery_cutoff_mv\":" + String(s.battery_cutoff_mv) + ",";
     json += "\"firmware_version\":\"" + String(s.firmware_version) + "\"";
     json += "}";
 
@@ -455,6 +461,45 @@ static void register_routes(void) {
             out += String((unsigned)n);
             out += "}";
             req->send(200, "application/json", out);
+        },
+        NULL,
+        [](AsyncWebServerRequest *req, uint8_t *data, size_t len,
+           size_t index, size_t total) {
+            if (!req->_tempObject) {
+                req->_tempObject = new String();
+                static_cast<String *>(req->_tempObject)->reserve(total);
+            }
+            auto *body = static_cast<String *>(req->_tempObject);
+            body->concat(reinterpret_cast<const char *>(data), len);
+        });
+
+    server->on("/api/config/battery", HTTP_GET, [](AsyncWebServerRequest *req) {
+        static char buf[BC_JSON_BUF_SIZE];
+        int n = battery_config_to_json(buf, sizeof(buf));
+        if (n < 0) {
+            req->send(500, "application/json", "{\"err\":\"encode\"}");
+            return;
+        }
+        AsyncWebServerResponse *resp = req->beginResponse(200, "application/json", buf);
+        resp->addHeader("Cache-Control", "no-store");
+        req->send(resp);
+    });
+
+    server->on("/api/config/battery", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+            auto *body = static_cast<String *>(req->_tempObject);
+            if (!body) {
+                req->send(400, "application/json", "{\"err\":\"no body\"}");
+                return;
+            }
+            esp_err_t err = battery_config_apply_json_patch(body->c_str());
+            delete body;
+            req->_tempObject = nullptr;
+            if (err != ESP_OK) {
+                req->send(400, "application/json", "{\"err\":\"invalid battery config\"}");
+                return;
+            }
+            req->send(200, "application/json", "{\"ok\":true}");
         },
         NULL,
         [](AsyncWebServerRequest *req, uint8_t *data, size_t len,
@@ -804,10 +849,14 @@ void web_config_get_status(web_status_t *out) {
     ble_gamepad_get_paired_macs(macs, &count);
     snprintf(out->paired_count, sizeof(out->paired_count), "%u", count);
 
-    // Battery is read by myrobot/PowerFunctions. We don't yet have a
-    // public accessor for it. TODO: expose PowerFunctions::getBatteryMillivolts().
-    out->battery_mv = 0;
-    out->battery_state = 0;
+    out->battery_mv = PowerFunctions::getLastBatteryMillivolts();
+    out->battery_pct = PowerFunctions::getLastBatteryPercent();
+    out->battery_state = PowerFunctions::getLastBatteryState();
+    out->battery_cell_count = battery_config_get_cell_count();
+    out->battery_cutoff_pct = battery_config_get_cutoff_percent();
+    out->battery_cutoff_mv = PowerFunctions::battery_cutoff_millivolts(
+        out->battery_cell_count,
+        out->battery_cutoff_pct);
 
     out->firmware_version = VERSION;
 }
