@@ -54,24 +54,24 @@ void Buttons::taskLoop() {
                 if (!pressed) {
                     // first stable press
                     pressed   = true;
-                    eventSent = false;
+                    longEventSent = false;
+                    hold5sEventSent = false;
                     pressTick = now;
-                } else if (eventSent == false && (now - pressTick >= longPressTicks)) {
-                    lastEvent = BUTTON_LONG;
-                    eventSent = true;
-                } else if (eventSent == false && (now - pressTick >= hold5sTicks)) {
-                    // Re-arm the long-press guard so the same press can
-                    // still fire 1s -> 5s without spamming the queue.
+                } else if (!hold5sEventSent && (now - pressTick >= hold5sTicks)) {
                     lastEvent = BUTTON_HOLD_5S;
-                    eventSent = true;
+                    hold5sEventSent = true;
+                } else if (!longEventSent && (now - pressTick >= longPressTicks)) {
+                    lastEvent = BUTTON_LONG;
+                    longEventSent = true;
                 }
             } else {
                 // Button release
-                if (pressed == true && eventSent == false) {
+                if (pressed == true && !longEventSent && !hold5sEventSent) {
                     lastEvent = BUTTON_SHORT;
                 }
                 pressed   = false;
-                eventSent = true;
+                longEventSent = true;
+                hold5sEventSent = true;
             }
         }
 

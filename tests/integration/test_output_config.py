@@ -409,19 +409,24 @@ class TestSw1LongPressClearsAndPairs:
 
     def test_buttons_emits_hold_5s_after_threshold(self):
         text = self.BTN_SRC.read_text()
-        # The task loop must compare the press duration against the
-        # 5-second threshold and emit BUTTON_HOLD_5S without losing the
-        # existing BUTTON_LONG event.
+        hdr = self.BTN_HDR.read_text()
+        # Regression: BUTTON_LONG fires at 1s. The 5s hold must still be
+        # able to fire later during the same physical press, so BUTTON_HOLD_5S
+        # cannot be guarded by the same one-shot eventSent flag.
         assert "HOLD_5S_TIME" in text
         assert "BUTTON_HOLD_5S" in text
-        # The hold-5s branch must live next to the BUTTON_LONG branch
-        # and use the same eventSent guard.
-        m = re.search(
-            r"now\s*-\s*pressTick\s*>=\s*longPressTicks[\s\S]*?now\s*-\s*pressTick\s*>=\s*hold5sTicks[\s\S]*?BUTTON_HOLD_5S[\s\S]*?eventSent\s*=\s*true",
-            text)
-        assert m, "5s hold branch missing or not guarded by eventSent"
-        # Hold-5s must not regress BUTTON_LONG.
-        assert "BUTTON_LONG" in text
+        assert "longEventSent" in hdr and "hold5sEventSent" in hdr, (
+            "BUTTON_LONG and BUTTON_HOLD_5S need independent one-shot guards"
+        )
+        assert "!hold5sEventSent" in text, "5s branch must use its own guard"
+        assert "!longEventSent" in text, "1s long branch must use its own guard"
+        hold_idx = text.find("BUTTON_HOLD_5S")
+        long_idx = text.find("BUTTON_LONG")
+        assert hold_idx != -1 and long_idx != -1
+        assert hold_idx < long_idx, (
+            "check the 5s hold threshold before the 1s long threshold so an "
+            "already-long press can still become BUTTON_HOLD_5S"
+        )
 
     def test_taskmanager_reacts_to_hold_5s_by_clearing_and_pairing(self):
         text = self.TM_SRC.read_text()

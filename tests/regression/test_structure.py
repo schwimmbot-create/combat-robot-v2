@@ -77,9 +77,15 @@ INTENTIONALLY_MODIFIED_FILES = {
         "Added output_config-backed drive mode selection. Runtime now switches "
         "between two_stick_drive() tank control and combined_direction() arcade "
         "control without reflashing.",
+    "components/myrobot/include/Buttons.h":
+        "Added independent longEventSent and hold5sEventSent guards so a single "
+        "physical hold can emit BUTTON_LONG at 1s and still emit BUTTON_HOLD_5S "
+        "at 5s.",
     "components/myrobot/src/Buttons.cpp":
         "Added BUTTON_HOLD_5S event and 5-second hold threshold so holding SW1 "
-        "for 5s clears the controller whitelist and enters pairing mode.",
+        "for 5s clears the controller whitelist and enters pairing mode; uses "
+        "independent one-shot guards so the 1s long event does not suppress the "
+        "5s hold event.",
 }
 
 # All ported files (union of both lists)

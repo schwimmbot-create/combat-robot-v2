@@ -27,7 +27,8 @@ private:
     TickType_t lastDebounceTick = 0;
     TickType_t pressTick        = 0;
     bool       pressed          = false;
-    bool       eventSent        = false;
+    bool       longEventSent    = false;
+    bool       hold5sEventSent  = false;
 
     volatile ButtonPress lastEvent = BUTTON_NONE;
 };
