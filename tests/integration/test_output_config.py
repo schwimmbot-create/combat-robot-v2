@@ -294,8 +294,99 @@ class TestBleGamepadPairingCallbackWiring:
         )
         assert "ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE)" in body
 
+class TestLegacyMyrobotPinsMatchBoardConfig:
+    # myrobot still consumes the legacy Constants.h pin names, but the
+    # authoritative v2 pin map lives in board_config.h. These aliases must
+    # stay aligned or firmware will toggle the wrong physical GPIO (the bug
+    # that made LED1/SW1 appear broken).
+    CONST_HDR = PROJECT_ROOT / "components" / "myrobot" / "include" / "Constants.h"
+    BOARD_HDR = PROJECT_ROOT / "components" / "board_config" / "include" / "board_config.h"
+
+    def _define(self, text: str, name: str) -> int:
+        m = re.search(rf"#define\s+{name}\s+(\d+)", text)
+        assert m, f"{name} not defined"
+        return int(m.group(1))
+
+    def _v2_define(self, text: str, name: str) -> int:
+        m = re.search(rf"#if BOARD_REV == 2(?P<body>[\s\S]*?)#elif BOARD_REV == 3", text)
+        assert m, "BOARD_REV == 2 block not found"
+        return self._define(m.group("body"), name)
+
+    def test_legacy_drive_motor_pins_match_v2_board_config(self):
+        constants = self.CONST_HDR.read_text()
+        board = self.BOARD_HDR.read_text()
+        assert self._define(constants, "DRIVE_MOTOR1_1_PIN") == self._v2_define(board, "PIN_MOTOR1_IN1")
+        assert self._define(constants, "DRIVE_MOTOR1_2_PIN") == self._v2_define(board, "PIN_MOTOR1_IN2")
+        assert self._define(constants, "DRIVE_MOTOR2_1_PIN") == self._v2_define(board, "PIN_MOTOR2_IN1")
+        assert self._define(constants, "DRIVE_MOTOR2_2_PIN") == self._v2_define(board, "PIN_MOTOR2_IN2")
+
+    def test_legacy_sw1_led_and_battery_pins_match_v2_board_config(self):
+        constants = self.CONST_HDR.read_text()
+        board = self.BOARD_HDR.read_text()
+        assert self._define(constants, "MODE_BUTTON_PIN") == self._v2_define(board, "PIN_MODE_BUTTON")
+        assert self._define(constants, "DEBUG_LED_PIN") == self._v2_define(board, "PIN_DEBUG_LED")
+        assert self._define(constants, "BATT_MEAS_PIN") == self._v2_define(board, "PIN_BATT_MEAS")
+
+class TestLed1GpioOwnership:
+    # Regression: LED1 (DEBUG_LED_PIN) must not be claimed by the LEDC
+    # peripheral anywhere in the project. The LED class used ledcAttachPin
+    # to bind the pin to an LEDC channel, which silently disables
+    # digitalWrite() and made the pairing indicator a no-op.
+    CONST_HDR  = PROJECT_ROOT / "components" / "myrobot" / "include" / "Constants.h"
+    LED_SRC    = PROJECT_ROOT / "components" / "myrobot" / "src" / "LED.cpp"
+    SKETCH     = PROJECT_ROOT / "main" / "sketch.cpp"
+    LED_HDR    = PROJECT_ROOT / "components" / "myrobot" / "include" / "LED.h"
+
+    def _pin_number(self) -> int:
+        m = re.search(r"#define\s+DEBUG_LED_PIN\s+(\d+)", self.CONST_HDR.read_text())
+        assert m, "DEBUG_LED_PIN not defined"
+        return int(m.group(1))
+
+    def test_no_ledc_attach_for_debug_led_pin(self):
+        pin = self._pin_number()
+        offenders = []
+        pattern = re.compile(r"ledcAttachPin\s*\(\s*([^,()]+)\s*,\s*[^)]+\)")
+        for label, path in (("LED.cpp", self.LED_SRC), ("sketch.cpp", self.SKETCH)):
+            text = path.read_text()
+            for m in pattern.finditer(text):
+                first = m.group(1).strip()
+                if first == "led_pin" or first == str(pin):
+                    offenders.append(f"{label}: {m.group(0)}")
+        assert not offenders, (
+            f"LEDC must not bind DEBUG_LED_PIN (pin {pin}); offenders: {offenders}"
+        )
+
+    def test_led1_task_drives_pin_via_digitalwrite(self):
+        # The pairing-indicator task must drive DEBUG_LED_PIN via plain
+        # digitalWrite() so it actually reaches the pad.
+        text = self.SKETCH.read_text()
+        pin = self._pin_number()
+        m = re.search(
+            r"static void led1_indicator_task[\s\S]+?vTaskDelay\(pdMS_TO_TICKS\(20\)\);",
+            text)
+        assert m, "led1_indicator_task() body not found"
+        body = m.group(0)
+        assert f"pinMode(DEBUG_LED_PIN, OUTPUT)" in body
+        assert f"digitalWrite(DEBUG_LED_PIN" in body
+        # And no LEDC calls inside the task (would shadow the GPIO matrix).
+        assert "ledcWrite" not in body
+        assert "ledcAttachPin" not in body
+
+    def test_led_class_uses_digitalwrite_for_pattern_output(self):
+        # LED::begin() must not call ledcAttachPin on the LED1 pin, and
+        # LED::patternTask() must drive the pin via digitalWrite so the
+        # morse feedback coexists with the pairing indicator.
+        text = self.LED_SRC.read_text()
+        assert "ledcAttachPin" not in text, (
+            "LED class must not bind any pin to LEDC; the pairing indicator "
+            "and the morse patterns must share the pin via digital control."
+        )
+        assert "ledcWrite" not in text
+        assert "pinMode(led_pin, OUTPUT)" in text
+        assert "digitalWrite(led_pin" in text
+
 class TestSw1LongPressClearsAndPairs:
-    # SW1 is the v2 board's MODE_BUTTON_PIN (GPIO5). Holding it for 5s
+    # SW1 is the v2 board's MODE_BUTTON_PIN (GPIO6). Holding it for 5s
     # must clear the controller whitelist and enter pairing mode. The
     # HTML must auto-reflect the new state without a page reload.
     CONST_HDR  = PROJECT_ROOT / "components" / "myrobot" / "include" / "Constants.h"

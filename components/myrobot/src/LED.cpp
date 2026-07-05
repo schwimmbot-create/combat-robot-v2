@@ -9,11 +9,15 @@ LED::LED(int led_pin, unsigned long shortDuration, unsigned long longDuration)
       taskHandle(nullptr), patternQueue(nullptr) {}
 
 void LED::begin() {
-    // v2.0.14 Arduino-ESP32: bind pin to channel, then set frequency.
-    ledcAttachPin(led_pin, LED_PWM_CHANNEL);
-    ledcChangeFrequency(LED_PWM_CHANNEL, 2000, 8);
-    ledcWrite(LED_PWM_CHANNEL, 0);
-
+    // Drive the pin via plain digitalWrite(). The previous implementation
+    // bound the pin to an LEDC channel, which silently disabled
+    // digital control of the same pad. That broke the pairing-indicator
+    // task (which also writes the same pin) so the LED never blinked
+    // even when the pairing callback fired. Plain GPIO control lets
+    // the morse-pattern code and the pairing task share the pin without
+    // the LEDC peripheral hogging it.
+    pinMode(led_pin, OUTPUT);
+    digitalWrite(led_pin, LOW);
 
     patternQueue = xQueueCreate(5, sizeof(PatternCommand));
 
@@ -50,18 +54,15 @@ void LED::patternTask(void* pvParameters) {
                 while (led->pattern[led->patternIndex] != '\0') {
                     char symbol = led->pattern[led->patternIndex++];
                     if (symbol == '.' || symbol == '-') {
-                        //ledcWrite(1, cmd.dutyCycle);  // Use brightness from queue
-                        ledcWrite(LED_PWM_CHANNEL, cmd.dutyCycle);  // Use brightness from queue
+                        digitalWrite(led->led_pin, cmd.dutyCycle ? HIGH : LOW);  // Use brightness from queue
                         vTaskDelay(pdMS_TO_TICKS(symbol == '-' ? led->longDuration : led->shortDuration));
-
-                        //ledcWrite(1, 0);  // Off between pulses
-                        ledcWrite(LED_PWM_CHANNEL, 0);
+                        digitalWrite(led->led_pin, LOW);
                         vTaskDelay(pdMS_TO_TICKS(200));
                     }
                     if (symbol == '*'){ // Longer duration flash to register on film to indicate synchronization
-                        ledcWrite(LED_PWM_CHANNEL, cmd.dutyCycle);  // Use brightness from queue
+                        digitalWrite(led->led_pin, cmd.dutyCycle ? HIGH : LOW);  // Use brightness from queue
                         vTaskDelay(pdMS_TO_TICKS(1000));
-                        ledcWrite(LED_PWM_CHANNEL, 0);  // Off 
+                        digitalWrite(led->led_pin, LOW);  // Off
                     }
                 }
 

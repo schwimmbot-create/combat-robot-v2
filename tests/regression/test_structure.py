@@ -63,8 +63,10 @@ INTENTIONALLY_MODIFIED_FILES = {
         "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
         "ledcChangeFrequency(). ledcWrite now uses ESC_PWM_CHANNEL.",
     "components/myrobot/src/LED.cpp":
-        "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
-        "ledcChangeFrequency(). ledcWrite now uses LED_PWM_CHANNEL.",
+        "Reverted from LEDC channel control to plain digitalWrite() so the "
+        "pairing-indicator task (sketch.cpp::led1_indicator_task) can share "
+        "the same DEBUG_LED_PIN via digital control without the LEDC "
+        "peripheral silently disabling GPIO control on that pad.",
     "components/myrobot/include/TaskManager.h":
         "Added cached turn-axis inputs so the runtime can switch between "
         "tank and arcade drive modes selected from output_config.",
@@ -148,15 +150,19 @@ class TestIntentionallyModified:
         )
         assert not re.search(r"\bledcAttach\s*\(", uncommented)
 
-    def test_led_uses_new_ledc_api(self):
+    def test_led_uses_digital_control_for_pin(self):
+        # The LED class drives its pin via plain digitalWrite() so the
+        # pairing-indicator task can share the same pin without the
+        # LEDC peripheral silently disabling GPIO control.
         text = (PROJECT_ROOT / "components/myrobot/src/LED.cpp").read_text()
-        assert "ledcAttachPin" in text
-        assert "ledcChangeFrequency" in text
-        uncommented = "\n".join(
-            line for line in text.splitlines()
-            if not line.lstrip().startswith("//")
+        assert "ledcAttachPin" not in text, (
+            "LED class must not bind any pin to the LEDC peripheral; "
+            "doing so disables digitalWrite() on the same pad."
         )
-        assert not re.search(r"\bledcAttach\s*\(", uncommented)
+        assert "ledcChangeFrequency" not in text
+        assert "ledcWrite" not in text
+        assert "pinMode(led_pin, OUTPUT)" in text
+        assert "digitalWrite(led_pin" in text
 
     def test_constants_h_has_ledc_channels(self):
         text = (PROJECT_ROOT / "components/myrobot/include/Constants.h").read_text()
