@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-05T17:06:52 from docs/config-ui-mockup.html
-// Source size: 54683 bytes
+// Generated 2026-07-05T17:44:09 from docs/config-ui-mockup.html
+// Source size: 55607 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -455,7 +455,7 @@ const state = {
   pairedMacs: [],
   wifi: { mode: '—', ip: '—', ssid: '—' },
   board: { rev: '—' },
-  battery: { mv: '—', pct: '—', state: '—', cell_count: 3, cutoff_percent: 33, cutoff_mv: '—' },
+  battery: { mv: '—', pct: '—', state: '—', state_label: '—', cell_count: 3, cutoff_percent: 33, cutoff_mv: '—', cell_count_dirty: false, cutoff_percent_dirty: false },
 };
 
 // ---- DOM helpers --------------------------------------------------------
@@ -1114,7 +1114,16 @@ function applyStatus(s) {
   const battCells = Number(s.battery_cell_count ?? state.battery.cell_count ?? 3);
   const battCutoffPct = Number(s.battery_cutoff_pct ?? state.battery.cutoff_percent ?? 33);
   const battCutoffMv = Number(s.battery_cutoff_mv || 0);
-  state.battery = { mv: battMv, pct: battPct, state: battState, state_label: battStateLabel, cell_count: battCells, cutoff_percent: battCutoffPct, cutoff_mv: battCutoffMv };
+  // Mutate state.battery field-by-field. Replacing the whole object (the
+  // previous version of this code) wiped the *_dirty flags set by the input
+  // event listener, letting the next 1s poll clobber the user's pending edit.
+  state.battery.mv = battMv;
+  state.battery.pct = battPct;
+  state.battery.state = battState;
+  state.battery.state_label = battStateLabel;
+  state.battery.cell_count = battCells;
+  state.battery.cutoff_percent = battCutoffPct;
+  state.battery.cutoff_mv = battCutoffMv;
   const batteryText = battMv ? `${(battMv/1000).toFixed(2)} V · ${battPct}% · ${battStateLabel}` : '—';
   document.getElementById('fw-battery').textContent = batteryText;
   document.getElementById('battery-voltage').textContent = battMv ? `${(battMv/1000).toFixed(2)} V` : '—';
@@ -1174,12 +1183,26 @@ async function loadConfig() {
     }
     try {
       const b = await apiGet('/api/config/battery');
-      if (typeof b.cell_count === 'number') state.battery.cell_count = b.cell_count;
-      if (typeof b.cutoff_percent === 'number') state.battery.cutoff_percent = b.cutoff_percent;
-      const cellInput = document.getElementById('battery-cell-count');
-      const cutoffInput = document.getElementById('battery-cutoff-percent');
-      if (cellInput) cellInput.value = String(state.battery.cell_count);
-      if (cutoffInput) cutoffInput.value = String(state.battery.cutoff_percent);
+      // Don't clobber a user's in-progress edit just because /api/config
+      // responded. Honor the dirty flags the same way applyStatus does.
+      if (typeof b.cell_count === 'number' && !state.battery.cell_count_dirty) {
+        state.battery.cell_count = b.cell_count;
+        const cellInput = document.getElementById('battery-cell-count');
+        if (cellInput
+            && document.activeElement !== cellInput
+            && String(cellInput.value) !== String(b.cell_count)) {
+          cellInput.value = String(b.cell_count);
+        }
+      }
+      if (typeof b.cutoff_percent === 'number' && !state.battery.cutoff_percent_dirty) {
+        state.battery.cutoff_percent = b.cutoff_percent;
+        const cutoffInput = document.getElementById('battery-cutoff-percent');
+        if (cutoffInput
+            && document.activeElement !== cutoffInput
+            && String(cutoffInput.value) !== String(b.cutoff_percent)) {
+          cutoffInput.value = String(b.cutoff_percent);
+        }
+      }
     } catch (e) { /* battery defaults shown */ }
     renderOutputs();
   } catch (e) { /* defaults shown */ }

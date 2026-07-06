@@ -1468,6 +1468,18 @@ class TestBatteryManagementContract:
                 f"applyStatus must respect {needle} so polling doesn't "
                 f"overwrite the user's pending edit."
             )
+        # Critical regression: applyStatus must NOT recreate state.battery
+        # from scratch, because that wipes the dirty flags set by the
+        # 'input' event listener.
+        assert "state.battery = {" not in apply_block, (
+            "applyStatus must preserve state.battery.*_dirty flags "
+            "instead of replacing the object."
+        )
+        assert "state.battery.cell_count_dirty = state.battery.cell_count_dirty" in apply_block or (
+            # Equivalent: re-assign individual keys rather than the whole object.
+            "battery_cutoff_pct" in apply_block
+            and "cell_count" in apply_block
+        ), "applyStatus must mutate state.battery fields without losing dirty flags"
 
     def test_battery_settings_help_text_matches_supported_ranges(self):
         html = self.MOCKUP.read_text()
