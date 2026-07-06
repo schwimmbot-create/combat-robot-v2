@@ -1438,6 +1438,41 @@ class TestBatteryManagementContract:
         assert "s.battery_mv" in apply_block, "applyStatus must read s.battery_mv"
         assert "battery-voltage" in apply_block and "battery-percent" in apply_block
 
+    def test_battery_state_field_renders_human_label_not_raw_enum(self):
+        """Users should see 'Good' / 'Warn' / 'Low', not raw 1/2/3 codes."""
+        html = self.MOCKUP.read_text()
+        apply_block = html.split("function applyStatus", 1)[1].split("// ---- ", 1)[0]
+        # We need a mapping; raw String(battState) is the bug.
+        assert "String(battState)" not in apply_block, (
+            "applyStatus still prints the raw battery_state enum code; "
+            "it should map 1=Good, 2=Warn, 3=Low to readable text."
+        )
+        for label in ("Good", "Warn", "Low"):
+            assert label in apply_block, f"applyStatus missing {label} label"
+
+    def test_battery_inputs_not_overwritten_during_status_polling(self):
+        """Polling must NOT clobber a user's in-progress edit of cell count / cutoff."""
+        html = self.MOCKUP.read_text()
+        apply_block = html.split("function applyStatus", 1)[1].split("// ---- ", 1)[0]
+        # Save the user-supplied values so refreshStatus after a successful save
+        # (or a half-typed edit) doesn't snap the inputs back to server defaults.
+        assert "battery-cell-count" in apply_block
+        assert "battery-cutoff-percent" in apply_block
+        # The guard must be stronger than just "input is focused": it must skip
+        # the overwrite while there are unsaved user edits.
+        for needle in (
+            "state.battery.cell_count_dirty",
+            "state.battery.cutoff_percent_dirty",
+        ):
+            assert needle in apply_block, (
+                f"applyStatus must respect {needle} so polling doesn't "
+                f"overwrite the user's pending edit."
+            )
+
+    def test_battery_settings_help_text_matches_supported_ranges(self):
+        html = self.MOCKUP.read_text()
+        assert "1–8 cells" in html, "help text must reflect 1..8 cell range"
+
     def test_settings_ui_can_view_and_set_battery_config(self):
         html = self.MOCKUP.read_text()
         for needle in [

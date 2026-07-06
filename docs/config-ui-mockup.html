@@ -277,7 +277,7 @@
           <input id="battery-cutoff-percent" type="number" min="0" max="80" step="1" style="width:100%; margin-top:4px;">
         </label>
       </div>
-      <p class="meta" style="margin:8px 0;">Default is 3S at 33%, matching the old ~3.60 V/cell cutoff. Range: 2–6 cells, 0–80%.</p>
+      <p class="meta" style="margin:8px 0;">Default is 3S at 33%, matching the old ~3.60 V/cell cutoff. Range: 1–8 cells, 0–80%.</p>
       <button id="btn-battery-save" class="oled" style="margin-top:4px;">Save Battery Settings</button>
       <span id="battery-save-status" class="meta" style="margin-left:8px;"></span>
     </div>
@@ -1054,6 +1054,15 @@ document.getElementById('btn-board-reset').addEventListener('click', async () =>
 });
 
 // ---- Battery config wiring ---------------------------------------------
+function markBatteryDirty() {
+  // Any keystroke in either input pauses the 1s status poll from clobbering it.
+  state.battery.cell_count_dirty = true;
+  state.battery.cutoff_percent_dirty = true;
+}
+['battery-cell-count', 'battery-cutoff-percent'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('input', markBatteryDirty);
+});
 document.getElementById('btn-battery-save').addEventListener('click', async () => {
   const cells = parseInt(document.getElementById('battery-cell-count').value, 10);
   const cutoff = parseInt(document.getElementById('battery-cutoff-percent').value, 10);
@@ -1067,6 +1076,9 @@ document.getElementById('btn-battery-save').addEventListener('click', async () =
     await apiPostJSON('/api/config/battery', { cell_count: cells, cutoff_percent: cutoff });
     state.battery.cell_count = cells;
     state.battery.cutoff_percent = cutoff;
+    // Saved values now match the firmware, so the dirty flag is clear.
+    state.battery.cell_count_dirty = false;
+    state.battery.cutoff_percent_dirty = false;
     document.getElementById('battery-save-status').textContent = 'saved';
     toast('Battery settings saved');
     refreshStatus();
@@ -1090,20 +1102,34 @@ function applyStatus(s) {
   const battMv = Number(s.battery_mv || 0);
   const battPct = Number(s.battery_pct || 0);
   const battState = Number(s.battery_state || 0);
-  const battCells = Number(s.battery_cell_count || state.battery.cell_count || 3);
+  const battStateLabel = { 1: 'Good', 2: 'Warn', 3: 'Low' }[battState] || '—';
+  const battCells = Number(s.battery_cell_count ?? state.battery.cell_count ?? 3);
   const battCutoffPct = Number(s.battery_cutoff_pct ?? state.battery.cutoff_percent ?? 33);
   const battCutoffMv = Number(s.battery_cutoff_mv || 0);
-  state.battery = { mv: battMv, pct: battPct, state: battState, cell_count: battCells, cutoff_percent: battCutoffPct, cutoff_mv: battCutoffMv };
-  const batteryText = battMv ? `${(battMv/1000).toFixed(2)} V · ${battPct}% · state ${battState}` : '—';
+  state.battery = { mv: battMv, pct: battPct, state: battState, state_label: battStateLabel, cell_count: battCells, cutoff_percent: battCutoffPct, cutoff_mv: battCutoffMv };
+  const batteryText = battMv ? `${(battMv/1000).toFixed(2)} V · ${battPct}% · ${battStateLabel}` : '—';
   document.getElementById('fw-battery').textContent = batteryText;
   document.getElementById('battery-voltage').textContent = battMv ? `${(battMv/1000).toFixed(2)} V` : '—';
   document.getElementById('battery-percent').textContent = battMv ? `${battPct}%` : '—';
-  document.getElementById('battery-state').textContent = battState ? String(battState) : '—';
+  document.getElementById('battery-state').textContent = battState ? battStateLabel : '—';
   document.getElementById('battery-cutoff-mv').textContent = battCutoffMv ? `${(battCutoffMv/1000).toFixed(2)} V (${battCutoffPct}%)` : '—';
+  // Only refresh the inputs when the user has no unsaved edit. The 1s status poll
+  // would otherwise snap cell count / cutoff back to whatever the firmware last
+  // reported, making it impossible to type a new value before clicking Save.
   const cellInput = document.getElementById('battery-cell-count');
   const cutoffInput = document.getElementById('battery-cutoff-percent');
-  if (cellInput && document.activeElement !== cellInput) cellInput.value = String(battCells);
-  if (cutoffInput && document.activeElement !== cutoffInput) cutoffInput.value = String(battCutoffPct);
+  if (cellInput
+      && document.activeElement !== cellInput
+      && !state.battery.cell_count_dirty
+      && String(cellInput.value) !== String(battCells)) {
+    cellInput.value = String(battCells);
+  }
+  if (cutoffInput
+      && document.activeElement !== cutoffInput
+      && !state.battery.cutoff_percent_dirty
+      && String(cutoffInput.value) !== String(battCutoffPct)) {
+    cutoffInput.value = String(battCutoffPct);
+  }
   document.getElementById('board-rev').textContent = 'v2 (compile-time)';
   renderPairedMacs(s.paired_macs || []);
   // Drive the BLE header and visible connected MAC from polled status truth
