@@ -54,5 +54,8 @@ def test_esc_arming_state_machine_runtime():
     assert "OC_ESC_ARM_HOLD_SOURCE" in src
     assert "cfg->esc_arm_low_us" in src
     assert "cfg->esc_arm_high_us" in src
-    assert "pulse.writePulseUs(cfg->esc_arm_low_us)" in src
+    assert "pulse.writePulseUs(cfg->esc_arm_high_us)" in src
+    assert "ESC_ARM_PHASE_HIGH" in src
+    assert "getEscArmPhaseName" in header
+    assert "getAuxPulseUs" in header
     assert "if (!escArmed)" in src

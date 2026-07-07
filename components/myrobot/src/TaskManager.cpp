@@ -297,6 +297,33 @@ bool TaskManager::getDigitalOutputPhysicalHigh(oc_output_id_t id) const {
     return false;
 }
 
+uint16_t TaskManager::getAuxPulseUs(oc_output_id_t id) const {
+    if (id == OC_OUT_S1) return _s1Pulse.lastPulseUs();
+    if (id == OC_OUT_S2) return _s2Pulse.lastPulseUs();
+    return 0;
+}
+
+uint16_t TaskManager::getAuxDuty(oc_output_id_t id) const {
+    if (id == OC_OUT_S1) return _s1Pulse.lastDuty();
+    if (id == OC_OUT_S2) return _s2Pulse.lastDuty();
+    return 0;
+}
+
+const char* TaskManager::getEscArmPhaseName(oc_output_id_t id) const {
+    const EscArmState& st = (id == OC_OUT_S1) ? _s1EscArm : _s2EscArm;
+    switch (st.phase) {
+        case ESC_ARM_PHASE_MANUAL: return "manual";
+        case ESC_ARM_PHASE_WAITING: return "waiting";
+        case ESC_ARM_PHASE_HOLDING: return "holding";
+        case ESC_ARM_PHASE_LOW1: return "low1";
+        case ESC_ARM_PHASE_HIGH: return "high";
+        case ESC_ARM_PHASE_LOW2: return "low2";
+        case ESC_ARM_PHASE_ARMED: return "armed";
+        case ESC_ARM_PHASE_INACTIVE:
+        default: return "inactive";
+    }
+}
+
 int16_t TaskManager::readConfigSource(oc_source_id_t src, const ControllerState& cs) const {
     switch (src) {
         case OC_SRC_LX: return (int16_t)cs.leftStickX;
@@ -387,8 +414,14 @@ PulseEscSemantics TaskManager::escSemanticsFromConfig(const oc_output_cfg_t* cfg
 }
 
 bool TaskManager::updateEscArming(oc_output_id_t id, PulseOutput& pulse, const oc_output_cfg_t* cfg, const ControllerState& cs, const PulseProtocol& protocol) {
-    if (!cfg || cfg->purpose != OC_PURPOSE_ESC) return true;
+    if (!cfg) return true;
     EscArmState& st = (id == OC_OUT_S1) ? _s1EscArm : _s2EscArm;
+    if (cfg->purpose != OC_PURPOSE_ESC) {
+        st.armed = false;
+        st.sequence_running = false;
+        st.phase = ESC_ARM_PHASE_INACTIVE;
+        return true;
+    }
     const uint32_t signature = ((uint32_t)cfg->esc_arm_mode << 28) ^
         ((uint32_t)cfg->protocol << 24) ^ ((uint32_t)cfg->esc_arm_source << 16) ^
         ((uint32_t)cfg->esc_arm_low_us << 1) ^ ((uint32_t)cfg->esc_arm_high_us << 12) ^
@@ -401,6 +434,7 @@ bool TaskManager::updateEscArming(oc_output_id_t id, PulseOutput& pulse, const o
     if (cfg->esc_arm_mode == OC_ESC_ARM_MANUAL) {
         st.armed = true;
         st.sequence_running = false;
+        st.phase = ESC_ARM_PHASE_MANUAL;
         return true;
     }
 
@@ -409,10 +443,12 @@ bool TaskManager::updateEscArming(oc_output_id_t id, PulseOutput& pulse, const o
         if (cfg->esc_arm_mode == OC_ESC_ARM_BOOT) {
             st.sequence_running = true;
             st.sequence_started_ms = now;
+            st.phase = ESC_ARM_PHASE_LOW1;
         } else if (cfg->esc_arm_mode == OC_ESC_ARM_HOLD_SOURCE) {
             const bool held = cfg->esc_arm_source != OC_SRC_NONE && readConfigSource(cfg->esc_arm_source, cs) != 0;
             if (!held) {
                 st.hold_started_ms = 0;
+                st.phase = ESC_ARM_PHASE_WAITING;
                 pulse.writePulseUs(cfg->esc_arm_low_us);
                 return false;
             }
@@ -420,7 +456,9 @@ bool TaskManager::updateEscArming(oc_output_id_t id, PulseOutput& pulse, const o
             if ((uint32_t)(now - st.hold_started_ms) >= cfg->esc_arm_hold_ms) {
                 st.sequence_running = true;
                 st.sequence_started_ms = now;
+                st.phase = ESC_ARM_PHASE_LOW1;
             } else {
+                st.phase = ESC_ARM_PHASE_HOLDING;
                 pulse.writePulseUs(cfg->esc_arm_low_us);
                 return false;
             }
@@ -433,19 +471,23 @@ bool TaskManager::updateEscArming(oc_output_id_t id, PulseOutput& pulse, const o
         const uint32_t high_end = low1_end + cfg->esc_arm_high_ms;
         const uint32_t low2_end = high_end + cfg->esc_arm_final_low_ms;
         if (elapsed < low1_end) {
+            st.phase = ESC_ARM_PHASE_LOW1;
             pulse.writePulseUs(cfg->esc_arm_low_us);
             return false;
         }
         if (elapsed < high_end) {
+            st.phase = ESC_ARM_PHASE_HIGH;
             pulse.writePulseUs(cfg->esc_arm_high_us);
             return false;
         }
         if (elapsed < low2_end) {
+            st.phase = ESC_ARM_PHASE_LOW2;
             pulse.writePulseUs(cfg->esc_arm_low_us);
             return false;
         }
         st.sequence_running = false;
         st.armed = true;
+        st.phase = ESC_ARM_PHASE_ARMED;
     }
     return st.armed;
 }

@@ -25,6 +25,9 @@ public:
     void flipOrientation();
     bool getDigitalOutputLogical(oc_output_id_t id) const;
     bool getDigitalOutputPhysicalHigh(oc_output_id_t id) const;
+    uint16_t getAuxPulseUs(oc_output_id_t id) const;
+    uint16_t getAuxDuty(oc_output_id_t id) const;
+    const char* getEscArmPhaseName(oc_output_id_t id) const;
 
 
 private:
@@ -42,12 +45,24 @@ private:
     PulseEscSemantics escSemanticsFromConfig(const oc_output_cfg_t* cfg) const;
     bool updateEscArming(oc_output_id_t id, PulseOutput& pulse, const oc_output_cfg_t* cfg, const ControllerState& cs, const PulseProtocol& protocol);
 
+    enum EscArmPhase : uint8_t {
+        ESC_ARM_PHASE_INACTIVE = 0,
+        ESC_ARM_PHASE_MANUAL,
+        ESC_ARM_PHASE_WAITING,
+        ESC_ARM_PHASE_HOLDING,
+        ESC_ARM_PHASE_LOW1,
+        ESC_ARM_PHASE_HIGH,
+        ESC_ARM_PHASE_LOW2,
+        ESC_ARM_PHASE_ARMED,
+    };
+
     struct EscArmState {
         bool armed = false;
         bool sequence_running = false;
         uint32_t sequence_started_ms = 0;
         uint32_t hold_started_ms = 0;
         uint32_t signature = 0;
+        EscArmPhase phase = ESC_ARM_PHASE_INACTIVE;
     };
 
     Drive drive;

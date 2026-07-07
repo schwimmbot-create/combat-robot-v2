@@ -8,7 +8,13 @@ def test_bench_status_parser_includes_digital_outputs():
     src = BENCH.read_text()
     assert "s1_logical" in src
     assert "s1_physical_high" in src
+    assert "s1_pulse_us" in src
+    assert "s1_arm" in src
+    assert "s2_pulse_us" in src
+    assert "s2_arm" in src
     assert "outputs=\\{S1:" in src
+    assert "pulse_us:" in src
+    assert "arm:" in src
     assert "S2:" in src
 
 
@@ -31,6 +37,11 @@ def test_bench_exercises_button_inversion_and_thresholds():
         "esc_arm_mode\": \"hold_source\"",
         "esc_arm_low_us\": 125",
         "PASS API accepts S2 ESC hold-to-arm sequence config",
+        "verify_s2_hold_to_arm_with_usb_dongle",
+        "S2 ESC arming sequence high pulse",
+        "s.s2_arm == \"high\" and s.s2_pulse_us == 250",
+        "S2 ESC throttle accepted after arming",
+        "PASS S2 ESC hold-to-arm sequence via USB dongle",
         "restore_s2_servo",
     ):
         assert token in src

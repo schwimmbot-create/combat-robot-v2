@@ -64,8 +64,14 @@ class RobotStatus:
     dpad: int
     s1_logical: int
     s1_physical_high: int
+    s1_pulse_us: int
+    s1_duty: int
+    s1_arm: str
     s2_logical: int
     s2_physical_high: int
+    s2_pulse_us: int
+    s2_duty: int
+    s2_arm: str
     paired: list[str]
 
 
@@ -75,8 +81,10 @@ STATUS_RE = re.compile(
     r"connected_mac=(?P<connected_mac>\S+) "
     r"axes=\{ly:(?P<ly>-?\d+),ry:(?P<ry>-?\d+),lt:(?P<lt>-?\d+),"
     r"rt:(?P<rt>-?\d+),buttons:(?P<buttons>\d+),dpad:(?P<dpad>\d+)\} "
-    r"outputs=\{S1:\{logical:(?P<s1_logical>[01]),physical_high:(?P<s1_physical_high>[01])\},"
-    r"S2:\{logical:(?P<s2_logical>[01]),physical_high:(?P<s2_physical_high>[01])\}\} "
+    r"outputs=\{S1:\{logical:(?P<s1_logical>[01]),physical_high:(?P<s1_physical_high>[01]),"
+    r"pulse_us:(?P<s1_pulse_us>\d+),duty:(?P<s1_duty>\d+),arm:(?P<s1_arm>\w+)\},"
+    r"S2:\{logical:(?P<s2_logical>[01]),physical_high:(?P<s2_physical_high>[01]),"
+    r"pulse_us:(?P<s2_pulse_us>\d+),duty:(?P<s2_duty>\d+),arm:(?P<s2_arm>\w+)\}\} "
     r"paired=\[(?P<paired>[^\]]*)\]"
 )
 
@@ -176,8 +184,14 @@ def parse_status(text: str) -> RobotStatus:
         dpad=int(m.group("dpad")),
         s1_logical=int(m.group("s1_logical")),
         s1_physical_high=int(m.group("s1_physical_high")),
+        s1_pulse_us=int(m.group("s1_pulse_us")),
+        s1_duty=int(m.group("s1_duty")),
+        s1_arm=m.group("s1_arm"),
         s2_logical=int(m.group("s2_logical")),
         s2_physical_high=int(m.group("s2_physical_high")),
+        s2_pulse_us=int(m.group("s2_pulse_us")),
+        s2_duty=int(m.group("s2_duty")),
+        s2_arm=m.group("s2_arm"),
         paired=paired,
     )
 
@@ -329,18 +343,18 @@ def configure_s2_esc_arming(api: RobotApi) -> None:
             "purpose": "esc",
             "protocol": "oneshot125",
             "semantics": "esc_forward_only",
-            "weapon_safety": True,
+            "weapon_safety": False,
             "failsafe": "safe_state",
             "weapon_mode": "deadman_only",
             "deadman_source": "A",
             "esc_arm_mode": "hold_source",
             "esc_arm_source": "B",
-            "esc_arm_hold_ms": 1500,
+            "esc_arm_hold_ms": 500,
             "esc_arm_low_us": 125,
             "esc_arm_high_us": 250,
-            "esc_arm_low_ms": 500,
-            "esc_arm_high_ms": 500,
-            "esc_arm_final_low_ms": 500,
+            "esc_arm_low_ms": 600,
+            "esc_arm_high_ms": 700,
+            "esc_arm_final_low_ms": 600,
             "min_pulse_us": 125,
             "center_pulse_us": 188,
             "max_pulse_us": 250,
@@ -348,7 +362,7 @@ def configure_s2_esc_arming(api: RobotApi) -> None:
             "neutral_deadzone": 2,
             "power_good": "default",
             "power_warn": "default",
-            "power_low": "disable",
+            "power_low": "default",
         }
     }
     resp = api.post_json("/api/config", payload)
@@ -359,9 +373,47 @@ def configure_s2_esc_arming(api: RobotApi) -> None:
     arm = s2.get("esc_arm", {})
     if s2.get("purpose") != "esc" or s2.get("protocol") != "oneshot125" or arm.get("mode") != "hold_source":
         raise BenchError(f"API config S2 ESC arming echo mismatch: {s2}")
-    if arm.get("source") != "B" or arm.get("hold_ms") != 1500 or arm.get("low_us") != 125 or arm.get("high_us") != 250:
+    if arm.get("source") != "B" or arm.get("hold_ms") != 500 or arm.get("low_us") != 125 or arm.get("high_us") != 250:
         raise BenchError(f"API config S2 ESC arming sequence echo mismatch: {arm}")
     print("PASS API accepts S2 ESC hold-to-arm sequence config")
+
+
+def verify_s2_hold_to_arm_with_usb_dongle(robot: SerialCli, mock: SerialCli) -> None:
+    mock.command("SET LX=127 LY=127 RX=127 RY=127 L2=0 R2=0 HAT=C BTN=", seconds=0.3)
+    assert_status_field(
+        robot,
+        "S2 ESC hold-arm waiting low pulse",
+        lambda s: s.s2_arm in {"waiting", "holding"} and s.s2_pulse_us == 125,
+        timeout=3.0,
+    )
+    mock.command("SET BTN=B", seconds=0.2)
+    assert_status_field(
+        robot,
+        "S2 ESC hold-arm source held",
+        lambda s: (s.buttons & 0x02) != 0 and s.s2_arm in {"holding", "low1", "high", "low2", "armed"},
+        timeout=2.0,
+    )
+    assert_status_field(
+        robot,
+        "S2 ESC arming sequence high pulse",
+        lambda s: s.s2_arm == "high" and s.s2_pulse_us == 250,
+        timeout=3.0,
+    )
+    assert_status_field(
+        robot,
+        "S2 ESC arming sequence completes",
+        lambda s: s.s2_arm == "armed",
+        timeout=4.0,
+    )
+    mock.command("SET BTN=B R2=128", seconds=0.3)
+    assert_status_field(
+        robot,
+        "S2 ESC throttle accepted after arming",
+        lambda s: s.s2_arm == "armed" and s.rt == 512 and s.s2_pulse_us > 125,
+        timeout=3.0,
+    )
+    mock.command("SET LX=127 LY=127 RX=127 RY=127 L2=0 R2=0 HAT=C BTN=", seconds=0.3)
+    print("PASS S2 ESC hold-to-arm sequence via USB dongle")
 
 
 def restore_s1_servo(api: RobotApi) -> None:
@@ -464,7 +516,10 @@ def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
             raise
     print("PASS API rejects obsolete top-level Weapon config")
 
+    restore_s2_servo(api)
+    assert_status_field(robot, "S2 restored before ESC arming test", lambda s: s.s2_arm == "inactive", timeout=3.0)
     configure_s2_esc_arming(api)
+    verify_s2_hold_to_arm_with_usb_dongle(robot, mock)
 
     # API bench injection directly exercises the WiFi REST path into the robot's
     # HID parser. Firmware bench override suppresses live BLE notifications after

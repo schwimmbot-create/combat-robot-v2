@@ -40,7 +40,7 @@ def test_status_surfaces_s1_s2_logical_and_physical_states():
     web = WEB.read_text()
     assert "main_get_digital_output_logical" in sketch
     assert "main_get_digital_output_physical_high" in sketch
-    assert "outputs={S1:{logical:%d,physical_high:%d},S2:{logical:%d,physical_high:%d}}" in sketch
+    assert "outputs={S1:{logical:%d,physical_high:%d,pulse_us:%u,duty:%u,arm:%s},S2:{logical:%d,physical_high:%d,pulse_us:%u,duty:%u,arm:%s}}" in sketch
     assert '\\"outputs\\"' in web
     assert '\\"physical_high\\"' in web
     assert "main_get_digital_output_logical(OC_OUT_S1)" in web

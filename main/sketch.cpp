@@ -208,11 +208,17 @@ static void cli_print_status(void) {
     Serial.printf(" axes={ly:%d,ry:%d,lt:%d,rt:%d,buttons:%u,dpad:%u}",
                   cs.leftStickY, cs.rightStickY, cs.leftTrigger,
                   cs.rightTrigger, (unsigned)cs.buttons, (unsigned)cs.dpad);
-    Serial.printf(" outputs={S1:{logical:%d,physical_high:%d},S2:{logical:%d,physical_high:%d}}",
+    Serial.printf(" outputs={S1:{logical:%d,physical_high:%d,pulse_us:%u,duty:%u,arm:%s},S2:{logical:%d,physical_high:%d,pulse_us:%u,duty:%u,arm:%s}}",
                   taskManager.getDigitalOutputLogical(OC_OUT_S1) ? 1 : 0,
                   taskManager.getDigitalOutputPhysicalHigh(OC_OUT_S1) ? 1 : 0,
+                  (unsigned)taskManager.getAuxPulseUs(OC_OUT_S1),
+                  (unsigned)taskManager.getAuxDuty(OC_OUT_S1),
+                  taskManager.getEscArmPhaseName(OC_OUT_S1),
                   taskManager.getDigitalOutputLogical(OC_OUT_S2) ? 1 : 0,
-                  taskManager.getDigitalOutputPhysicalHigh(OC_OUT_S2) ? 1 : 0);
+                  taskManager.getDigitalOutputPhysicalHigh(OC_OUT_S2) ? 1 : 0,
+                  (unsigned)taskManager.getAuxPulseUs(OC_OUT_S2),
+                  (unsigned)taskManager.getAuxDuty(OC_OUT_S2),
+                  taskManager.getEscArmPhaseName(OC_OUT_S2));
     Serial.print(" paired=[");
     ble_mac_t macs[BLE_MAX_PAIRED_CONTROLLERS];
     uint8_t count = BLE_MAX_PAIRED_CONTROLLERS;
