@@ -331,6 +331,63 @@ def configure_s1_digital(api: RobotApi, *, primary: str, active_high: bool = Tru
         raise BenchError(f"API config S1 digital patch failed: {resp}")
 
 
+ESC_PROTOCOL_PRESETS = [
+    ("rc_esc_pwm", 1000, 1500, 2000, 50),
+    ("rc_esc_pwm_100", 1000, 1500, 2000, 100),
+    ("rc_esc_pwm_250", 1000, 1500, 2000, 250),
+    ("rc_esc_pwm_333", 1000, 1500, 2000, 333),
+    ("rc_esc_pwm_490", 1000, 1500, 2000, 490),
+    ("oneshot", 1000, 1500, 2000, 490),
+    ("oneshot125", 125, 188, 250, 2000),
+    ("oneshot42", 42, 63, 84, 4000),
+    ("multishot", 5, 15, 25, 8000),
+]
+
+
+def verify_s2_esc_protocol_presets(api: RobotApi, robot: SerialCli) -> None:
+    for protocol, min_us, center_us, max_us, frame_hz in ESC_PROTOCOL_PRESETS:
+        payload = {
+            "S2": {
+                "display_name": "Bench Proto",
+                "direction": "normal",
+                "servo_mode": "uni",
+                "deadzone": 10,
+                "primary": "RT",
+                "secondary": "NONE",
+                "purpose": "esc",
+                "protocol": protocol,
+                "semantics": "esc_forward_only",
+                "weapon_safety": False,
+                "failsafe": "safe_state",
+                "esc_arm_mode": "manual",
+                "min_pulse_us": min_us,
+                "center_pulse_us": center_us,
+                "max_pulse_us": max_us,
+                "frame_hz": frame_hz,
+                "neutral_deadzone": 2 if max_us <= 250 else 5,
+                "esc_arm_low_us": min_us,
+                "esc_arm_high_us": max_us,
+                "power_good": "default",
+                "power_warn": "default",
+                "power_low": "default",
+            }
+        }
+        resp = api.post_json("/api/config", payload)
+        if resp.get("ok") is not True:
+            raise BenchError(f"API config S2 protocol {protocol} failed: {resp}")
+        cfg = api.get("/api/config").get("outputs", {}).get("S2", {})
+        pulse = cfg.get("pulse", {})
+        if cfg.get("protocol") != protocol or pulse.get("min_us") != min_us or pulse.get("max_us") != max_us or pulse.get("frame_hz") != frame_hz:
+            raise BenchError(f"API config S2 protocol {protocol} echo mismatch: {cfg}")
+        assert_status_field(
+            robot,
+            f"S2 ESC protocol {protocol} safe pulse",
+            lambda s, expected=min_us: s.s2_arm == "manual" and s.s2_pulse_us == expected,
+            timeout=3.0,
+        )
+    print("PASS S2 ESC expanded protocol presets")
+
+
 def configure_s2_esc_arming(api: RobotApi) -> None:
     payload = {
         "S2": {
@@ -352,9 +409,9 @@ def configure_s2_esc_arming(api: RobotApi) -> None:
             "esc_arm_hold_ms": 500,
             "esc_arm_low_us": 125,
             "esc_arm_high_us": 250,
-            "esc_arm_low_ms": 600,
-            "esc_arm_high_ms": 700,
-            "esc_arm_final_low_ms": 600,
+            "esc_arm_low_ms": 1000,
+            "esc_arm_high_ms": 1500,
+            "esc_arm_final_low_ms": 1000,
             "min_pulse_us": 125,
             "center_pulse_us": 188,
             "max_pulse_us": 250,
@@ -516,6 +573,9 @@ def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
             raise
     print("PASS API rejects obsolete top-level Weapon config")
 
+    restore_s2_servo(api)
+    assert_status_field(robot, "S2 restored before ESC arming test", lambda s: s.s2_arm == "inactive", timeout=3.0)
+    verify_s2_esc_protocol_presets(api, robot)
     restore_s2_servo(api)
     assert_status_field(robot, "S2 restored before ESC arming test", lambda s: s.s2_arm == "inactive", timeout=3.0)
     configure_s2_esc_arming(api)

@@ -75,11 +75,26 @@ def test_no_weapon_esc_purpose_option():
 
 def test_protocol_changes_reset_pulse_defaults_and_servo_ppm_available():
     html = HTML.read_text()
-    assert "rc_servo_ppm" in html
-    assert "RC Servo PPM 50 Hz" in html
+    for token in (
+        "rc_servo_ppm",
+        "RC Servo PPM 50 Hz",
+        "rc_servo_pwm_100",
+        "rc_servo_pwm_200",
+        "rc_servo_pwm_333",
+        "rc_esc_pwm_100",
+        "rc_esc_pwm_250",
+        "rc_esc_pwm_333",
+        "rc_esc_pwm_490",
+        "oneshot",
+        "oneshot42",
+        "multishot",
+    ):
+        assert token in html
     assert "applyPulseDefaults(state.outputs[o.id], e.target.value)" in html
-    assert "oneshot125:   { min_us: 125" in html
-    assert "rc_servo_pwm: { min_us: 1000" in html
+    assert "oneshot125:" in html and "min_us: 125" in html
+    assert "oneshot42:" in html and "min_us: 42" in html
+    assert "multishot:" in html and "min_us: 5" in html
+    assert "rc_servo_pwm:" in html and "frame_hz: 50" in html
     assert "<details" not in html  # generated via DOM helper, not literal markup
     assert "Advanced: pulse calibration" in html
 

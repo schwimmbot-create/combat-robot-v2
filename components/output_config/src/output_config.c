@@ -85,6 +85,14 @@ static const char *const kProtocolNames[OC_PROTO__COUNT] = {
     "oneshot125",
     "oneshot42",
     "multishot",
+    "rc_servo_pwm_100",
+    "rc_servo_pwm_200",
+    "rc_servo_pwm_333",
+    "rc_esc_pwm_100",
+    "rc_esc_pwm_250",
+    "rc_esc_pwm_333",
+    "rc_esc_pwm_490",
+    "oneshot",
     "gpio",
     "pwm_duty",
 };
@@ -282,7 +290,6 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
         if (c->pwm_duty_pct > 100) return false;
         if (c->esc_arm_hold_ms > 10000 || c->esc_arm_low_ms > 10000 || c->esc_arm_high_ms > 10000 || c->esc_arm_final_low_ms > 10000) return false;
         if (c->esc_arm_low_us > 3000 || c->esc_arm_high_us > 3000 || c->esc_arm_low_us >= c->esc_arm_high_us) return false;
-        if (c->protocol == OC_PROTO_ONESHOT42 || c->protocol == OC_PROTO_MULTISHOT) return false;
         if (c->weapon_safety && c->failsafe == OC_FAILSAFE_HOLD_LAST) return false;
         if (c->min_pulse_us || c->center_pulse_us || c->max_pulse_us) {
             if (!(c->min_pulse_us < c->center_pulse_us && c->center_pulse_us < c->max_pulse_us)) return false;
@@ -826,9 +833,16 @@ static bool purpose_protocol_is_valid(oc_purpose_t purpose, oc_protocol_t protoc
     switch (purpose) {
         case OC_PURPOSE_DISABLED: return protocol == OC_PROTO_NONE;
         case OC_PURPOSE_DRIVE: return protocol == OC_PROTO_NONE;
-        case OC_PURPOSE_SERVO: return protocol == OC_PROTO_RC_SERVO_PWM || protocol == OC_PROTO_RC_SERVO_PPM;
+        case OC_PURPOSE_SERVO:
+            return protocol == OC_PROTO_RC_SERVO_PWM || protocol == OC_PROTO_RC_SERVO_PPM ||
+                   protocol == OC_PROTO_RC_SERVO_PWM_100 || protocol == OC_PROTO_RC_SERVO_PWM_200 ||
+                   protocol == OC_PROTO_RC_SERVO_PWM_333;
         case OC_PURPOSE_ESC:
-            return protocol == OC_PROTO_RC_ESC_PWM || protocol == OC_PROTO_ONESHOT125;
+            return protocol == OC_PROTO_RC_ESC_PWM || protocol == OC_PROTO_RC_ESC_PWM_100 ||
+                   protocol == OC_PROTO_RC_ESC_PWM_250 || protocol == OC_PROTO_RC_ESC_PWM_333 ||
+                   protocol == OC_PROTO_RC_ESC_PWM_490 || protocol == OC_PROTO_ONESHOT ||
+                   protocol == OC_PROTO_ONESHOT125 || protocol == OC_PROTO_ONESHOT42 ||
+                   protocol == OC_PROTO_MULTISHOT;
         case OC_PURPOSE_DIGITAL_OUTPUT:
         case OC_PURPOSE_DIGITAL_INPUT: return protocol == OC_PROTO_GPIO;
         case OC_PURPOSE_PWM_ACCESSORY: return protocol == OC_PROTO_PWM_DUTY;
@@ -1002,7 +1016,6 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             } else if (strcmp(key, "protocol") == 0) {
                 oc_protocol_t protocol;
                 if (!protocol_from_str(value, &protocol)) return false;
-                if (protocol == OC_PROTO_ONESHOT42 || protocol == OC_PROTO_MULTISHOT) return false;
                 if (s_cfg[id].protocol != protocol) { s_cfg[id].protocol = protocol; dirty = true; }
             } else if (strcmp(key, "semantics") == 0) {
                 oc_semantics_t semantics;

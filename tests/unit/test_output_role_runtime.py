@@ -59,3 +59,25 @@ def test_esc_arming_state_machine_runtime():
     assert "getEscArmPhaseName" in header
     assert "getAuxPulseUs" in header
     assert "if (!escArmed)" in src
+
+
+def test_expanded_pulse_protocol_runtime_mapping():
+    src = TASK_CPP.read_text()
+    pulse_h = (PROJECT_ROOT / "components/myrobot/include/PulseOutput.h").read_text()
+    for token in (
+        "PULSE_PROTOCOL_RC_SERVO_PWM_100",
+        "PULSE_PROTOCOL_RC_SERVO_PWM_200",
+        "PULSE_PROTOCOL_RC_SERVO_PWM_333",
+        "PULSE_PROTOCOL_RC_ESC_PWM_100",
+        "PULSE_PROTOCOL_RC_ESC_PWM_250",
+        "PULSE_PROTOCOL_RC_ESC_PWM_333",
+        "PULSE_PROTOCOL_RC_ESC_PWM_490",
+        "PULSE_PROTOCOL_ONESHOT",
+        "PULSE_PROTOCOL_ONESHOT125",
+        "PULSE_PROTOCOL_ONESHOT42",
+        "PULSE_PROTOCOL_MULTISHOT",
+    ):
+        assert token in pulse_h
+        assert token in src
+    assert "OC_PROTO_MULTISHOT" in src
+    assert "frame_hz" in pulse_h

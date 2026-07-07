@@ -395,9 +395,50 @@ uint16_t TaskManager::readConfigSourceMagnitude(oc_source_id_t src, const Contro
 PulseProtocol TaskManager::protocolFromConfig(const oc_output_cfg_t* cfg) const {
     PulseProtocol protocol = PULSE_PROTOCOL_RC_SERVO_PWM;
     if (!cfg) return protocol;
-    if (cfg->protocol == OC_PROTO_ONESHOT125) protocol = PULSE_PROTOCOL_ONESHOT125;
-    else if (cfg->protocol == OC_PROTO_RC_ESC_PWM) protocol = PULSE_PROTOCOL_RC_ESC_PWM;
-    else if (cfg->protocol == OC_PROTO_RC_SERVO_PWM || cfg->protocol == OC_PROTO_RC_SERVO_PPM) protocol = PULSE_PROTOCOL_RC_SERVO_PWM;
+    switch (cfg->protocol) {
+        case OC_PROTO_RC_SERVO_PWM:
+        case OC_PROTO_RC_SERVO_PPM:
+            protocol = PULSE_PROTOCOL_RC_SERVO_PWM;
+            break;
+        case OC_PROTO_RC_SERVO_PWM_100:
+            protocol = PULSE_PROTOCOL_RC_SERVO_PWM_100;
+            break;
+        case OC_PROTO_RC_SERVO_PWM_200:
+            protocol = PULSE_PROTOCOL_RC_SERVO_PWM_200;
+            break;
+        case OC_PROTO_RC_SERVO_PWM_333:
+            protocol = PULSE_PROTOCOL_RC_SERVO_PWM_333;
+            break;
+        case OC_PROTO_RC_ESC_PWM:
+            protocol = PULSE_PROTOCOL_RC_ESC_PWM;
+            break;
+        case OC_PROTO_RC_ESC_PWM_100:
+            protocol = PULSE_PROTOCOL_RC_ESC_PWM_100;
+            break;
+        case OC_PROTO_RC_ESC_PWM_250:
+            protocol = PULSE_PROTOCOL_RC_ESC_PWM_250;
+            break;
+        case OC_PROTO_RC_ESC_PWM_333:
+            protocol = PULSE_PROTOCOL_RC_ESC_PWM_333;
+            break;
+        case OC_PROTO_RC_ESC_PWM_490:
+            protocol = PULSE_PROTOCOL_RC_ESC_PWM_490;
+            break;
+        case OC_PROTO_ONESHOT:
+            protocol = PULSE_PROTOCOL_ONESHOT;
+            break;
+        case OC_PROTO_ONESHOT125:
+            protocol = PULSE_PROTOCOL_ONESHOT125;
+            break;
+        case OC_PROTO_ONESHOT42:
+            protocol = PULSE_PROTOCOL_ONESHOT42;
+            break;
+        case OC_PROTO_MULTISHOT:
+            protocol = PULSE_PROTOCOL_MULTISHOT;
+            break;
+        default:
+            break;
+    }
     if (cfg->frame_hz) protocol.frame_hz = cfg->frame_hz;
     if (cfg->min_pulse_us && cfg->center_pulse_us && cfg->max_pulse_us) {
         protocol.min_us = cfg->min_pulse_us;

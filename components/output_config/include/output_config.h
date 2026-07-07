@@ -108,16 +108,24 @@ typedef enum {
 } oc_purpose_t;
 
 typedef enum {
-    OC_PROTO_NONE          = 0,
-    OC_PROTO_RC_SERVO_PWM  = 1,
-    OC_PROTO_RC_SERVO_PPM  = 2,
-    OC_PROTO_RC_ESC_PWM    = 3,
-    OC_PROTO_ONESHOT125    = 4,
-    OC_PROTO_ONESHOT42     = 5, // visible in UI as not-working-yet
-    OC_PROTO_MULTISHOT     = 6, // visible in UI as not-working-yet
-    OC_PROTO_GPIO          = 7,
-    OC_PROTO_PWM_DUTY      = 8,
-    OC_PROTO__COUNT        = 9,
+    OC_PROTO_NONE              = 0,
+    OC_PROTO_RC_SERVO_PWM      = 1,  // 50 Hz default
+    OC_PROTO_RC_SERVO_PPM      = 2,  // 50 Hz default
+    OC_PROTO_RC_ESC_PWM        = 3,  // 50 Hz default
+    OC_PROTO_ONESHOT125        = 4,
+    OC_PROTO_ONESHOT42         = 5,
+    OC_PROTO_MULTISHOT         = 6,
+    OC_PROTO_RC_SERVO_PWM_100  = 7,
+    OC_PROTO_RC_SERVO_PWM_200  = 8,
+    OC_PROTO_RC_SERVO_PWM_333  = 9,
+    OC_PROTO_RC_ESC_PWM_100    = 10,
+    OC_PROTO_RC_ESC_PWM_250    = 11,
+    OC_PROTO_RC_ESC_PWM_333    = 12,
+    OC_PROTO_RC_ESC_PWM_490    = 13,
+    OC_PROTO_ONESHOT           = 14,
+    OC_PROTO_GPIO              = 15,
+    OC_PROTO_PWM_DUTY          = 16,
+    OC_PROTO__COUNT            = 17,
 } oc_protocol_t;
 
 typedef enum {

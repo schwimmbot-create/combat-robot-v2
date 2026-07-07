@@ -17,6 +17,14 @@ def test_output_config_v2_enums_exist():
         "OC_PROTO_ONESHOT125",
         "OC_PROTO_ONESHOT42",
         "OC_PROTO_MULTISHOT",
+        "OC_PROTO_RC_SERVO_PWM_100",
+        "OC_PROTO_RC_SERVO_PWM_200",
+        "OC_PROTO_RC_SERVO_PWM_333",
+        "OC_PROTO_RC_ESC_PWM_100",
+        "OC_PROTO_RC_ESC_PWM_250",
+        "OC_PROTO_RC_ESC_PWM_333",
+        "OC_PROTO_RC_ESC_PWM_490",
+        "OC_PROTO_ONESHOT",
         "OC_SEM_ESC_BIDIRECTIONAL",
         "OC_POWER_DISABLE",
         "OC_WEAPON_ARMING_AND_DEADMAN",
@@ -67,9 +75,22 @@ def test_output_config_v2_json_exposes_new_fields():
         assert literal in src
 
 
-def test_output_config_rejects_not_working_protocols_and_weapon_hold_last():
+def test_output_config_accepts_expanded_pulse_protocols_and_rejects_weapon_hold_last():
     src = OC_C.read_text()
-    assert "protocol == OC_PROTO_ONESHOT42 || protocol == OC_PROTO_MULTISHOT" in src
+    for token in (
+        "rc_servo_pwm_100",
+        "rc_servo_pwm_200",
+        "rc_servo_pwm_333",
+        "rc_esc_pwm_100",
+        "rc_esc_pwm_250",
+        "rc_esc_pwm_333",
+        "rc_esc_pwm_490",
+        "oneshot",
+        "oneshot42",
+        "multishot",
+    ):
+        assert token in src
+    assert "protocol == OC_PROTO_ONESHOT42 || protocol == OC_PROTO_MULTISHOT" not in src
     assert "c->weapon_safety && c->failsafe == OC_FAILSAFE_HOLD_LAST" in src
     assert "purpose_protocol_is_valid" in src
 

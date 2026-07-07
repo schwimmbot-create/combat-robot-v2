@@ -24,9 +24,73 @@ static const PulseProtocol PULSE_PROTOCOL_RC_SERVO_PWM = {
     2000,
 };
 
+static const PulseProtocol PULSE_PROTOCOL_RC_SERVO_PWM_100 = {
+    "rc_servo_pwm_100",
+    100,
+    1000,
+    1500,
+    2000,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_RC_SERVO_PWM_200 = {
+    "rc_servo_pwm_200",
+    200,
+    1000,
+    1500,
+    2000,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_RC_SERVO_PWM_333 = {
+    "rc_servo_pwm_333",
+    333,
+    1000,
+    1500,
+    2000,
+};
+
 static const PulseProtocol PULSE_PROTOCOL_RC_ESC_PWM = {
     "rc_esc_pwm",
     50,
+    1000,
+    1500,
+    2000,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_RC_ESC_PWM_100 = {
+    "rc_esc_pwm_100",
+    100,
+    1000,
+    1500,
+    2000,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_RC_ESC_PWM_250 = {
+    "rc_esc_pwm_250",
+    250,
+    1000,
+    1500,
+    2000,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_RC_ESC_PWM_333 = {
+    "rc_esc_pwm_333",
+    333,
+    1000,
+    1500,
+    2000,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_RC_ESC_PWM_490 = {
+    "rc_esc_pwm_490",
+    490,
+    1000,
+    1500,
+    2000,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_ONESHOT = {
+    "oneshot",
+    490,
     1000,
     1500,
     2000,
@@ -38,6 +102,22 @@ static const PulseProtocol PULSE_PROTOCOL_ONESHOT125 = {
     125,
     188,
     250,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_ONESHOT42 = {
+    "oneshot42",
+    4000,
+    42,
+    63,
+    84,
+};
+
+static const PulseProtocol PULSE_PROTOCOL_MULTISHOT = {
+    "multishot",
+    8000,
+    5,
+    15,
+    25,
 };
 
 uint16_t pulse_output_constrain_input(uint16_t value, uint16_t min_input, uint16_t max_input);

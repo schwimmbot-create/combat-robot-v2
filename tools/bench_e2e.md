@@ -83,6 +83,7 @@ nmcli con up robot-bench-combat-049d-user ifname wlxaca7f1bd9068
    - `LY=0`, `R2=64`, `L2=32` -> `ly=-508`, `rt=256`, `lt=128`
 8. Verifies four-channel S1/S2 role support through `/api/config` plus API HID injection:
    - confirms obsolete top-level `Weapon` config patches are rejected; weapon-like behavior must be assigned to S1 or S2
+   - cycles `S2` through expanded ESC pulse protocols (`rc_esc_pwm`, 100/250/333/490 Hz fast PWM, OneShot, OneShot125, OneShot42, MultiShot), verifies `/api/config` echoes the protocol/pulse defaults, and verifies serial status reports the expected safe pulse
    - configures `S2` as `purpose=esc`, `protocol=oneshot125`, with hold-to-arm low/high/low sequence and verifies `/api/config` echoes the arming fields
    - uses the USB S3 mock controller to hold the selected arming button and verifies serial telemetry reports `waiting`/`holding`, the high arming pulse (`250 µs`), final `armed` state, and post-arm RT throttle pulse tracking
    - configures `S1` as `purpose=digital_output`, `protocol=gpio`, `semantics=digital_output`

@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-06T21:59:52 from docs/config-ui-mockup.html
-// Source size: 90587 bytes
+// Generated 2026-07-06T22:54:58 from docs/config-ui-mockup.html
+// Source size: 92135 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -491,12 +491,20 @@ const PURPOSE_OPTIONS = [
 ];
 const PROTOCOL_OPTIONS = [
   ['none', 'None'],
-  ['rc_servo_pwm', 'RC Servo PWM 50 Hz'],
+  ['rc_servo_pwm', 'Analog servo PWM 50 Hz'],
   ['rc_servo_ppm', 'RC Servo PPM 50 Hz'],
-  ['rc_esc_pwm', 'RC ESC PWM 50 Hz'],
+  ['rc_servo_pwm_100', 'Digital servo PWM 100 Hz'],
+  ['rc_servo_pwm_200', 'Digital servo PWM 200 Hz'],
+  ['rc_servo_pwm_333', 'High-speed servo PWM 333 Hz'],
+  ['rc_esc_pwm', 'Standard RC ESC PWM 50 Hz'],
+  ['rc_esc_pwm_100', 'Fast RC ESC PWM 100 Hz'],
+  ['rc_esc_pwm_250', 'Fast RC ESC PWM 250 Hz'],
+  ['rc_esc_pwm_333', 'Fast RC ESC PWM 333 Hz'],
+  ['rc_esc_pwm_490', 'Fast RC ESC PWM 490 Hz'],
+  ['oneshot', 'OneShot'],
   ['oneshot125', 'OneShot125'],
-  ['oneshot42', 'OneShot42 — not working yet', true],
-  ['multishot', 'MultiShot — not working yet', true],
+  ['oneshot42', 'OneShot42'],
+  ['multishot', 'MultiShot'],
   ['gpio', 'GPIO'],
   ['pwm_duty', 'Generic PWM duty'],
 ];
@@ -907,10 +915,20 @@ function renderRuntimeDriveAssignment(o) {
 
 
 const PULSE_DEFAULTS = {
-  rc_servo_pwm: { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50, neutral_deadzone: 5 },
-  rc_servo_ppm: { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50, neutral_deadzone: 5 },
-  rc_esc_pwm:   { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50, neutral_deadzone: 5 },
-  oneshot125:   { min_us: 125,  center_us: 188,  max_us: 250,  frame_hz: 2000, neutral_deadzone: 2 },
+  rc_servo_pwm:     { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50,  neutral_deadzone: 5 },
+  rc_servo_ppm:     { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50,  neutral_deadzone: 5 },
+  rc_servo_pwm_100: { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 100, neutral_deadzone: 5 },
+  rc_servo_pwm_200: { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 200, neutral_deadzone: 5 },
+  rc_servo_pwm_333: { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 333, neutral_deadzone: 5 },
+  rc_esc_pwm:       { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50,  neutral_deadzone: 5 },
+  rc_esc_pwm_100:   { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 100, neutral_deadzone: 5 },
+  rc_esc_pwm_250:   { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 250, neutral_deadzone: 5 },
+  rc_esc_pwm_333:   { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 333, neutral_deadzone: 5 },
+  rc_esc_pwm_490:   { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 490, neutral_deadzone: 5 },
+  oneshot:          { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 490, neutral_deadzone: 5 },
+  oneshot125:       { min_us: 125,  center_us: 188,  max_us: 250,  frame_hz: 2000, neutral_deadzone: 2 },
+  oneshot42:        { min_us: 42,   center_us: 63,   max_us: 84,   frame_hz: 4000, neutral_deadzone: 2 },
+  multishot:        { min_us: 5,    center_us: 15,   max_us: 25,   frame_hz: 8000, neutral_deadzone: 2 },
 };
 function pulseDefaultsFor(protocol) {
   return PULSE_DEFAULTS[protocol] || PULSE_DEFAULTS.rc_servo_pwm;
@@ -1182,8 +1200,8 @@ function renderOutput(o) {
   const protocolSel = el('select', { 'data-name': 'protocol' });
   const validProtocol = (p) => {
     if (cfg.purpose === 'drive' || cfg.purpose === 'disabled') return p === 'none';
-    if (cfg.purpose === 'servo') return ['rc_servo_pwm','rc_servo_ppm'].includes(p);
-    if (cfg.purpose === 'esc') return ['rc_esc_pwm','oneshot125','oneshot42','multishot'].includes(p);
+    if (cfg.purpose === 'servo') return ['rc_servo_pwm','rc_servo_ppm','rc_servo_pwm_100','rc_servo_pwm_200','rc_servo_pwm_333'].includes(p);
+    if (cfg.purpose === 'esc') return ['rc_esc_pwm','rc_esc_pwm_100','rc_esc_pwm_250','rc_esc_pwm_333','rc_esc_pwm_490','oneshot','oneshot125','oneshot42','multishot'].includes(p);
     if (cfg.purpose === 'digital_input' || cfg.purpose === 'digital_output') return p === 'gpio';
     if (cfg.purpose === 'pwm_accessory') return p === 'pwm_duty';
     return false;
