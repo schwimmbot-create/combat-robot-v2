@@ -9,7 +9,7 @@ What's verified:
   * OutputConfig component registers cleanly in the PIO build (has
     library.json, src/, include/, CMakeLists.txt, REQUIRES nvs_flash).
   * The JSON schema emitted by output_config_to_json() includes every
-    logical output (M1, M2, Weapon, S1, S2) and every input source
+    current logical outputs (M1, M2, S1, S2) and every input source
     (LX, LY, RX, RY, LT, RT, A, B, X, Y, L1, R1, L2, R2, SELECT,
     START, L3, R3, HOME, DPAD_UP, DPAD_DOWN, DPAD_LEFT, DPAD_RIGHT,
     NONE).
@@ -18,8 +18,7 @@ What's verified:
     output_config_apply_json_patch().
   * Defaults describe current hard-coded tank drive:
         M1: LY primary, M2: RY primary, normal direction, bi servo_mode (motor)
-        Weapon: RT primary
-        S1/S2: NONE, uni
+        S1/S2: NONE, servo/aux defaults
   * Patch parser recognizes direction/servo_mode/primary/secondary/
     deadzone and rejects invalid values.
   * NVS key/versioning string is present so future bumps are clear.
@@ -83,7 +82,7 @@ class TestOutputConfigBuildWiring:
 # Public API surface in the header
 # ---------------------------------------------------------------------------
 
-EXPECTED_OUTPUT_IDS = {"M1", "M2", "Weapon", "S1", "S2"}
+EXPECTED_OUTPUT_IDS = {"M1", "M2", "S1", "S2"}
 
 EXPECTED_SOURCES = {
     "NONE", "LX", "LY", "RX", "RY",
@@ -159,8 +158,8 @@ class TestOutputConfigImplementation:
         )
 
     def test_defaults_match_current_tank_drive(self, src_text):
-        # Defaults: M1 -> LY primary, M2 -> RY primary, Weapon -> RT, S1/S2 -> NONE,
-        # all "normal" direction, deadzone 10 (Weapon: 5), uni for servos.
+        # Defaults: M1 -> LY primary, M2 -> RY primary, S1/S2 -> NONE,
+        # all "normal" direction, deadzone 10.
         m = re.search(r"kDefaults\[OC_OUT__COUNT\]\s*=\s*\{([\s\S]+?)\};", src_text)
         assert m, "kDefaults not found"
         defaults_blob = m.group(1)
@@ -168,7 +167,7 @@ class TestOutputConfigImplementation:
         # Spot-check each.
         assert re.search(r"OC_OUT_M1\][^}]*OC_SRC_LY", defaults_blob)
         assert re.search(r"OC_OUT_M2\][^}]*OC_SRC_RY", defaults_blob)
-        assert re.search(r"OC_OUT_WEAPON\][^}]*OC_SRC_RT", defaults_blob)
+        assert "OC_OUT_WEAPON" not in defaults_blob
         assert re.search(r"OC_OUT_S1\][^}]*OC_DIR_NORMAL", defaults_blob)
         assert re.search(r"OC_OUT_S2\][^}]*OC_DIR_NORMAL", defaults_blob)
 
@@ -847,7 +846,16 @@ class TestBleGamepadGuiContract:
         assert m, "bench inject function not found"
         body = m.group(0)
         assert "parse_hid_report(data, len)" in body
+        assert "s_state.bench_override_active = true" in body
         assert "notify_connection_change(true" in body
+
+    def test_bench_override_blocks_real_ble_notify_until_real_disconnect_or_reconnect(self, ble_src_text):
+        assert "bench_override_active" in ble_src_text
+        notify = re.search(r"static void notify_cb[\s\S]+?\n\}", ble_src_text)
+        assert notify, "notify_cb missing"
+        assert "if (s_state.bench_override_active)" in notify.group(0)
+        assert "return;" in notify.group(0)
+        assert "s_state.bench_override_active = false;" in ble_src_text
 
     def test_ws_state_ltrt_mapping_is_not_swapped(self):
         # Regression: the WS payload used to send "lt": cs.rightTrigger
@@ -1165,8 +1173,10 @@ class TestConfigUiMockup:
         assert "/api/board/reset" in html
 
     def test_lists_all_outputs(self, html):
-        for id_ in ("M1", "M2", "Weapon", "S1", "S2"):
+        for id_ in ("M1", "M2", "S1", "S2"):
             assert f"id: '{id_}'" in html or id_ in html
+        assert "id: 'Weapon'" not in html
+        assert "state.outputs.Weapon" not in html
 
     def test_lists_all_sources(self, html):
         s = re.search(r"const SOURCES\s*=\s*\[([\s\S]+?)\];", html)
@@ -1179,7 +1189,21 @@ class TestConfigUiMockup:
 
     def test_output_ui_reset_defaults_match_tank_drive(self, html):
         assert "state.drive_mode = 'tank_split';" in html
-        assert "M2:     { direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'RY'" in html
+        reset_match = re.search(r"state\.outputs\s*=\s*\{([\s\S]+?)\n\s*\};\n\s*renderOutputs\(\);", html)
+        assert reset_match, "reset-default output block not found"
+        reset_block = reset_match.group(1)
+        for token in (
+            "M2:",
+            "direction: 'normal'",
+            "servo_mode: 'bi'",
+            "deadzone: 10",
+            "primary: 'RY'",
+            "purpose: 'drive'",
+            "protocol: 'none'",
+            "digital_mode: 'direct'",
+            "digital_preset: 'direct'",
+        ):
+            assert token in reset_block
 
     def test_output_ui_explains_signed_stick_mapping(self, html):
         # UX regression: assigning Left Stick Y to a drive motor means the
@@ -1300,16 +1324,20 @@ class TestConfigUiMockup:
         assert "hashchange" in html
 
     def test_save_payload_sends_only_editable_output_fields(self, html):
-        # /api/config accepts only editable fields; read-only fields like
-        # numeric id/display_name must not be echoed back or browser Save 400s.
+        # /api/config accepts editable schema-v2 output fields. Hardware IDs
+        # remain read-only, but user display names and per-channel power policy
+        # are now intentionally editable.
         assert "function editableOutputPatch(outputs)" in html
         assert "apiPostJSON('/api/config', editableOutputPatch(state.outputs))" in html
         m = re.search(r"function editableOutputPatch[\s\S]+?document.getElementById\('btn-save'", html)
         assert m, "editableOutputPatch/save block missing"
         body = m.group(0)
-        for field in ("drive_mode", "direction", "servo_mode", "deadzone", "primary", "secondary"):
+        for field in (
+            "drive_mode", "display_name", "direction", "servo_mode", "deadzone",
+            "primary", "secondary", "purpose", "protocol", "semantics",
+            "power_good", "power_warn", "power_low",
+        ):
             assert field in body
-        assert "display_name" not in body
         assert "id:" not in body
 
     def test_each_output_rendered_with_dropdowns(self, html):
@@ -1502,3 +1530,15 @@ class TestBatteryManagementContract:
             'battery_cutoff_pct',
         ]:
             assert needle in html
+
+
+def test_obsolete_weapon_patch_is_rejected():
+    src = OC_SRC.read_text()
+    assert 'strcmp(key, "Weapon") == 0' in src
+    assert 'return ESP_ERR_INVALID_ARG' in src
+
+
+def test_m1_m2_are_drive_only_in_ui():
+    html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text()
+    assert "M1/M2 are drive motors only" in html
+    assert "allowedPurposes = (o.id === 'M1' || o.id === 'M2')" in html

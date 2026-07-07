@@ -13,8 +13,12 @@ class Drive{
         void setLateralInputLimits(int minInput = -512, int maxInput = 511);
         void setPwmResolution(int resolution = 8);
         void combined_direction(int joystick_x, int joystick_y, byte orientation);
+        void combined_direction(int joystick_x, int joystick_y, byte orientation, bool left_enabled, bool right_enabled);
         void two_stick_drive(int left_input, int right_input, byte orientation);
+        void two_stick_drive(int left_input, int right_input, byte orientation, bool left_enabled, bool right_enabled);
         void stop();
+        void stopLeft();
+        void stopRight();
 
 
     private:

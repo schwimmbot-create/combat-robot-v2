@@ -143,7 +143,7 @@ Not yet verified:
 - The full robot firmware build.
 - BLE gamepad pairing.
 - Web UI.
-- Motor/drum/servo outputs.
+- M1/M2 drive outputs and S1/S2 role-based aux outputs.
 - OTA.
 
 ## Resolved: 4MB flash partition blocker

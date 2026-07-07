@@ -10,7 +10,7 @@ returning after a long break. Read this before touching anything.
 - The web UI is a single static HTML file at `docs/config-ui-mockup.html`, embedded into firmware flash by `tools/gen_web_index.py` as a `PROGMEM` raw-literal. **Edit the mockup, not the generated header.**
 - The 8BitDo Ultimate 2 (and most "standard HID BLE gamepads") work out of the box. Xbox One + PS5 DualSense are NOT supported and need a separate parser.
 - The robot ships an AP at boot (`Combat-Robot-<EFUSE>`, password `fightbot`) with a captive-portal DNS so any URL the user types redirects to `192.168.4.1`.
-- Default input mapping: M1+M2 ← LY (left stick Y), Weapon ← RT, S1+S2 unassigned. Persisted in NVS as soon as the user clicks **Save changes** on the Outputs tab.
+- Default input mapping: M1/M2 are drive motors; S1/S2 are auxiliary channels unassigned/servo by default. There is no dedicated Weapon output; weapon-like behavior is configured as a role on S1 or S2. Persisted in NVS when the user clicks **Save changes** on the Outputs tab.
 
 ## File map — what to edit for what
 
@@ -170,8 +170,8 @@ loop() {
             └──────────────────────────┘
 
   ┌─────────────────────────────────────┐
-  │ myrobot/    (v1.3 port: Drive, Drum,│
-  │              TaskManager, etc.)     │
+  │ myrobot/    (Drive, S1/S2      │
+  │              roles, TaskManager)│
   │             ControllerState input   │
   │             → motor PWM via LEDC    │
   │             channels 0..3           │

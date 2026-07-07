@@ -11,8 +11,6 @@ const char VERSION[] = "Version 1.3";
 
 #define TASK_MANAGER_READ_FREQ 50
 
-#define WEAPON_BIDIRECTIONAL true
-#define WEAPON_ENABLE true
 #define ENABLE_LOW_BATTERY_SHUTDOWN true
 
 #define DRIVE_MOTOR_PWM_FREQ 20000
@@ -29,15 +27,13 @@ const char VERSION[] = "Version 1.3";
 //Settings for DShot125 Signal
 #define ESC_PWM_FREQ 2000
 #define ESC_PWM_RESOLUTION 8
-#define ESC_PWM_CHANNEL 4
+#define AUX_PWM_RESOLUTION 14
 
-// LED channel for the on-board status LED (debug LED).
+// ESP32-C3 Arduino exposes LEDC channels 0..5. Drive motors consume 0..3;
+// S1/S2 pulse roles consume the remaining two channels.
 #define LED_PWM_CHANNEL 5
-#define ESC_MIN_PULSEWIDTH 125 //Minimum pulsewidth in microseconds
-#define ESC_MID_PULSEWIDTH 188 //Middle pulsewidth(uSec) - Used for reverse motor
-#define ESC_MAX_PULSEWIDTH 250 //Maximum pulsewidth in microseconds
-#define ESC_INITIALIZE_FRACTION 2 //Send MAX / Fraction to ESC at startup
-#define ESC_INITIALIZE_WAIT_TIME 1000 //milliseconds to provide a signal before returning to zero
+#define SERVO1_PWM_CHANNEL 4
+#define SERVO2_PWM_CHANNEL 5
 
 #define CONTROLLER_TIMEOUT 1000 //How many milliseconds before shutting off motors without a signal from BLE Controller
 

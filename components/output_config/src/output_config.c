@@ -5,7 +5,7 @@
 //     links against the Arduino runtime.
 //   * Self-contained JSON encoder/decoder — no external deps. We
 //     only need a small subset.
-//   * NVS blob for atomic read/write of all 5 outputs. Schema is
+//   * NVS blob for atomic read/write of all 4 outputs. Schema is
 //     versioned via the NVS key name; bumping the key on a breaking
 //     change keeps us from misinterpreting older stored blobs.
 //
@@ -29,13 +29,12 @@ static const char *TAG = "output_config";
 // ---- Static tables -------------------------------------------------------
 
 static const char *const kOutputIdStrings[OC_OUT__COUNT] = {
-    "M1", "M2", "Weapon", "S1", "S2",
+    "M1", "M2", "S1", "S2",
 };
 
 static const char *const kOutputDisplayNames[OC_OUT__COUNT] = {
     "Drive Motor 1",
     "Drive Motor 2",
-    "Weapon / ESC",
     "Servo 1",
     "Servo 2",
 };
@@ -68,18 +67,132 @@ static const char *const kDriveModeNames[OC_DRIVE__COUNT] = {
     "arcade_split",
 };
 
+static const char *const kPurposeNames[OC_PURPOSE__COUNT] = {
+    "disabled",
+    "drive",
+    "servo",
+    "esc",
+    "weapon_esc",
+    "digital_output",
+    "digital_input",
+    "pwm_accessory",
+};
+
+static const char *const kProtocolNames[OC_PROTO__COUNT] = {
+    "none",
+    "rc_servo_pwm",
+    "rc_esc_pwm",
+    "oneshot125",
+    "oneshot42",
+    "multishot",
+    "gpio",
+    "pwm_duty",
+};
+
+static const char *const kSemanticsNames[OC_SEM__COUNT] = {
+    "none",
+    "position_servo",
+    "esc_forward_only",
+    "esc_bidirectional",
+    "digital_output",
+    "digital_input",
+    "pwm_accessory",
+};
+
+static const char *const kFailsafeNames[] = {
+    "safe_state",
+    "hold_last",
+};
+
+static const char *const kWeaponModeNames[] = {
+    "arming_and_deadman",
+    "deadman_only",
+    "bench_override",
+};
+
+static const char *const kPowerNames[] = {
+    "default",
+    "allow",
+    "disable",
+    "reduce",
+};
+
+static const char *const kDigitalModeNames[OC_DIGITAL_MODE__COUNT] = {
+    "direct",
+    "analog_above",
+    "analog_below",
+};
+
+static const char *const kDigitalPresetNames[OC_DIGITAL_PRESET__COUNT] = {
+    "direct",
+    "trigger_light",
+    "trigger_half",
+    "trigger_firm",
+    "stick_above",
+    "stick_strong_above",
+    "stick_below",
+    "stick_strong_below",
+    "custom",
+};
+
 // ---- In-RAM state --------------------------------------------------------
 
 // Defaults describe the current hard-coded tank-drive behavior:
 //   M1: left stick Y, M2: right stick Y
-//   Weapon: right trigger
-//   S1/S2: unassigned
+//   S1/S2: servo-capable auxiliary channels, unassigned by default
 static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
-    [OC_OUT_M1]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_LY, OC_SRC_NONE },
-    [OC_OUT_M2]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_RY, OC_SRC_NONE },
-    [OC_OUT_WEAPON] = { OC_DIR_NORMAL, OC_SERVO_BI,   5, OC_SRC_RT, OC_SRC_NONE },
-    [OC_OUT_S1]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_NONE, OC_SRC_NONE },
-    [OC_OUT_S2]     = { OC_DIR_NORMAL, OC_SERVO_BI,  10, OC_SRC_NONE, OC_SRC_NONE },
+    [OC_OUT_M1] = {
+        .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
+        .primary = OC_SRC_LY, .secondary = OC_SRC_NONE,
+        .display_name = "Motor 1", .purpose = OC_PURPOSE_DRIVE, .protocol = OC_PROTO_NONE,
+        .semantics = OC_SEM_NONE, .min_pulse_us = 0, .center_pulse_us = 0, .max_pulse_us = 0,
+        .frame_hz = 0, .neutral_deadzone_pct = 0, .weapon_safety = false,
+        .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
+        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
+        .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
+        .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
+        .digital_custom_pct = 50, .pwm_frequency_hz = 0, .pwm_duty_pct = 0,
+    },
+    [OC_OUT_M2] = {
+        .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
+        .primary = OC_SRC_RY, .secondary = OC_SRC_NONE,
+        .display_name = "Motor 2", .purpose = OC_PURPOSE_DRIVE, .protocol = OC_PROTO_NONE,
+        .semantics = OC_SEM_NONE, .min_pulse_us = 0, .center_pulse_us = 0, .max_pulse_us = 0,
+        .frame_hz = 0, .neutral_deadzone_pct = 0, .weapon_safety = false,
+        .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
+        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
+        .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
+        .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
+        .digital_custom_pct = 50, .pwm_frequency_hz = 0, .pwm_duty_pct = 0,
+    },
+    [OC_OUT_S1] = {
+        .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
+        .primary = OC_SRC_NONE, .secondary = OC_SRC_NONE,
+        .display_name = "Servo 1", .purpose = OC_PURPOSE_SERVO, .protocol = OC_PROTO_RC_SERVO_PWM,
+        .semantics = OC_SEM_POSITION_SERVO, .min_pulse_us = 1000, .center_pulse_us = 1500, .max_pulse_us = 2000,
+        .frame_hz = 50, .neutral_deadzone_pct = 5, .weapon_safety = false,
+        .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
+        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
+        .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
+        .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
+        .digital_custom_pct = 50, .pwm_frequency_hz = 0, .pwm_duty_pct = 0,
+    },
+    [OC_OUT_S2] = {
+        .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
+        .primary = OC_SRC_NONE, .secondary = OC_SRC_NONE,
+        .display_name = "Servo 2", .purpose = OC_PURPOSE_SERVO, .protocol = OC_PROTO_RC_SERVO_PWM,
+        .semantics = OC_SEM_POSITION_SERVO, .min_pulse_us = 1000, .center_pulse_us = 1500, .max_pulse_us = 2000,
+        .frame_hz = 50, .neutral_deadzone_pct = 5, .weapon_safety = false,
+        .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
+        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
+        .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
+        .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
+        .digital_custom_pct = 50, .pwm_frequency_hz = 0, .pwm_duty_pct = 0,
+    },
 };
 
 static oc_output_cfg_t s_cfg[OC_OUT__COUNT];
@@ -110,6 +223,19 @@ static esp_err_t save_all(void) {
 }
 
 // Validate ranges. Returns true if a config blob is sane.
+static bool digital_thresholds_are_sane(const oc_output_cfg_t *c) {
+    if ((unsigned)c->digital_mode >= OC_DIGITAL_MODE__COUNT) return false;
+    if ((unsigned)c->digital_preset >= OC_DIGITAL_PRESET__COUNT) return false;
+    if (c->digital_custom_pct > 100) return false;
+    if (c->digital_on_threshold < -1024 || c->digital_on_threshold > 1024) return false;
+    if (c->digital_off_threshold < -1024 || c->digital_off_threshold > 1024) return false;
+    if (c->digital_mode == OC_DIGITAL_MODE_ANALOG_ABOVE &&
+        !(c->digital_on_threshold > c->digital_off_threshold)) return false;
+    if (c->digital_mode == OC_DIGITAL_MODE_ANALOG_BELOW &&
+        !(c->digital_on_threshold < c->digital_off_threshold)) return false;
+    return true;
+}
+
 static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
     for (int i = 0; i < OC_OUT__COUNT; i++) {
         const oc_output_cfg_t *c = &cfg[i];
@@ -118,6 +244,27 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
         if (c->deadzone_pct > 50) return false;
         if ((unsigned)c->primary >= OC_SRC__COUNT) return false;
         if ((unsigned)c->secondary >= OC_SRC__COUNT) return false;
+        if (c->display_name[OC_DISPLAY_NAME_MAX_LEN] != '\0') return false;
+        if ((unsigned)c->purpose >= OC_PURPOSE__COUNT) return false;
+        if ((unsigned)c->protocol >= OC_PROTO__COUNT) return false;
+        if ((unsigned)c->semantics >= OC_SEM__COUNT) return false;
+        if ((unsigned)c->failsafe > OC_FAILSAFE_HOLD_LAST) return false;
+        if ((unsigned)c->weapon_mode > OC_WEAPON_BENCH_OVERRIDE) return false;
+        if ((unsigned)c->arming_source >= OC_SRC__COUNT) return false;
+        if ((unsigned)c->deadman_source >= OC_SRC__COUNT) return false;
+        if ((unsigned)c->power_good > OC_POWER_REDUCE) return false;
+        if ((unsigned)c->power_warn > OC_POWER_REDUCE) return false;
+        if ((unsigned)c->power_low > OC_POWER_REDUCE) return false;
+        if (c->neutral_deadzone_pct > 50) return false;
+        if (!digital_thresholds_are_sane(c)) return false;
+        if ((i == OC_OUT_M1 || i == OC_OUT_M2) &&
+            (c->purpose != OC_PURPOSE_DRIVE || c->protocol != OC_PROTO_NONE)) return false;
+        if (c->pwm_duty_pct > 100) return false;
+        if (c->protocol == OC_PROTO_ONESHOT42 || c->protocol == OC_PROTO_MULTISHOT) return false;
+        if (c->purpose == OC_PURPOSE_WEAPON_ESC && c->failsafe == OC_FAILSAFE_HOLD_LAST) return false;
+        if (c->min_pulse_us || c->center_pulse_us || c->max_pulse_us) {
+            if (!(c->min_pulse_us < c->center_pulse_us && c->center_pulse_us < c->max_pulse_us)) return false;
+        }
     }
     return true;
 }
@@ -290,7 +437,7 @@ const char *output_config_output_id_str(oc_output_id_t id) {
 
 // ---- Tiny JSON writer (no deps) -----------------------------------------
 //
-// Hand-rolled because adding ArduinoJson for a 5-element config is
+// Hand-rolled because adding ArduinoJson for a 4-element config is
 // overkill and pulls ~50KB of flash on the C3.
 //
 // Supported subset: objects with string OR string-array values, plus
@@ -376,6 +523,66 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"secondary\":");
         ok &= json_append_quoted_token(out_buf, out_buf_len, &used,
                                         kSourceNames[c->secondary]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"purpose\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kPurposeNames[c->purpose]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"protocol\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kProtocolNames[c->protocol]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"semantics\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSemanticsNames[c->semantics]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"pulse\":{");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "\"min_us\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->min_pulse_us);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"center_us\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->center_pulse_us);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"max_us\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->max_pulse_us);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"frame_hz\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->frame_hz);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"neutral_deadzone\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->neutral_deadzone_pct);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"safety\":{");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "\"weapon\":");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, c->weapon_safety ? "true" : "false");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"failsafe\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kFailsafeNames[c->failsafe]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"weapon_mode\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kWeaponModeNames[c->weapon_mode]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"arming_source\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[c->arming_source]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"deadman_source\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[c->deadman_source]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"power\":{");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "\"GOOD\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kPowerNames[c->power_good]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"WARN\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kPowerNames[c->power_warn]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"LOW\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kPowerNames[c->power_low]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"gpio\":{");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "\"active_high\":");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, c->active_high ? "true" : "false");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"default_state\":");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, c->default_state ? "true" : "false");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"digital_mode\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kDigitalModeNames[c->digital_mode]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"digital_preset\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kDigitalPresetNames[c->digital_preset]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"digital_on_threshold\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->digital_on_threshold);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"digital_off_threshold\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->digital_off_threshold);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"digital_custom_pct\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->digital_custom_pct);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"pwm\":{");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "\"frequency_hz\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->pwm_frequency_hz);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"duty_pct\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->pwm_duty_pct);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
         ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
     }
     ok &= json_append_raw(out_buf, out_buf_len, &used, "}}");
@@ -455,6 +662,22 @@ static bool parse_bare_int_value(const char **cursor, int *out) {
     return true;
 }
 
+static bool parse_bare_bool_value(const char **cursor, bool *out) {
+    const char *p = *cursor;
+    while (*p && isspace((unsigned char)*p)) p++;
+    if (strncmp(p, "true", 4) == 0) {
+        *out = true;
+        *cursor = p + 4;
+        return true;
+    }
+    if (strncmp(p, "false", 5) == 0) {
+        *out = false;
+        *cursor = p + 5;
+        return true;
+    }
+    return false;
+}
+
 static bool parse_string_value(const char **cursor, char *dst, size_t dst_len) {
     const char *p = *cursor;
     while (*p && isspace((unsigned char)*p)) p++;
@@ -485,6 +708,121 @@ bool output_config_source_from_str(const char *s, oc_source_id_t *out) {
     return false;
 }
 
+static bool table_lookup(const char *s, const char *const *names, int count, int *out) {
+    if (!s || !out) return false;
+    for (int i = 0; i < count; i++) {
+        if (strcasecmp(s, names[i]) == 0) {
+            *out = i;
+            return true;
+        }
+    }
+    return false;
+}
+
+static bool purpose_from_str(const char *s, oc_purpose_t *out) {
+    int v;
+    if (!table_lookup(s, kPurposeNames, OC_PURPOSE__COUNT, &v)) return false;
+    *out = (oc_purpose_t)v;
+    return true;
+}
+
+static bool protocol_from_str(const char *s, oc_protocol_t *out) {
+    int v;
+    if (!table_lookup(s, kProtocolNames, OC_PROTO__COUNT, &v)) return false;
+    *out = (oc_protocol_t)v;
+    return true;
+}
+
+static bool semantics_from_str(const char *s, oc_semantics_t *out) {
+    int v;
+    if (!table_lookup(s, kSemanticsNames, OC_SEM__COUNT, &v)) return false;
+    *out = (oc_semantics_t)v;
+    return true;
+}
+
+static bool failsafe_from_str(const char *s, oc_failsafe_t *out) {
+    int v;
+    if (!table_lookup(s, kFailsafeNames, 2, &v)) return false;
+    *out = (oc_failsafe_t)v;
+    return true;
+}
+
+static bool weapon_mode_from_str(const char *s, oc_weapon_safety_mode_t *out) {
+    int v;
+    if (!table_lookup(s, kWeaponModeNames, 3, &v)) return false;
+    *out = (oc_weapon_safety_mode_t)v;
+    return true;
+}
+
+static bool power_from_str(const char *s, oc_power_override_t *out) {
+    int v;
+    if (!table_lookup(s, kPowerNames, 4, &v)) return false;
+    *out = (oc_power_override_t)v;
+    return true;
+}
+
+static bool digital_mode_from_str(const char *s, oc_digital_mode_t *out) {
+    int v;
+    if (!table_lookup(s, kDigitalModeNames, OC_DIGITAL_MODE__COUNT, &v)) return false;
+    *out = (oc_digital_mode_t)v;
+    return true;
+}
+
+static bool digital_preset_from_str(const char *s, oc_digital_preset_t *out) {
+    int v;
+    if (!table_lookup(s, kDigitalPresetNames, OC_DIGITAL_PRESET__COUNT, &v)) return false;
+    *out = (oc_digital_preset_t)v;
+    return true;
+}
+
+static bool purpose_protocol_is_valid(oc_purpose_t purpose, oc_protocol_t protocol) {
+    switch (purpose) {
+        case OC_PURPOSE_DISABLED: return protocol == OC_PROTO_NONE;
+        case OC_PURPOSE_DRIVE: return protocol == OC_PROTO_NONE;
+        case OC_PURPOSE_SERVO: return protocol == OC_PROTO_RC_SERVO_PWM;
+        case OC_PURPOSE_ESC:
+        case OC_PURPOSE_WEAPON_ESC:
+            return protocol == OC_PROTO_RC_ESC_PWM || protocol == OC_PROTO_ONESHOT125;
+        case OC_PURPOSE_DIGITAL_OUTPUT:
+        case OC_PURPOSE_DIGITAL_INPUT: return protocol == OC_PROTO_GPIO;
+        case OC_PURPOSE_PWM_ACCESSORY: return protocol == OC_PROTO_PWM_DUTY;
+        default: return false;
+    }
+}
+
+static oc_power_override_t output_config_effective_power(const oc_output_cfg_t *cfg, uint8_t battery_state) {
+    // Constants.h defines BATTERY_GOOD=1, BATTERY_WARN=2, BATTERY_LOW=3.
+    // Keep this C component independent of Arduino/C++ headers by matching
+    // those stable numeric states at the interface boundary.
+    switch (battery_state) {
+        case 1: return cfg->power_good;
+        case 2: return cfg->power_warn;
+        case 3: return cfg->power_low;
+        default: return OC_POWER_DEFAULT;
+    }
+}
+
+static bool output_config_default_allowed_for_state(const oc_output_cfg_t *cfg, uint8_t battery_state) {
+    if (cfg->purpose == OC_PURPOSE_WEAPON_ESC && battery_state == 3) {
+        return false;
+    }
+    return true;
+}
+
+bool output_config_channel_allowed(oc_output_id_t id, uint8_t battery_state) {
+    const oc_output_cfg_t *cfg = output_config_get(id);
+    switch (output_config_effective_power(cfg, battery_state)) {
+        case OC_POWER_ALLOW:
+        case OC_POWER_REDUCE:
+            return true;
+        case OC_POWER_DISABLE:
+            return false;
+        case OC_POWER_DEFAULT:
+        default:
+            return output_config_default_allowed_for_state(cfg, battery_state);
+    }
+}
+
 static bool apply_patch_one(oc_output_id_t id, const char *body) {
     bool dirty = false;
     const char *p = body;
@@ -512,16 +850,67 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
         memcpy(key, key_start, klen);
         p++; // closing "
 
-        if (strcmp(key, "deadzone") == 0) {
+        if (strcmp(key, "deadzone") == 0 || strcmp(key, "min_pulse_us") == 0 ||
+            strcmp(key, "center_pulse_us") == 0 || strcmp(key, "max_pulse_us") == 0 ||
+            strcmp(key, "frame_hz") == 0 || strcmp(key, "neutral_deadzone") == 0 ||
+            strcmp(key, "ramp_ms") == 0 || strcmp(key, "pwm_frequency_hz") == 0 ||
+            strcmp(key, "pwm_duty_pct") == 0 || strcmp(key, "digital_on_threshold") == 0 ||
+            strcmp(key, "digital_off_threshold") == 0 || strcmp(key, "digital_custom_pct") == 0) {
             while (*p && isspace((unsigned char)*p)) p++;
             if (*p != ':') return false;
             p++;
             while (*p && isspace((unsigned char)*p)) p++;
             char *end = NULL;
             long d = strtol(p, &end, 10);
-            if (end == p || d < 0 || d > 50) return false;
+            bool is_digital_threshold = strcmp(key, "digital_on_threshold") == 0 ||
+                                        strcmp(key, "digital_off_threshold") == 0;
+            if (end == p || d < (is_digital_threshold ? -1024 : 0) || d > 65535) return false;
             p = end;
-            if (s_cfg[id].deadzone_pct != (uint8_t)d) { s_cfg[id].deadzone_pct = (uint8_t)d; dirty = true; }
+            if (strcmp(key, "deadzone") == 0) {
+                if (d < 0 || d > 50) return false;
+                if (s_cfg[id].deadzone_pct != (uint8_t)d) { s_cfg[id].deadzone_pct = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "min_pulse_us") == 0) {
+                if (s_cfg[id].min_pulse_us != (uint16_t)d) { s_cfg[id].min_pulse_us = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "center_pulse_us") == 0) {
+                if (s_cfg[id].center_pulse_us != (uint16_t)d) { s_cfg[id].center_pulse_us = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "max_pulse_us") == 0) {
+                if (s_cfg[id].max_pulse_us != (uint16_t)d) { s_cfg[id].max_pulse_us = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "frame_hz") == 0) {
+                if (s_cfg[id].frame_hz != (uint16_t)d) { s_cfg[id].frame_hz = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "neutral_deadzone") == 0) {
+                if (d > 50) return false;
+                if (s_cfg[id].neutral_deadzone_pct != (uint8_t)d) { s_cfg[id].neutral_deadzone_pct = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "ramp_ms") == 0) {
+                if (s_cfg[id].ramp_ms != (uint16_t)d) { s_cfg[id].ramp_ms = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "pwm_frequency_hz") == 0) {
+                if (s_cfg[id].pwm_frequency_hz != (uint16_t)d) { s_cfg[id].pwm_frequency_hz = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "pwm_duty_pct") == 0) {
+                if (d > 100) return false;
+                if (s_cfg[id].pwm_duty_pct != (uint8_t)d) { s_cfg[id].pwm_duty_pct = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "digital_on_threshold") == 0) {
+                if (d < -1024 || d > 1024) return false;
+                if (s_cfg[id].digital_on_threshold != (int16_t)d) { s_cfg[id].digital_on_threshold = (int16_t)d; dirty = true; }
+            } else if (strcmp(key, "digital_off_threshold") == 0) {
+                if (d < -1024 || d > 1024) return false;
+                if (s_cfg[id].digital_off_threshold != (int16_t)d) { s_cfg[id].digital_off_threshold = (int16_t)d; dirty = true; }
+            } else if (strcmp(key, "digital_custom_pct") == 0) {
+                if (d > 100) return false;
+                if (s_cfg[id].digital_custom_pct != (uint8_t)d) { s_cfg[id].digital_custom_pct = (uint8_t)d; dirty = true; }
+            }
+        } else if (strcmp(key, "weapon_safety") == 0 || strcmp(key, "active_high") == 0 ||
+                   strcmp(key, "default_state") == 0) {
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (*p != ':') return false;
+            p++;
+            bool b;
+            if (!parse_bare_bool_value(&p, &b)) return false;
+            if (strcmp(key, "weapon_safety") == 0) {
+                if (s_cfg[id].weapon_safety != b) { s_cfg[id].weapon_safety = b; dirty = true; }
+            } else if (strcmp(key, "active_high") == 0) {
+                if (s_cfg[id].active_high != b) { s_cfg[id].active_high = b; dirty = true; }
+            } else {
+                if (s_cfg[id].default_state != b) { s_cfg[id].default_state = b; dirty = true; }
+            }
         } else {
             char value[24] = {0};
             if (!parse_string_value(&p, value, sizeof(value))) return false;
@@ -532,6 +921,63 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
                 } else if (strcmp(value, "reversed") == 0) {
                     if (s_cfg[id].direction != OC_DIR_REVERSED) { s_cfg[id].direction = OC_DIR_REVERSED; dirty = true; }
                 } else return false;
+            } else if (strcmp(key, "display_name") == 0) {
+                if (strlen(value) > OC_DISPLAY_NAME_MAX_LEN) return false;
+                if (strcmp(s_cfg[id].display_name, value) != 0) {
+                    memset(s_cfg[id].display_name, 0, sizeof(s_cfg[id].display_name));
+                    strncpy(s_cfg[id].display_name, value, OC_DISPLAY_NAME_MAX_LEN);
+                    dirty = true;
+                }
+            } else if (strcmp(key, "purpose") == 0) {
+                oc_purpose_t purpose;
+                if (!purpose_from_str(value, &purpose)) return false;
+                if (s_cfg[id].purpose != purpose) { s_cfg[id].purpose = purpose; dirty = true; }
+            } else if (strcmp(key, "protocol") == 0) {
+                oc_protocol_t protocol;
+                if (!protocol_from_str(value, &protocol)) return false;
+                if (protocol == OC_PROTO_ONESHOT42 || protocol == OC_PROTO_MULTISHOT) return false;
+                if (s_cfg[id].protocol != protocol) { s_cfg[id].protocol = protocol; dirty = true; }
+            } else if (strcmp(key, "semantics") == 0) {
+                oc_semantics_t semantics;
+                if (!semantics_from_str(value, &semantics)) return false;
+                if (s_cfg[id].semantics != semantics) { s_cfg[id].semantics = semantics; dirty = true; }
+            } else if (strcmp(key, "failsafe") == 0) {
+                oc_failsafe_t failsafe;
+                if (!failsafe_from_str(value, &failsafe)) return false;
+                if (s_cfg[id].purpose == OC_PURPOSE_WEAPON_ESC && failsafe == OC_FAILSAFE_HOLD_LAST) return false;
+                if (s_cfg[id].failsafe != failsafe) { s_cfg[id].failsafe = failsafe; dirty = true; }
+            } else if (strcmp(key, "weapon_mode") == 0) {
+                oc_weapon_safety_mode_t mode;
+                if (!weapon_mode_from_str(value, &mode)) return false;
+                if (s_cfg[id].weapon_mode != mode) { s_cfg[id].weapon_mode = mode; dirty = true; }
+            } else if (strcmp(key, "arming_source") == 0) {
+                oc_source_id_t s;
+                if (!output_config_source_from_str(value, &s)) return false;
+                if (s_cfg[id].arming_source != s) { s_cfg[id].arming_source = s; dirty = true; }
+            } else if (strcmp(key, "deadman_source") == 0) {
+                oc_source_id_t s;
+                if (!output_config_source_from_str(value, &s)) return false;
+                if (s_cfg[id].deadman_source != s) { s_cfg[id].deadman_source = s; dirty = true; }
+            } else if (strcmp(key, "power_good") == 0) {
+                oc_power_override_t pow;
+                if (!power_from_str(value, &pow)) return false;
+                if (s_cfg[id].power_good != pow) { s_cfg[id].power_good = pow; dirty = true; }
+            } else if (strcmp(key, "power_warn") == 0) {
+                oc_power_override_t pow;
+                if (!power_from_str(value, &pow)) return false;
+                if (s_cfg[id].power_warn != pow) { s_cfg[id].power_warn = pow; dirty = true; }
+            } else if (strcmp(key, "power_low") == 0) {
+                oc_power_override_t pow;
+                if (!power_from_str(value, &pow)) return false;
+                if (s_cfg[id].power_low != pow) { s_cfg[id].power_low = pow; dirty = true; }
+            } else if (strcmp(key, "digital_mode") == 0) {
+                oc_digital_mode_t mode;
+                if (!digital_mode_from_str(value, &mode)) return false;
+                if (s_cfg[id].digital_mode != mode) { s_cfg[id].digital_mode = mode; dirty = true; }
+            } else if (strcmp(key, "digital_preset") == 0) {
+                oc_digital_preset_t preset;
+                if (!digital_preset_from_str(value, &preset)) return false;
+                if (s_cfg[id].digital_preset != preset) { s_cfg[id].digital_preset = preset; dirty = true; }
             } else if (strcmp(key, "servo_mode") == 0) {
                 if (strcmp(value, "bi") == 0) {
                     if (s_cfg[id].servo_mode != OC_SERVO_BI) { s_cfg[id].servo_mode = OC_SERVO_BI; dirty = true; }
@@ -554,6 +1000,8 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
         while (*p && isspace((unsigned char)*p)) p++;
         if (*p == ',') p++;
     }
+    if (!purpose_protocol_is_valid(s_cfg[id].purpose, s_cfg[id].protocol)) return false;
+    if (!cfg_blob_is_sane(s_cfg)) return false;
     return !dirty ? true : true; // dirty is informational; we always report apply ok
 }
 
@@ -627,6 +1075,9 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
         }
         if (depth != 0) return ESP_ERR_INVALID_ARG;
 
+        if (strcmp(key, "Weapon") == 0) {
+            return ESP_ERR_INVALID_ARG;
+        }
         oc_output_id_t id;
         if (output_config_id_from_str(key, &id)) {
             if (!apply_patch_one(id, body)) return ESP_ERR_INVALID_ARG;

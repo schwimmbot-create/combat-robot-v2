@@ -82,6 +82,8 @@ static void mac_to_cstr(const ble_mac_t *m, char *buf, size_t len);
 // fallback here keeps the web_config component linkable on its own
 // (e.g. for static analysis or unit tests that compile only this TU).
 extern "C" __attribute__((weak)) void main_notify_connected(bool /*connected*/) {}
+extern "C" __attribute__((weak)) bool main_get_digital_output_logical(int /*output_id*/) { return false; }
+extern "C" __attribute__((weak)) bool main_get_digital_output_physical_high(int /*output_id*/) { return false; }
 
 static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
     // Mirror connect/disconnect to the LED1 pairing indicator. Keeping
@@ -302,6 +304,14 @@ static void send_json_status(AsyncWebServerRequest *req) {
     json += "\"battery_cell_count\":" + String(s.battery_cell_count) + ",";
     json += "\"battery_cutoff_pct\":" + String(s.battery_cutoff_pct) + ",";
     json += "\"battery_cutoff_mv\":" + String(s.battery_cutoff_mv) + ",";
+    json += "\"outputs\":{";
+    json += "\"S1\":{";
+    json += "\"logical\":" + String(main_get_digital_output_logical(OC_OUT_S1) ? "true" : "false") + ",";
+    json += "\"physical_high\":" + String(main_get_digital_output_physical_high(OC_OUT_S1) ? "true" : "false") + "},";
+    json += "\"S2\":{";
+    json += "\"logical\":" + String(main_get_digital_output_logical(OC_OUT_S2) ? "true" : "false") + ",";
+    json += "\"physical_high\":" + String(main_get_digital_output_physical_high(OC_OUT_S2) ? "true" : "false") + "}";
+    json += "},";
     json += "\"firmware_version\":\"" + String(s.firmware_version) + "\"";
     json += "}";
 

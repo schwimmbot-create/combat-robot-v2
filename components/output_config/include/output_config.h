@@ -6,7 +6,7 @@
 //
 // Physical pin assignments are NOT stored here — those come from
 // board_config.h at compile time. The schema below maps *logical*
-// outputs (M1, M2, Weapon, S1, S2) onto the physical pins, so the
+// outputs (M1, M2, S1, S2) onto the physical pins, so the
 // web UI can present "Motor 1 direction" rather than "GPIO 0".
 //
 // SPDX-License-Identifier: Apache-2.0
@@ -28,10 +28,9 @@ extern "C" {
 typedef enum {
     OC_OUT_M1      = 0,    // Drive motor 1 (left wheel pair)
     OC_OUT_M2      = 1,    // Drive motor 2 (right wheel pair)
-    OC_OUT_WEAPON  = 2,    // Weapon / ESC / drum
-    OC_OUT_S1      = 3,    // Servo 1
-    OC_OUT_S2      = 4,    // Servo 2
-    OC_OUT__COUNT  = 5,
+    OC_OUT_S1      = 2,    // Servo / auxiliary channel 1
+    OC_OUT_S2      = 3,    // Servo / auxiliary channel 2
+    OC_OUT__COUNT  = 4,
 } oc_output_id_t;
 
 // Motor direction. UI toggle flips this; the motor driver code
@@ -97,6 +96,81 @@ typedef enum {
     OC_SRC__COUNT     = 24,
 } oc_source_id_t;
 
+typedef enum {
+    OC_PURPOSE_DISABLED       = 0,
+    OC_PURPOSE_DRIVE          = 1,
+    OC_PURPOSE_SERVO          = 2,
+    OC_PURPOSE_ESC            = 3,
+    OC_PURPOSE_WEAPON_ESC     = 4,
+    OC_PURPOSE_DIGITAL_OUTPUT = 5,
+    OC_PURPOSE_DIGITAL_INPUT  = 6,
+    OC_PURPOSE_PWM_ACCESSORY  = 7,
+    OC_PURPOSE__COUNT         = 8,
+} oc_purpose_t;
+
+typedef enum {
+    OC_PROTO_NONE          = 0,
+    OC_PROTO_RC_SERVO_PWM  = 1,
+    OC_PROTO_RC_ESC_PWM    = 2,
+    OC_PROTO_ONESHOT125    = 3,
+    OC_PROTO_ONESHOT42     = 4, // visible in UI as not-working-yet
+    OC_PROTO_MULTISHOT     = 5, // visible in UI as not-working-yet
+    OC_PROTO_GPIO          = 6,
+    OC_PROTO_PWM_DUTY      = 7,
+    OC_PROTO__COUNT        = 8,
+} oc_protocol_t;
+
+typedef enum {
+    OC_SEM_NONE              = 0,
+    OC_SEM_POSITION_SERVO    = 1,
+    OC_SEM_ESC_FORWARD_ONLY  = 2,
+    OC_SEM_ESC_BIDIRECTIONAL = 3,
+    OC_SEM_DIGITAL_OUTPUT    = 4,
+    OC_SEM_DIGITAL_INPUT     = 5,
+    OC_SEM_PWM_ACCESSORY     = 6,
+    OC_SEM__COUNT            = 7,
+} oc_semantics_t;
+
+typedef enum {
+    OC_FAILSAFE_SAFE_STATE = 0,
+    OC_FAILSAFE_HOLD_LAST  = 1,
+} oc_failsafe_t;
+
+typedef enum {
+    OC_POWER_DEFAULT = 0,
+    OC_POWER_ALLOW   = 1,
+    OC_POWER_DISABLE = 2,
+    OC_POWER_REDUCE  = 3,
+} oc_power_override_t;
+
+typedef enum {
+    OC_WEAPON_ARMING_AND_DEADMAN = 0,
+    OC_WEAPON_DEADMAN_ONLY       = 1,
+    OC_WEAPON_BENCH_OVERRIDE     = 2,
+} oc_weapon_safety_mode_t;
+
+typedef enum {
+    OC_DIGITAL_MODE_DIRECT       = 0,
+    OC_DIGITAL_MODE_ANALOG_ABOVE = 1,
+    OC_DIGITAL_MODE_ANALOG_BELOW = 2,
+    OC_DIGITAL_MODE__COUNT       = 3,
+} oc_digital_mode_t;
+
+typedef enum {
+    OC_DIGITAL_PRESET_DIRECT              = 0,
+    OC_DIGITAL_PRESET_TRIGGER_LIGHT       = 1,
+    OC_DIGITAL_PRESET_TRIGGER_HALF        = 2,
+    OC_DIGITAL_PRESET_TRIGGER_FIRM        = 3,
+    OC_DIGITAL_PRESET_STICK_ABOVE         = 4,
+    OC_DIGITAL_PRESET_STICK_STRONG_ABOVE  = 5,
+    OC_DIGITAL_PRESET_STICK_BELOW         = 6,
+    OC_DIGITAL_PRESET_STICK_STRONG_BELOW  = 7,
+    OC_DIGITAL_PRESET_CUSTOM              = 8,
+    OC_DIGITAL_PRESET__COUNT              = 9,
+} oc_digital_preset_t;
+
+#define OC_DISPLAY_NAME_MAX_LEN 16
+
 // Per-output config blob. Defaults are filled in at boot via
 // output_config_reset_defaults() so unknown NVS state still yields
 // a usable robot.
@@ -105,7 +179,35 @@ typedef struct {
     oc_servo_mode_t servo_mode;    // OC_SERVO_BI / UNI (servos only)
     uint8_t         deadzone_pct;  // 0..50; percent of stick range to ignore
     oc_source_id_t  primary;       // Source for forward-or-on direction
-    oc_source_id_t  secondary;     // Source for reverse-or-off (motos/UNI servos)
+    oc_source_id_t  secondary;     // Source for reverse-or-off (motors/UNI servos)
+
+    char            display_name[OC_DISPLAY_NAME_MAX_LEN + 1];
+    oc_purpose_t    purpose;
+    oc_protocol_t   protocol;
+    oc_semantics_t  semantics;
+    uint16_t        min_pulse_us;
+    uint16_t        center_pulse_us;
+    uint16_t        max_pulse_us;
+    uint16_t        frame_hz;
+    uint8_t         neutral_deadzone_pct;
+    bool            weapon_safety;
+    oc_failsafe_t   failsafe;
+    oc_weapon_safety_mode_t weapon_mode;
+    oc_source_id_t  arming_source;
+    oc_source_id_t  deadman_source;
+    uint16_t        ramp_ms;
+    oc_power_override_t power_good;
+    oc_power_override_t power_warn;
+    oc_power_override_t power_low;
+    bool            active_high;
+    bool            default_state;
+    oc_digital_mode_t digital_mode;
+    oc_digital_preset_t digital_preset;
+    int16_t         digital_on_threshold;
+    int16_t         digital_off_threshold;
+    uint8_t         digital_custom_pct;
+    uint16_t        pwm_frequency_hz;
+    uint8_t         pwm_duty_pct;
 } oc_output_cfg_t;
 
 // Wire format (JSON) sent to and received from the web UI. The C
@@ -124,10 +226,10 @@ typedef struct {
 #define OC_MAX_PAIRED_DEFAULT   1
 #define OC_MAX_PAIRED_CAP       4
 
-// JSON output buffer sizing. Config is ~700 bytes; source-list JSON is
-// larger because it includes 24 id/name/label entries. 2KB covers both
-// with headroom while staying small for ESP32-C3 RAM.
-#define OC_JSON_BUF_SIZE        2048
+// JSON output buffer sizing. Config is larger under schema v2 because each
+// output includes purpose/protocol/calibration/safety/power metadata. 4KB
+// covers the full config and source-list JSON with headroom on ESP32-C3.
+#define OC_JSON_BUF_SIZE        4096
 #define OC_SOURCE_NAME_MAX_LEN  12
 
 // Lifecycle ----------------------------------------------------------------
@@ -188,8 +290,9 @@ int output_config_sources_to_json(char *out_buf, size_t out_buf_len);
 // Apply a partial JSON patch to the in-RAM + NVS state. Accepted
 // patch shape:
 //   { "M1": {"direction":"reversed","deadzone":15},
-//     "Weapon": {"primary":"RT","secondary":"LT"} }
-// Unknown top-level keys are ignored; invalid values for a known key
+//     "S1": {"purpose":"weapon_esc","primary":"RT"} }
+// The obsolete top-level "Weapon" key is rejected; other unknown top-level keys are ignored.
+// Invalid values for a known key
 // are rejected without modifying other fields. Returns ESP_OK on full
 // success, ESP_ERR_INVALID_ARG on a parse/validation failure.
 esp_err_t output_config_apply_json_patch(const char *json_patch);
@@ -202,8 +305,14 @@ const char *output_config_source_name(oc_source_id_t id);
 // into the enum. Returns true on success and writes the result to *out.
 bool output_config_source_from_str(const char *s, oc_source_id_t *out);
 
-// Stable string id used in JSON ("M1", "Weapon", etc).
+// Stable string id used in JSON ("M1", "S1", etc).
 const char *output_config_output_id_str(oc_output_id_t id);
+
+// Resolve per-channel battery power policy for runtime gating. Returns
+// true when the channel should remain active for the current battery state.
+// Per-channel overrides win over purpose defaults. OC_POWER_REDUCE currently
+// resolves to active; future runtime code can scale output where supported.
+bool output_config_channel_allowed(oc_output_id_t id, uint8_t battery_state);
 
 #ifdef __cplusplus
 }

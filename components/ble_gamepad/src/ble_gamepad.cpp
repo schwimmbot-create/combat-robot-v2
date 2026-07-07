@@ -75,6 +75,9 @@ static struct {
     bool have_target;
     bool scan_active;
     bool auto_reconnect;
+#ifdef BENCH_HID_PUBLIC
+    bool bench_override_active;
+#endif
 } s_state = {
     .pairing_state = PAIRING_STATE_IDLE,
     .lock = portMUX_INITIALIZER_UNLOCKED,
@@ -89,6 +92,9 @@ static struct {
     .have_target = false,
     .scan_active = false,
     .auto_reconnect = false,
+#ifdef BENCH_HID_PUBLIC
+    .bench_override_active = false,
+#endif
 };
 
 // --- Bench HID injection helpers (gated by BENCH_HID_PUBLIC build flag) ---
@@ -122,6 +128,7 @@ esp_err_t ble_gamepad_bench_inject_hid_report(const uint8_t *data, uint16_t len)
     parse_hid_report(data, len);
 
     static const ble_mac_t bench_mac = {{0x02, 0x00, 0x00, 0x00, 0xbe, 0x7c}};
+    s_state.bench_override_active = true;
     s_state.connected_mac = bench_mac;
     if (!s_state.connected) notify_connection_change(true, &s_state.connected_mac);
     ESP_LOGD(TAG, "bench HID frame accepted (%u bytes)", (unsigned)len);
@@ -387,6 +394,11 @@ static void notify_cb(NimBLERemoteCharacteristic *chr, uint8_t *data,
                       size_t len, bool is_notify) {
     (void)chr;
     (void)is_notify;
+#ifdef BENCH_HID_PUBLIC
+    if (s_state.bench_override_active) {
+        return;
+    }
+#endif
     parse_hid_report(data, (uint16_t)len);
 }
 
@@ -407,6 +419,9 @@ class GamepadClientCallbacks : public NimBLEClientCallbacks {
     void onDisconnect(NimBLEClient *client) override {
         (void)client;
         ESP_LOGW(TAG, "Controller disconnected");
+#ifdef BENCH_HID_PUBLIC
+        s_state.bench_override_active = false;
+#endif
         s_state.connected = false;
         s_state.client = nullptr;
         // Zero-fill the controller state under the spinlock so a racing
@@ -506,6 +521,9 @@ static bool connect_to_target(void) {
 
     s_state.client = client;
     s_state.connected = true;
+#ifdef BENCH_HID_PUBLIC
+    s_state.bench_override_active = false;
+#endif
     address_to_mac(s_state.target.getAddress(), &s_state.connected_mac);
     if (!ble_mac_is_whitelisted(&s_state.connected_mac)) {
         ble_gamepad_add_paired_mac(&s_state.connected_mac);

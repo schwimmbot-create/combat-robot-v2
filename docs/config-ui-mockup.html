@@ -242,7 +242,8 @@
     <div class="card">
       <h2>Motor &amp; Servo Outputs</h2>
       <p class="meta">For drive motors, choose one signed stick axis as the <strong>Drive input</strong>: above center drives forward, below center drives reverse, center is stop. Use <strong>Direction</strong> only if the motor spins the wrong way. Optional reverse-only input is for trigger/button-style controls.</p>
-      <p class="meta"><strong>Drive mode is live:</strong> choose Tank or Arcade below, then Save. The individual output cards are still setup/diagnostic metadata for direction, labels, and future per-output routing.</p>
+      <p class="meta"><strong>Drive mode is live:</strong> choose Tank or Arcade below, then Save. The individual output cards are still setup/diagnostic metadata for direction and labels.</p>
+      <p class="meta"><strong>M1/M2 are drive motors only.</strong> Configure weapon-like, servo, digital, input, or PWM accessory roles on S1/S2; there is no dedicated Weapon output.</p>
       <div id="outputs"></div>
     </div>
   </section>
@@ -280,6 +281,27 @@
       <p class="meta" style="margin:8px 0;">Default is 3S at 33%, matching the old ~3.60 V/cell cutoff. Range: 1–8 cells, 0–80%.</p>
       <button id="btn-battery-save" class="oled" style="margin-top:4px;">Save Battery Settings</button>
       <span id="battery-save-status" class="meta" style="margin-left:8px;"></span>
+    </div>
+
+    <div class="card">
+      <h2>Power Behavior</h2>
+      <p class="meta">Choose what each named channel does in GOOD, WARN, and LOW battery states. Defaults are inherited from the channel purpose; per-channel overrides win. Safety stop and system/config remain locked always active.</p>
+      <div id="power-behavior"></div>
+    </div>
+
+    <div class="card">
+      <h2>Configuration Backup</h2>
+      <p class="meta">Download this board's HTML-form configuration as a portable JSON file, then upload it on another flashed board to reproduce the same output mappings, power behavior, battery settings, and pairing cap.</p>
+      <div class="grid-2" style="margin-top:10px;">
+        <button id="btn-config-download" class="ghost">Download Configuration</button>
+        <label class="field">Upload configuration JSON
+          <input id="config-upload-file" type="file" accept="application/json,.json"
+                 style="background: var(--card-2); padding: 10px; border-radius: 8px; border: 1px solid var(--border); width: 100%; color: var(--fg); margin-top:4px;">
+        </label>
+      </div>
+      <button id="btn-config-upload" class="oled" style="margin-top:8px;">Upload &amp; Apply Configuration</button>
+      <span id="config-backup-status" class="meta" style="margin-left:8px;"></span>
+      <p class="hint">This does not flash firmware or copy WiFi credentials. Use Firmware Update separately if the target board is not already running compatible firmware.</p>
     </div>
 
     <div class="card">
@@ -434,11 +456,10 @@ const state = {
   drive_mode: 'tank_split',
   max_paired: 1,
   outputs: {
-    M1:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE' },
-    M2:     { direction: 'normal',  servo_mode: 'bi',  deadzone: 10, primary: 'RY', secondary: 'NONE' },
-    Weapon: { direction: 'normal',  servo_mode: 'bi',  deadzone:  5, primary: 'RT', secondary: 'NONE' },
-    S1:     { direction: 'normal',  servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },
-    S2:     { direction: 'normal',  servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },
+    M1:     { display_name: 'Motor 1', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'LY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    M2:     { display_name: 'Motor 2', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'RY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    S1:     { display_name: 'Servo 1', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    S2:     { display_name: 'Servo 2', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
   },
   gp: null,
   mockDrive: null,
@@ -451,6 +472,40 @@ const state = {
 };
 
 // ---- DOM helpers --------------------------------------------------------
+const PURPOSE_OPTIONS = [
+  ['drive', 'Drive motor'],
+  ['servo', 'Servo'],
+  ['esc', 'ESC / motor controller'],
+  ['weapon_esc', 'Weapon ESC'],
+  ['digital_output', 'Digital output'],
+  ['digital_input', 'Digital input — configured only'],
+  ['pwm_accessory', 'PWM accessory'],
+  ['disabled', 'Disabled / unused'],
+];
+const PROTOCOL_OPTIONS = [
+  ['none', 'None'],
+  ['rc_servo_pwm', 'RC Servo PWM 50 Hz'],
+  ['rc_esc_pwm', 'RC ESC PWM 50 Hz'],
+  ['oneshot125', 'OneShot125'],
+  ['oneshot42', 'OneShot42 — not working yet', true],
+  ['multishot', 'MultiShot — not working yet', true],
+  ['gpio', 'GPIO'],
+  ['pwm_duty', 'Generic PWM duty'],
+];
+const POWER_OPTIONS = [
+  ['default', 'Inherit'],
+  ['allow', 'Allow'],
+  ['disable', 'Disable'],
+  ['reduce', 'Reduce'],
+];
+function outputDisplayName(id) {
+  const cfg = state.outputs[id] || {};
+  const profile = activeBoardProfile();
+  const board = (profile.outputs || []).find(o => o.id === id) || { display_name: id };
+  const name = cfg.display_name || board.display_name || id;
+  return name === id ? id : `${name} (${id})`;
+}
+
 function el(tag, attrs = {}, children = []) {
   const e = document.createElement(tag);
   for (const k in attrs) {
@@ -485,7 +540,7 @@ function assignedSourceOwners(exceptOutputId) {
     if (out.runtimeControlled || out.id === exceptOutputId) continue;
     const cfg = state.outputs[out.id] || {};
     for (const src of [cfg.primary, cfg.secondary]) {
-      if (src && src !== 'NONE') owners.set(src, out.display_name);
+      if (src && src !== 'NONE') owners.set(src, outputDisplayName(out.id));
     }
   }
   return owners;
@@ -694,12 +749,131 @@ function motorMappingSummary(cfg) {
     if (reversed) {
       return `Reversed: ${drive} is assigned, but this motor output is flipped — above center sends reverse output, below center sends forward output.`;
     }
-    return `Normal: ${drive} above center = forward, below center = reverse, center = stop. If the physical motor spins the wrong way, choose Reversed.`;
-  }
-  if (reverse) {
-    return `${dir}: ${drive} drives forward/on; ${reverse} drives reverse/off.${reversed ? ' Output is flipped.' : ''}`;
+    return `${dir}: ${drive} above center sends forward output; below center sends reverse output.`;
   }
   return `${dir}: ${drive} drives forward/on. Add a reverse-only input if needed.${reversed ? ' Output is flipped.' : ''}`;
+}
+
+const TRIGGER_THRESHOLD_PRESETS = [
+  ['trigger_light', 'Light press (~25%)', 25],
+  ['trigger_half',  'Half press (~50%)',  50],
+  ['trigger_firm',  'Firm press (~75%)',  75],
+  ['custom',        'Custom…',           null],
+];
+const STICK_THRESHOLD_PRESETS = [
+  ['stick_above',        'Above center (~40%)',         'analog_above', 40],
+  ['stick_strong_above', 'Strong above center (~75%)',  'analog_above', 75],
+  ['stick_below',        'Below center (~40%)',         'analog_below', 40],
+  ['stick_strong_below', 'Strong below center (~75%)',  'analog_below', 75],
+  ['custom',             'Custom…',                     null, null],
+];
+function isTriggerSource(src) { return src === 'LT' || src === 'RT'; }
+function isStickSource(src) { return ['LX','LY','RX','RY'].includes(src); }
+function isButtonLikeSource(src) { return src && src !== 'NONE' && !isTriggerSource(src) && !isStickSource(src); }
+function triggerThresholdsFromPct(pct) {
+  const on = Math.round(Math.max(0, Math.min(100, pct)) * 1023 / 100);
+  return { on, off: Math.max(0, on - 64) };
+}
+function stickThresholdsFromPct(pct, mode) {
+  const mag = Math.round(Math.max(0, Math.min(100, pct)) * 512 / 100);
+  const hyst = 64;
+  if (mode === 'analog_below') return { on: -mag, off: Math.min(0, -mag + hyst) };
+  return { on: mag, off: Math.max(0, mag - hyst) };
+}
+function ensureDigitalDefaults(cfg) {
+  if (cfg.active_high === undefined) cfg.active_high = cfg.gpio?.active_high ?? true;
+  if (cfg.default_state === undefined) cfg.default_state = cfg.gpio?.default_state ?? false;
+  if (!cfg.digital_mode) cfg.digital_mode = 'direct';
+  if (!cfg.digital_preset) cfg.digital_preset = 'direct';
+  if (cfg.digital_custom_pct === undefined) cfg.digital_custom_pct = 50;
+  if (cfg.digital_on_threshold === undefined) cfg.digital_on_threshold = 1;
+  if (cfg.digital_off_threshold === undefined) cfg.digital_off_threshold = 0;
+}
+function applyDigitalPreset(cfg) {
+  ensureDigitalDefaults(cfg);
+  const src = cfg.primary;
+  if (isButtonLikeSource(src)) {
+    cfg.digital_mode = 'direct';
+    cfg.digital_preset = 'direct';
+    cfg.digital_on_threshold = 1;
+    cfg.digital_off_threshold = 0;
+    return;
+  }
+  if (isTriggerSource(src)) {
+    if (!TRIGGER_THRESHOLD_PRESETS.some(p => p[0] === cfg.digital_preset)) cfg.digital_preset = 'trigger_half';
+    cfg.digital_mode = 'analog_above';
+    const pct = cfg.digital_preset === 'custom' ? cfg.digital_custom_pct : (TRIGGER_THRESHOLD_PRESETS.find(p => p[0] === cfg.digital_preset)?.[2] ?? 50);
+    const t = triggerThresholdsFromPct(pct);
+    cfg.digital_on_threshold = t.on;
+    cfg.digital_off_threshold = t.off;
+    return;
+  }
+  if (isStickSource(src)) {
+    if (!STICK_THRESHOLD_PRESETS.some(p => p[0] === cfg.digital_preset)) cfg.digital_preset = 'stick_above';
+    const preset = STICK_THRESHOLD_PRESETS.find(p => p[0] === cfg.digital_preset);
+    if (cfg.digital_preset !== 'custom') cfg.digital_mode = preset?.[2] || 'analog_above';
+    if (!['analog_above','analog_below'].includes(cfg.digital_mode)) cfg.digital_mode = 'analog_above';
+    const pct = cfg.digital_preset === 'custom' ? cfg.digital_custom_pct : (preset?.[3] ?? 40);
+    const t = stickThresholdsFromPct(pct, cfg.digital_mode);
+    cfg.digital_on_threshold = t.on;
+    cfg.digital_off_threshold = t.off;
+    return;
+  }
+  cfg.digital_mode = 'direct';
+  cfg.digital_preset = 'direct';
+}
+function renderDigitalOutputControls(o, cfg) {
+  ensureDigitalDefaults(cfg);
+  applyDigitalPreset(cfg);
+  const wrap = el('div', { class: 'summary', style: 'margin-top:10px' });
+  const activeSel = el('select', {}, [
+    el('option', { value: 'true' }, 'Active high: ON = HIGH'),
+    el('option', { value: 'false' }, 'Active low / inverted: ON = LOW'),
+  ]);
+  activeSel.value = String(!!cfg.active_high);
+  activeSel.addEventListener('change', e => { cfg.active_high = e.target.value === 'true'; });
+  const safeSel = el('select', {}, [
+    el('option', { value: 'false' }, 'Off'),
+    el('option', { value: 'true' }, 'On'),
+  ]);
+  safeSel.value = String(!!cfg.default_state);
+  safeSel.addEventListener('change', e => { cfg.default_state = e.target.value === 'true'; });
+  const rows = [
+    el('div', {}, [el('label', { class: 'field' }, 'Polarity'), activeSel]),
+    el('div', {}, [el('label', { class: 'field' }, 'Default / safe state'), safeSel, el('p', { class: 'hint' }, 'Used when disconnected, source is unassigned, or battery policy disables this output.')]),
+  ];
+  const src = cfg.primary;
+  if (isTriggerSource(src) || isStickSource(src)) {
+    const options = isTriggerSource(src) ? TRIGGER_THRESHOLD_PRESETS : STICK_THRESHOLD_PRESETS;
+    const presetSel = el('select', {}, options.map(([value, label]) => el('option', { value }, label)));
+    if (!options.some(p => p[0] === cfg.digital_preset)) cfg.digital_preset = options[0][0];
+    presetSel.value = cfg.digital_preset;
+    presetSel.addEventListener('change', e => { cfg.digital_preset = e.target.value; applyDigitalPreset(cfg); renderOutputs(); });
+    rows.push(el('div', {}, [el('label', { class: 'field' }, 'Turn-on threshold'), presetSel]));
+    if (isStickSource(src) && cfg.digital_preset === 'custom') {
+      const modeSel = el('select', {}, [
+        el('option', { value: 'analog_above' }, 'Above center'),
+        el('option', { value: 'analog_below' }, 'Below center'),
+      ]);
+      modeSel.value = cfg.digital_mode || 'analog_above';
+      modeSel.addEventListener('change', e => { cfg.digital_mode = e.target.value; applyDigitalPreset(cfg); renderOutputs(); });
+      rows.push(el('div', {}, [el('label', { class: 'field' }, 'Custom direction'), modeSel]));
+    }
+    if (cfg.digital_preset === 'custom') {
+      const pct = el('input', { type: 'number', min: '0', max: '100', step: '1', value: String(cfg.digital_custom_pct ?? 50) });
+      pct.addEventListener('change', e => {
+        cfg.digital_custom_pct = Math.max(0, Math.min(100, parseInt(e.target.value || '0', 10)));
+        applyDigitalPreset(cfg);
+        renderOutputs();
+      });
+      rows.push(el('div', {}, [el('label', { class: 'field' }, 'Custom threshold (%)'), pct]));
+    }
+    rows.push(el('p', { class: 'hint' }, `Runtime thresholds: ON ${cfg.digital_on_threshold}, OFF ${cfg.digital_off_threshold} (hysteresis prevents flicker).`));
+  } else {
+    rows.push(el('p', { class: 'hint' }, src && src !== 'NONE' ? 'Button/D-pad sources are direct: pressed = ON, released = OFF.' : 'Choose a source to drive this digital output.'));
+  }
+  wrap.appendChild(el('div', { class: 'grid-2' }, rows));
+  return wrap;
 }
 
 function renderRuntimeDriveAssignment(o) {
@@ -723,15 +897,141 @@ function renderRuntimeDriveAssignment(o) {
   ]);
 }
 
+
+function ensureRoleDefaults(cfg) {
+  if (!cfg.pulse) cfg.pulse = {
+    min_us: cfg.min_pulse_us ?? (cfg.purpose === 'weapon_esc' ? 125 : 1000),
+    center_us: cfg.center_pulse_us ?? (cfg.purpose === 'weapon_esc' ? 188 : 1500),
+    max_us: cfg.max_pulse_us ?? (cfg.purpose === 'weapon_esc' ? 250 : 2000),
+    frame_hz: cfg.frame_hz ?? (cfg.purpose === 'weapon_esc' ? 2000 : 50),
+    neutral_deadzone: cfg.neutral_deadzone ?? 5,
+  };
+  if (!cfg.safety) cfg.safety = {
+    weapon: !!cfg.weapon_safety || cfg.purpose === 'weapon_esc',
+    failsafe: cfg.failsafe || 'safe_state',
+    weapon_mode: cfg.weapon_mode || 'arming_and_deadman',
+    arming_source: cfg.arming_source || 'NONE',
+    deadman_source: cfg.deadman_source || 'NONE',
+  };
+  if (!cfg.pwm) cfg.pwm = {
+    frequency_hz: cfg.pwm_frequency_hz ?? 1000,
+    duty_pct: cfg.pwm_duty_pct ?? 50,
+  };
+  if (cfg.purpose === 'weapon_esc') {
+    cfg.safety.weapon = true;
+    if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
+    if (!cfg.power.LOW || cfg.power.LOW === 'default') cfg.power.LOW = 'disable';
+  }
+}
+
+function numberInput(value, min, max, step, onChange) {
+  const input = el('input', { type: 'number', min: String(min), max: String(max), step: String(step), value: String(value ?? min) });
+  input.addEventListener('change', e => {
+    const raw = Number(e.target.value);
+    const v = Math.max(min, Math.min(max, Number.isFinite(raw) ? raw : min));
+    e.target.value = String(v);
+    onChange(v);
+  });
+  return input;
+}
+
+function renderPulseControls(o, cfg) {
+  ensureRoleDefaults(cfg);
+  const box = el('div', { class: 'summary', style: 'margin-top:10px' }, [
+    el('strong', {}, 'Pulse calibration'),
+    el('p', { class: 'hint' }, 'Validate min < center < max. OneShot125 weapon preset defaults to 125/188/250 µs at 2000 Hz.'),
+  ]);
+  const grid = el('div', { class: 'grid-2', style: 'margin-top:8px' });
+  const fields = [
+    ['Min pulse (µs)', 'min_us', 0, 3000, 1],
+    ['Center pulse (µs)', 'center_us', 0, 3000, 1],
+    ['Max pulse (µs)', 'max_us', 0, 3000, 1],
+    ['Frame rate (Hz)', 'frame_hz', 0, 2000, 1],
+    ['Neutral deadzone (%)', 'neutral_deadzone', 0, 50, 1],
+  ];
+  for (const [label, key, min, max, step] of fields) {
+    grid.appendChild(el('div', {}, [
+      el('label', { class: 'field' }, label),
+      numberInput(cfg.pulse[key], min, max, step, v => { cfg.pulse[key] = v; }),
+    ]));
+  }
+  box.appendChild(grid);
+  return box;
+}
+
+function renderWeaponRoleControls(o, cfg) {
+  ensureRoleDefaults(cfg);
+  const modeSel = el('select', { 'data-name': 'weapon_mode' });
+  for (const [value, label] of [
+    ['arming_and_deadman', 'Arm + deadman'],
+    ['deadman_only', 'Deadman only'],
+    ['bench_override', 'Bench override'],
+  ]) {
+    const opt = el('option', { value }, label);
+    if (cfg.safety.weapon_mode === value) opt.selected = true;
+    modeSel.appendChild(opt);
+  }
+  modeSel.addEventListener('change', e => { cfg.safety.weapon_mode = e.target.value; });
+  const arm = sourceSelect('arming_source', cfg.safety.arming_source, o.id);
+  arm.addEventListener('change', e => { cfg.safety.arming_source = e.target.value; });
+  const deadman = sourceSelect('deadman_source', cfg.safety.deadman_source, o.id);
+  deadman.addEventListener('change', e => { cfg.safety.deadman_source = e.target.value; });
+  const safety = el('input', { type: 'checkbox' });
+  safety.checked = !!cfg.safety.weapon;
+  safety.addEventListener('change', e => { cfg.safety.weapon = !!e.target.checked; });
+  const ramp = numberInput(cfg.ramp_ms ?? 0, 0, 5000, 10, v => { cfg.ramp_ms = v; });
+  return el('div', { class: 'summary', style: 'margin-top:10px; border-color: rgba(245,158,11,.45)' }, [
+    el('strong', {}, `⚠ Weapon role on ${o.id}`),
+    el('p', { class: 'hint' }, 'Weapon is a role on S1/S2. There is no dedicated Weapon output.'),
+    el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
+      el('div', {}, [el('label', { class: 'field' }, 'Weapon mode'), modeSel]),
+      el('div', {}, [el('label', { class: 'field' }, 'Ramp / soft-start (ms)'), ramp]),
+      el('div', {}, [el('label', { class: 'field' }, 'Arming source'), arm]),
+      el('div', {}, [el('label', { class: 'field' }, 'Deadman source'), deadman]),
+      el('label', { class: 'toggle' }, [safety, el('span', {}, 'Safety-critical weapon role')]),
+      el('p', { class: 'hint' }, 'LOW battery defaults to Disable for weapon_esc. Hold-last failsafe is rejected for weapon roles.'),
+    ]),
+  ]);
+}
+
+function renderPwmAccessoryControls(o, cfg) {
+  ensureRoleDefaults(cfg);
+  return el('div', { class: 'summary', style: 'margin-top:10px' }, [
+    el('strong', {}, 'PWM accessory'),
+    el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
+      el('div', {}, [el('label', { class: 'field' }, 'Frequency (Hz)'), numberInput(cfg.pwm.frequency_hz, 0, 20000, 1, v => { cfg.pwm.frequency_hz = v; })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Duty (%)'), numberInput(cfg.pwm.duty_pct, 0, 100, 1, v => { cfg.pwm.duty_pct = v; })]),
+    ]),
+  ]);
+}
+
+function renderDigitalInputControls(o, cfg) {
+  ensureRoleDefaults(cfg);
+  return el('div', { class: 'summary', style: 'margin-top:10px' }, [
+    el('strong', {}, 'Digital input'),
+    el('p', { class: 'hint' }, 'Configured as GPIO input. Runtime live monitor is tracked separately; use active-high/polarity fields when wiring sensors.'),
+  ]);
+}
+
 function renderOutput(o) {
   // Defensive: if /api/config returned a key we don't have seeded
   // (or `Reset Outputs to Defaults` raced a save), seed minimal defaults
   // rather than throw on cfg.direction.
   if (!state.outputs[o.id]) state.outputs[o.id] = {
+    display_name: o.display_name || o.id,
     direction: 'normal', servo_mode: 'bi', deadzone: 10,
     primary: 'NONE', secondary: 'NONE',
+    purpose: o.runtimeControlled ? 'drive' : 'servo',
+    protocol: o.runtimeControlled ? 'none' : 'rc_servo_pwm',
+    semantics: o.runtimeControlled ? 'none' : 'position_servo',
+    active_high: true, default_state: false,
+    digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50,
+    power: { GOOD: 'default', WARN: 'default', LOW: 'default' },
   };
   const cfg = state.outputs[o.id];
+  ensureRoleDefaults(cfg);
+  if (!cfg.display_name) cfg.display_name = o.display_name || o.id;
+  if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
   const card = el('article', { class: 'output', 'data-out': o.id });
 
   const dirWrap = directionToggle(o.id, cfg.direction);
@@ -743,6 +1043,8 @@ function renderOutput(o) {
   });
 
   const isServo = o.kind === 'servo' || o.id === 'S1' || o.id === 'S2';
+  const isDigitalOutput = cfg.purpose === 'digital_output';
+  ensureDigitalDefaults(cfg);
   const servoSel = el('select', { 'data-name': 'servo_mode' },
     [ el('option', { value: 'bi'  }, 'Bidirectional'),
       el('option', { value: 'uni' }, 'Uni-directional') ]);
@@ -750,7 +1052,7 @@ function renderOutput(o) {
   servoSel.addEventListener('change', e => { state.outputs[o.id].servo_mode = e.target.value; });
 
   const primary = sourceSelect('primary', cfg.primary, o.id);
-  primary.addEventListener('change', e => { state.outputs[o.id].primary = e.target.value; renderOutputs(); });
+  primary.addEventListener('change', e => { state.outputs[o.id].primary = e.target.value; applyDigitalPreset(state.outputs[o.id]); renderOutputs(); });
   const secondary = sourceSelect('secondary', cfg.secondary, o.id);
   secondary.addEventListener('change', e => { state.outputs[o.id].secondary = e.target.value; renderOutputs(); });
 
@@ -760,11 +1062,79 @@ function renderOutput(o) {
     state.outputs[o.id].deadzone = v;
   });
 
+  const nameInput = el('input', { type: 'text', maxlength: '16', value: cfg.display_name });
+  nameInput.addEventListener('change', e => {
+    state.outputs[o.id].display_name = e.target.value.slice(0, 16) || o.id;
+    renderOutputs();
+  });
+
+  if ((o.id === 'M1' || o.id === 'M2') && cfg.purpose !== 'drive') {
+    cfg.purpose = 'drive'; cfg.protocol = 'none'; cfg.semantics = 'none';
+  }
+  const purposeSel = el('select', { 'data-name': 'purpose' });
+  const allowedPurposes = (o.id === 'M1' || o.id === 'M2') ? [['drive', 'Drive motor']] : PURPOSE_OPTIONS;
+  for (const [value, label] of allowedPurposes) {
+    const opt = el('option', { value }, label);
+    if (value === cfg.purpose) opt.selected = true;
+    purposeSel.appendChild(opt);
+  }
+  purposeSel.addEventListener('change', e => {
+    const v = (o.id === 'M1' || o.id === 'M2') ? 'drive' : e.target.value;
+    state.outputs[o.id].purpose = v;
+    if (v === 'servo') { state.outputs[o.id].protocol = 'rc_servo_pwm'; state.outputs[o.id].semantics = 'position_servo'; }
+    else if (v === 'weapon_esc') { state.outputs[o.id].protocol = 'oneshot125'; state.outputs[o.id].semantics = 'esc_bidirectional'; state.outputs[o.id].power.LOW = 'disable'; }
+    else if (v === 'esc') { state.outputs[o.id].protocol = 'rc_esc_pwm'; state.outputs[o.id].semantics = 'esc_forward_only'; }
+    else if (v === 'digital_input' || v === 'digital_output') { state.outputs[o.id].protocol = 'gpio'; state.outputs[o.id].semantics = v; }
+    else if (v === 'pwm_accessory') { state.outputs[o.id].protocol = 'pwm_duty'; state.outputs[o.id].semantics = 'pwm_accessory'; }
+    else if (v === 'disabled') { state.outputs[o.id].protocol = 'none'; state.outputs[o.id].semantics = 'none'; }
+    renderOutputs();
+  });
+
+  const protocolSel = el('select', { 'data-name': 'protocol' });
+  const validProtocol = (p) => {
+    if (cfg.purpose === 'drive' || cfg.purpose === 'disabled') return p === 'none';
+    if (cfg.purpose === 'servo') return p === 'rc_servo_pwm';
+    if (cfg.purpose === 'esc' || cfg.purpose === 'weapon_esc') return ['rc_esc_pwm','oneshot125','oneshot42','multishot'].includes(p);
+    if (cfg.purpose === 'digital_input' || cfg.purpose === 'digital_output') return p === 'gpio';
+    if (cfg.purpose === 'pwm_accessory') return p === 'pwm_duty';
+    return false;
+  };
+  for (const [value, label, disabled] of PROTOCOL_OPTIONS) {
+    if (!validProtocol(value)) continue;
+    const opt = el('option', { value }, label);
+    if (value === cfg.protocol) opt.selected = true;
+    if (disabled) opt.disabled = true;
+    protocolSel.appendChild(opt);
+  }
+  protocolSel.addEventListener('change', e => { state.outputs[o.id].protocol = e.target.value; });
+
   card.appendChild(el('header', {}, [
-    el('h3', {}, o.display_name),
+    el('h3', {}, outputDisplayName(o.id)),
     el('span', { class: 'id' }, o.id),
   ]));
   if (o.detail) card.appendChild(el('p', { class: 'hint' }, o.detail));
+  card.appendChild(el('div', { class: 'grid-2' }, [
+    el('div', {}, [
+      el('label', { class: 'field' }, 'Channel name'),
+      nameInput,
+      el('p', { class: 'hint' }, 'Used throughout the UI, including the power selector table.'),
+    ]),
+    el('div', {}, [
+      el('label', { class: 'field' }, 'Purpose'),
+      purposeSel,
+    ]),
+  ]));
+  card.appendChild(el('div', { class: 'grid-2', style: 'margin-top:10px' }, [
+    el('div', {}, [
+      el('label', { class: 'field' }, 'Protocol'),
+      protocolSel,
+      (cfg.protocol === 'oneshot42' || cfg.protocol === 'multishot') ? el('p', { class: 'hint' }, 'This protocol is listed for planning but is not working yet.') : null,
+    ]),
+    el('div', {}, [
+      el('label', { class: 'field' }, 'Semantics'),
+      el('p', { class: 'summary' }, cfg.semantics || 'none'),
+    ]),
+  ]));
   if (o.runtimeControlled) {
     card.appendChild(renderRuntimeDriveAssignment(o));
     return card;
@@ -777,7 +1147,10 @@ function renderOutput(o) {
   ]));
 
   const second = el('div');
-  if (isServo) {
+  if (isDigitalOutput) {
+    second.appendChild(el('label', { class: 'field' }, 'Output mode'));
+    second.appendChild(el('p', { class: 'summary' }, 'GPIO digital output'));
+  } else if (isServo) {
     second.appendChild(el('label', { class: 'field' }, 'Servo mode'));
     second.appendChild(servoSel);
   } else {
@@ -790,12 +1163,17 @@ function renderOutput(o) {
 
   const grid2 = el('div', { class: 'grid-2', style: 'margin-top:10px' });
   grid2.appendChild(el('div', {}, [
-    el('label', { class: 'field' }, isServo ? 'Primary input' : 'Drive input (center = stop)'),
+    el('label', { class: 'field' }, isDigitalOutput ? 'Control source' : (isServo ? 'Primary input' : 'Drive input (center = stop)')),
     primary,
     !isServo ? el('p', { class: 'hint' }, 'Example: Left Stick Y above center = forward, below center = reverse.') : null,
   ]));
 
-  if (isServo) {
+  if (isDigitalOutput) {
+    grid2.appendChild(el('div', {}, [
+      el('label', { class: 'field' }, 'Source behavior'),
+      el('p', { class: 'summary' }, isButtonLikeSource(cfg.primary) ? 'Direct button/D-pad control' : (isTriggerSource(cfg.primary) ? 'Trigger threshold' : (isStickSource(cfg.primary) ? 'Stick threshold' : 'Unassigned'))),
+    ]));
+  } else if (isServo) {
     grid2.appendChild(el('div', {}, [
       el('label', { class: 'field' }, 'Secondary input'),
       secondary,
@@ -807,6 +1185,21 @@ function renderOutput(o) {
     ]));
   }
   card.appendChild(grid2);
+  if (isDigitalOutput) {
+    card.appendChild(renderDigitalOutputControls(o, cfg));
+  }
+  if (cfg.purpose === 'digital_input') {
+    card.appendChild(renderDigitalInputControls(o, cfg));
+  }
+  if (cfg.purpose === 'servo' || cfg.purpose === 'esc' || cfg.purpose === 'weapon_esc') {
+    card.appendChild(renderPulseControls(o, cfg));
+  }
+  if (cfg.purpose === 'weapon_esc') {
+    card.appendChild(renderWeaponRoleControls(o, cfg));
+  }
+  if (cfg.purpose === 'pwm_accessory') {
+    card.appendChild(renderPwmAccessoryControls(o, cfg));
+  }
   if (!isServo) {
     card.appendChild(el('div', { class: 'summary' }, [
       el('strong', {}, 'Mapping: '),
@@ -846,6 +1239,48 @@ function renderOutputs() {
   root.appendChild(renderDriveModeCard());
   for (const o of profile.outputs) root.appendChild(renderOutput(o));
   for (const io of profile.io) root.appendChild(renderBoardIoCard(io));
+  renderPowerBehavior();
+}
+
+function powerSelect(outputId, stateName) {
+  const cfg = state.outputs[outputId];
+  if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
+  const sel = el('select', { 'data-power': `${outputId}-${stateName}` });
+  for (const [value, label] of POWER_OPTIONS) {
+    const opt = el('option', { value }, label);
+    if ((cfg.power[stateName] || 'default') === value) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener('change', e => { cfg.power[stateName] = e.target.value; });
+  return sel;
+}
+
+function renderPowerBehavior() {
+  const root = document.getElementById('power-behavior');
+  if (!root) return;
+  root.innerHTML = '';
+  const table = el('table', { class: 'power-table' });
+  table.appendChild(el('thead', {}, el('tr', {}, [
+    el('th', {}, 'Channel'), el('th', {}, 'Purpose'), el('th', {}, 'GOOD'), el('th', {}, 'WARN'), el('th', {}, 'LOW'),
+  ])));
+  const body = el('tbody');
+  for (const id of ['M1','M2','S1','S2']) {
+    const cfg = state.outputs[id];
+    if (!cfg) continue;
+    body.appendChild(el('tr', {}, [
+      el('td', {}, outputDisplayName(id)),
+      el('td', {}, cfg.purpose || '—'),
+      el('td', {}, powerSelect(id, 'GOOD')),
+      el('td', {}, powerSelect(id, 'WARN')),
+      el('td', {}, powerSelect(id, 'LOW')),
+    ]));
+  }
+  body.appendChild(el('tr', {}, [
+    el('td', {}, 'Safety Stop / System'), el('td', {}, 'locked'), el('td', {}, 'Always'), el('td', {}, 'Always'), el('td', {}, 'Always'),
+  ]));
+  table.appendChild(body);
+  root.appendChild(table);
+  root.appendChild(el('p', { class: 'hint' }, 'Example: set Motor 1 (M1) LOW = Allow while Servo 1 (S1) LOW = Disable. If S1 or S2 is configured as Weapon ESC, LOW defaults should be Disable.'));
 }
 
 // ---- Live controller visualization -------------------------------------
@@ -967,13 +1402,43 @@ async function apiPostJSON(path, body) {
 function editableOutputPatch(outputs) {
   const patch = { drive_mode: state.drive_mode };
   for (const [id, cfg] of Object.entries(outputs)) {
+    ensureDigitalDefaults(cfg);
+    if (cfg.purpose === 'digital_output') applyDigitalPreset(cfg);
     patch[id] = {
+      display_name: cfg.display_name,
       direction: cfg.direction,
       servo_mode: cfg.servo_mode,
       deadzone: cfg.deadzone,
       primary: cfg.primary,
       secondary: cfg.secondary,
+      purpose: cfg.purpose,
+      protocol: cfg.protocol,
+      semantics: cfg.semantics,
+      active_high: !!cfg.active_high,
+      default_state: !!cfg.default_state,
+      digital_mode: cfg.digital_mode,
+      digital_preset: cfg.digital_preset,
+      digital_on_threshold: cfg.digital_on_threshold,
+      digital_off_threshold: cfg.digital_off_threshold,
+      digital_custom_pct: cfg.digital_custom_pct,
+      min_pulse_us: cfg.pulse?.min_us,
+      center_pulse_us: cfg.pulse?.center_us,
+      max_pulse_us: cfg.pulse?.max_us,
+      frame_hz: cfg.pulse?.frame_hz,
+      neutral_deadzone: cfg.pulse?.neutral_deadzone,
+      weapon_safety: !!cfg.safety?.weapon,
+      failsafe: cfg.safety?.failsafe,
+      weapon_mode: cfg.safety?.weapon_mode,
+      arming_source: cfg.safety?.arming_source,
+      deadman_source: cfg.safety?.deadman_source,
+      ramp_ms: cfg.ramp_ms,
+      pwm_frequency_hz: cfg.pwm?.frequency_hz,
+      pwm_duty_pct: cfg.pwm?.duty_pct,
+      power_good: cfg.power?.GOOD || 'default',
+      power_warn: cfg.power?.WARN || 'default',
+      power_low: cfg.power?.LOW || 'default',
     };
+    for (const k of Object.keys(patch[id])) if (patch[id][k] === undefined) delete patch[id][k];
   }
   return patch;
 }
@@ -985,15 +1450,132 @@ document.getElementById('btn-save').addEventListener('click', async () => {
   } catch (e) { toast('Save failed: ' + e.message, 'err'); }
 });
 
+function configBackupPayload() {
+  return {
+    schema: 'combat-robot-controller-v2.config.v1',
+    exported_at: new Date().toISOString(),
+    source: {
+      url: location.href,
+      board_rev: state.board?.rev || null,
+      firmware_version: document.getElementById('fw-version')?.textContent || null,
+    },
+    outputs_patch: editableOutputPatch(state.outputs),
+    battery: {
+      cell_count: state.battery.cell_count,
+      cutoff_percent: state.battery.cutoff_percent,
+    },
+    max_paired: state.max_paired,
+  };
+}
+
+function downloadTextFile(filename, text, mime='application/json') {
+  const blob = new Blob([text], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function configBackupFilename() {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-').replace('T', '_').replace('Z', 'Z');
+  const board = String(state.board?.rev || 'board').replace(/[^a-z0-9_-]+/gi, '-');
+  return `combat-robot-${board}-config-${stamp}.json`;
+}
+
+function patchFromUploadedConfig(data) {
+  if (!data || typeof data !== 'object') throw new Error('file is not a JSON object');
+  if (data.outputs_patch && typeof data.outputs_patch === 'object') {
+    if (data.outputs_patch.Weapon !== undefined) throw new Error('obsolete Weapon output is not supported; configure weapon as S1/S2 role');
+    return data.outputs_patch;
+  }
+  if (data.outputs && typeof data.outputs === 'object') {
+    if (data.outputs.Weapon !== undefined) throw new Error('obsolete Weapon output is not supported; configure weapon as S1/S2 role');
+    const patch = {};
+    if (DRIVE_MODES.some(m => m.id === data.drive_mode)) patch.drive_mode = data.drive_mode;
+    for (const id of ['M1','M2','S1','S2']) {
+      if (data.outputs[id] && typeof data.outputs[id] === 'object') patch[id] = data.outputs[id];
+    }
+    if (Object.keys(patch).length > 0) return patch;
+  }
+  if (data.Weapon !== undefined) throw new Error('obsolete Weapon output is not supported; configure weapon as S1/S2 role');
+  if (['M1','M2','S1','S2','drive_mode'].some(k => data[k] !== undefined)) return data;
+  throw new Error('no output configuration found');
+}
+
+function applyUploadedPatchToForm(patch) {
+  if (DRIVE_MODES.some(m => m.id === patch.drive_mode)) state.drive_mode = patch.drive_mode;
+  for (const id of ['M1','M2','S1','S2']) {
+    if (patch[id] && typeof patch[id] === 'object' && state.outputs[id]) state.outputs[id] = patch[id];
+  }
+  renderOutputs();
+}
+
+async function applyUploadedConfig(data) {
+  const patch = patchFromUploadedConfig(data);
+  await apiPostJSON('/api/config', patch);
+  applyUploadedPatchToForm(patch);
+
+  if (data.battery && typeof data.battery === 'object') {
+    const cells = Number(data.battery.cell_count);
+    const cutoff = Number(data.battery.cutoff_percent);
+    if (Number.isFinite(cells) && cells >= 1 && cells <= 8 &&
+        Number.isFinite(cutoff) && cutoff >= 0 && cutoff <= 80) {
+      await apiPostJSON('/api/config/battery', { cell_count: cells, cutoff_percent: cutoff });
+      state.battery.cell_count = cells;
+      state.battery.cutoff_percent = cutoff;
+      state.battery.cell_count_dirty = false;
+      state.battery.cutoff_percent_dirty = false;
+      const cellInput = document.getElementById('battery-cell-count');
+      const cutoffInput = document.getElementById('battery-cutoff-percent');
+      if (cellInput) cellInput.value = String(cells);
+      if (cutoffInput) cutoffInput.value = String(cutoff);
+    }
+  }
+
+  if (typeof data.max_paired === 'number' && data.max_paired >= 1 && data.max_paired <= 4) {
+    await apiPostJSON('/api/config/max_paired', { max_paired: data.max_paired });
+    state.max_paired = data.max_paired;
+    const inp = document.getElementById('max-paired-input');
+    if (inp) inp.value = String(data.max_paired);
+  }
+}
+
+document.getElementById('btn-config-download').addEventListener('click', () => {
+  const payload = configBackupPayload();
+  downloadTextFile(configBackupFilename(), JSON.stringify(payload, null, 2));
+  document.getElementById('config-backup-status').textContent = 'downloaded';
+  toast('Configuration downloaded');
+});
+
+document.getElementById('btn-config-upload').addEventListener('click', async () => {
+  const input = document.getElementById('config-upload-file');
+  const status = document.getElementById('config-backup-status');
+  const file = input?.files?.[0];
+  if (!file) { toast('Choose a JSON config file first', 'err'); return; }
+  try {
+    const data = JSON.parse(await file.text());
+    await applyUploadedConfig(data);
+    status.textContent = 'applied';
+    toast('Configuration uploaded and applied');
+    refreshStatus();
+  } catch (e) {
+    status.textContent = 'failed';
+    toast('Config upload failed: ' + e.message, 'err');
+  }
+});
+
 document.getElementById('btn-reset').addEventListener('click', () => {
   if (!confirm('Reset all outputs to defaults? (this just reverts the form — click Save to persist)')) return;
   state.drive_mode = 'tank_split';
   state.outputs = {
-    M1:     { direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE' },
-    M2:     { direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'RY', secondary: 'NONE' },
-    Weapon: { direction: 'normal', servo_mode: 'bi',  deadzone:  5, primary: 'RT', secondary: 'NONE' },
-    S1:     { direction: 'normal', servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },
-    S2:     { direction: 'normal', servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE' },
+    M1:     { display_name: 'Motor 1', direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    M2:     { display_name: 'Motor 2', direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'RY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    S1:     { display_name: 'Servo 1', direction: 'normal', servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    S2:     { display_name: 'Servo 2', direction: 'normal', servo_mode: 'uni', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
   };
   renderOutputs();
   toast('Defaults restored in form');

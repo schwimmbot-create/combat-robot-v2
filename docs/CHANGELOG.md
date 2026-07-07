@@ -6,9 +6,9 @@ Five shipped chunks in one commit because they form a single coherent
 feature ("remote-configurable combat robot controller").
 
 ### Chunk 1 — `output_config` component
-- `components/output_config/{include,src,library.json,CMakeLists.txt}`: 5 logical outputs (M1, M2, Weapon, S1, S2), 24 controller input sources (LX, LY, RX, RY, LT, RT, A..DPAD_RIGHT), per-output direction toggle + servo uni/bi + deadzone + primary/secondary source mapping. Persisted in NVS namespace `output_cfg`, blob key `cfg_v1`.
+- `components/output_config/{include,src,library.json,CMakeLists.txt}`: 4 current output channels (M1, M2, S1, S2); historical builds briefly modeled Weapon as a separate logical output, 24 controller input sources (LX, LY, RX, RY, LT, RT, A..DPAD_RIGHT), per-output direction toggle + servo uni/bi + deadzone + primary/secondary source mapping. Persisted in NVS namespace `output_cfg`, blob key `cfg_v1`.
 - Hand-rolled JSON writer/parser (~150 LOC each) so we don't pull ArduinoJson (~50 KB flash cost).
-- v1.3 default mapping preserved: M1/M2 ← LY, Weapon ← RT, S1/S2 unassigned.
+- Current default mapping: M1/M2 are drive motors (LY/RY); S1/S2 are aux channels unassigned/servo by default. Weapon-like behavior is configured as an S1/S2 role, not a dedicated channel.
 - `tests/integration/test_output_config.py`: 28 tests covering public API, schema, NVS keys, defaults, patch parser validation.
 
 ### Chunk 2 — embedded mobile web UI

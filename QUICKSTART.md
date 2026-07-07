@@ -1,7 +1,7 @@
 # Combat Robot v2 — cross-platform quickstart
 
 ESP32-C3 BLE combat-robot controller: NimBLE host for the 8BitDo controller,
-`myrobot` drive/drum/task pipeline, and a mobile web UI for REST/WebSocket
+`myrobot` drive/S1-S2-role task pipeline, and a mobile web UI for REST/WebSocket
 configuration.
 
 - **Upstream:** <https://github.com/schwimmbot-create/combat-robot-v2>

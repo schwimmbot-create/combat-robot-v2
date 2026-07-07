@@ -14,6 +14,8 @@
 #include <WiFi.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <string.h>
+#include <ctype.h>
 #include "esp_log.h"
 #include "esp_task_wdt.h"
 #include "esp_pm.h"
@@ -26,6 +28,7 @@
 
 #include "ble_gamepad.h"
 #include "web_config.h"
+#include "output_config.h"
 
 static const char *TAG = "Main";
 
@@ -145,6 +148,14 @@ extern "C" void main_notify_connected(bool connected) {
     portEXIT_CRITICAL(&g_led1_lock);
 }
 
+extern "C" bool main_get_digital_output_logical(int output_id) {
+    return taskManager.getDigitalOutputLogical((oc_output_id_t)output_id);
+}
+
+extern "C" bool main_get_digital_output_physical_high(int output_id) {
+    return taskManager.getDigitalOutputPhysicalHigh((oc_output_id_t)output_id);
+}
+
 // --- Connection state callback ----------------------------------------
 //
 // ble_gamepad fires on_ble_connection_change on every connect/disconnect.
@@ -154,6 +165,155 @@ extern "C" void main_notify_connected(bool connected) {
 // you need to add additional handlers here, extend
 // ble_gamepad_set_connection_callback to support a list, then register
 // each listener from its own TU.
+
+// --- Serial CLI -------------------------------------------------------
+//
+// Line-oriented control surface for bench/dev use when the web AP is not
+// reachable from the test host. Commands are intentionally tiny and stable:
+//   help | status | pair start | pair cancel | pair clear | disconnect
+//   bench status | bench enable | bench disable | bench hid <hex>
+
+static const char *pairing_state_name(PairingState state) {
+    switch (state) {
+        case PAIRING_STATE_IDLE:     return "IDLE";
+        case PAIRING_STATE_ACCEPT:   return "ACCEPT";
+        case PAIRING_STATE_DISABLED: return "DISABLED";
+        default:                     return "UNKNOWN";
+    }
+}
+
+static void print_mac(const ble_mac_t &mac) {
+    Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x",
+                  mac.addr[0], mac.addr[1], mac.addr[2],
+                  mac.addr[3], mac.addr[4], mac.addr[5]);
+}
+
+static void cli_print_help(void) {
+    Serial.println("CLI OK commands: help | status | pair start | pair cancel | pair clear | disconnect");
+    Serial.println("CLI OK bench: bench status | bench enable | bench disable | bench hid <hex>");
+    Serial.println("CLI OK hex accepts spaces, ':' or '-' separators; max 64 bytes");
+}
+
+static void cli_print_status(void) {
+    ble_mac_t connected_mac{};
+    bool connected = ble_gamepad_get_connected_mac(&connected_mac);
+    ControllerState cs = ble_gamepad_get_state();
+    Serial.printf("CLI STATUS pairing=%s connected=%d bench=%d max_paired=%u ",
+                  pairing_state_name(ble_gamepad_get_pairing_state()),
+                  connected ? 1 : 0,
+                  ble_gamepad_bench_is_enabled() ? 1 : 0,
+                  (unsigned)ble_gamepad_get_max_paired());
+    Serial.print("connected_mac=");
+    if (connected) print_mac(connected_mac); else Serial.print("none");
+    Serial.printf(" axes={ly:%d,ry:%d,lt:%d,rt:%d,buttons:%u,dpad:%u}",
+                  cs.leftStickY, cs.rightStickY, cs.leftTrigger,
+                  cs.rightTrigger, (unsigned)cs.buttons, (unsigned)cs.dpad);
+    Serial.printf(" outputs={S1:{logical:%d,physical_high:%d},S2:{logical:%d,physical_high:%d}}",
+                  taskManager.getDigitalOutputLogical(OC_OUT_S1) ? 1 : 0,
+                  taskManager.getDigitalOutputPhysicalHigh(OC_OUT_S1) ? 1 : 0,
+                  taskManager.getDigitalOutputLogical(OC_OUT_S2) ? 1 : 0,
+                  taskManager.getDigitalOutputPhysicalHigh(OC_OUT_S2) ? 1 : 0);
+    Serial.print(" paired=[");
+    ble_mac_t macs[BLE_MAX_PAIRED_CONTROLLERS];
+    uint8_t count = BLE_MAX_PAIRED_CONTROLLERS;
+    ble_gamepad_get_paired_macs(macs, &count);
+    for (uint8_t i = 0; i < count; i++) {
+        if (i) Serial.print(",");
+        print_mac(macs[i]);
+    }
+    Serial.println("]");
+}
+
+static int cli_hexval(char c) {
+    if (c >= '0' && c <= '9') return c - '0';
+    if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+    if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+    return -1;
+}
+
+static bool cli_parse_hex(const char *s, uint8_t *out, size_t out_cap, size_t *out_len) {
+    int hi = -1;
+    size_t n = 0;
+    for (; *s; s++) {
+        if (*s == ' ' || *s == '\t' || *s == ':' || *s == '-') continue;
+        int v = cli_hexval(*s);
+        if (v < 0) return false;
+        if (hi < 0) {
+            hi = v;
+        } else {
+            if (n >= out_cap) return false;
+            out[n++] = (uint8_t)((hi << 4) | v);
+            hi = -1;
+        }
+    }
+    if (hi >= 0 || n == 0) return false;
+    *out_len = n;
+    return true;
+}
+
+static void cli_execute(char *line) {
+    while (*line && isspace((unsigned char)*line)) line++;
+    size_t len = strlen(line);
+    while (len && isspace((unsigned char)line[len - 1])) line[--len] = '\0';
+    if (len == 0) return;
+
+    if (strcmp(line, "help") == 0 || strcmp(line, "?") == 0) {
+        cli_print_help();
+    } else if (strcmp(line, "status") == 0) {
+        cli_print_status();
+    } else if (strcmp(line, "pair start") == 0) {
+        esp_err_t err = ble_gamepad_set_pairing_state(PAIRING_STATE_ACCEPT);
+        Serial.printf("CLI %s pair start err=0x%x\r\n", err == ESP_OK ? "OK" : "ERR", (unsigned)err);
+    } else if (strcmp(line, "pair cancel") == 0) {
+        esp_err_t err = ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE);
+        Serial.printf("CLI %s pair cancel err=0x%x\r\n", err == ESP_OK ? "OK" : "ERR", (unsigned)err);
+    } else if (strcmp(line, "pair clear") == 0) {
+        esp_err_t err = ble_gamepad_clear_paired_macs();
+        Serial.printf("CLI %s pair clear err=0x%x\r\n", err == ESP_OK ? "OK" : "ERR", (unsigned)err);
+    } else if (strcmp(line, "disconnect") == 0) {
+        esp_err_t err = ble_gamepad_disconnect();
+        Serial.printf("CLI %s disconnect err=0x%x\r\n", err == ESP_OK ? "OK" : "ERR", (unsigned)err);
+    } else if (strcmp(line, "bench status") == 0) {
+        Serial.printf("CLI OK bench build=1 enabled=%d\r\n", ble_gamepad_bench_is_enabled() ? 1 : 0);
+    } else if (strcmp(line, "bench enable") == 0) {
+        esp_err_t err = ble_gamepad_bench_set_enabled(true);
+        Serial.printf("CLI %s bench enable err=0x%x\r\n", err == ESP_OK ? "OK" : "ERR", (unsigned)err);
+    } else if (strcmp(line, "bench disable") == 0) {
+        esp_err_t err = ble_gamepad_bench_set_enabled(false);
+        Serial.printf("CLI %s bench disable err=0x%x\r\n", err == ESP_OK ? "OK" : "ERR", (unsigned)err);
+    } else if (strncmp(line, "bench hid ", 10) == 0) {
+        uint8_t buf[64];
+        size_t n = 0;
+        if (!cli_parse_hex(line + 10, buf, sizeof(buf), &n)) {
+            Serial.println("CLI ERR bench hid bad_hex");
+            return;
+        }
+        esp_err_t err = ble_gamepad_bench_inject_hid_report(buf, (uint16_t)n);
+        Serial.printf("CLI %s bench hid len=%u err=0x%x\r\n", err == ESP_OK ? "OK" : "ERR", (unsigned)n, (unsigned)err);
+    } else {
+        Serial.printf("CLI ERR unknown command: %s\r\n", line);
+        cli_print_help();
+    }
+}
+
+static void cli_poll(void) {
+    static char line[160];
+    static size_t pos = 0;
+    while (Serial.available() > 0) {
+        char c = (char)Serial.read();
+        if (c == '\r') continue;
+        if (c == '\n') {
+            line[pos] = '\0';
+            cli_execute(line);
+            pos = 0;
+        } else if (pos + 1 < sizeof(line)) {
+            line[pos++] = c;
+        } else {
+            pos = 0;
+            Serial.println("CLI ERR line_too_long");
+        }
+    }
+}
 
 // --- Arduino lifecycle ------------------------------------------------
 
@@ -222,7 +382,7 @@ void setup() {
     // were moved into web_config's callback so we keep a single registration site.
     boot_trace("ble callback deferred to web_config_init");
 
-    // Initialize myrobot subsystems (motors, drum, LEDs, battery, etc.).
+    // Initialize myrobot subsystems (drive motors, S1/S2 aux roles, LEDs, battery, etc.).
     boot_trace("taskManager.begin begin");
     taskManager.begin();
     boot_trace("taskManager.begin ok");
@@ -291,6 +451,7 @@ void loop() {
     }
 
     handle_pairing_button();
+    cli_poll();
     ble_gamepad_poll();
 
     // Service the web_config (WiFi watchdog, future captive portal DNS).

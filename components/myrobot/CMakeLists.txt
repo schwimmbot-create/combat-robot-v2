@@ -3,7 +3,7 @@ include(CMakePrintHelpers)
 set(srcs
         "src/Drive.cpp"
         "src/DriveMotor.cpp"
-        "src/Drum.cpp"
+        "src/PulseOutput.cpp"
         "src/PowerFunctions.cpp"
         "src/TaskManager.cpp"
         "src/Buttons.cpp"

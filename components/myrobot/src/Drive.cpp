@@ -74,6 +74,10 @@ void Drive::setPwmResolution(int resolution){
  * @param orientation   Declare whether the robot is rightside up or upside down
  */
 void Drive::combined_direction(int joystick_x, int joystick_y, byte orientation){
+    combined_direction(joystick_x, joystick_y, orientation, true, true);
+}
+
+void Drive::combined_direction(int joystick_x, int joystick_y, byte orientation, bool left_enabled, bool right_enabled){
     int16_t x_input = joystick_x;
     int16_t y_input = joystick_y;
 
@@ -99,11 +103,19 @@ void Drive::combined_direction(int joystick_x, int joystick_y, byte orientation)
     int left_speed = constrain(abs(leftMotorSpeed), 0, maxPwmVal);
     int right_speed = constrain(abs(rightMotorSpeed), 0, maxPwmVal);
 
-    if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE, orientation);}
-    else{leftMotor.setSpeed(left_speed, FORWARD, orientation);}
+    if (left_enabled) {
+        if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE, orientation);}
+        else{leftMotor.setSpeed(left_speed, FORWARD, orientation);}
+    } else {
+        leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
+    }
 
-    if(rightMotorSpeed < 0){rightMotor.setSpeed(right_speed, REVERSE, orientation);}
-    else{rightMotor.setSpeed(right_speed, FORWARD, orientation);}
+    if (right_enabled) {
+        if(rightMotorSpeed < 0){rightMotor.setSpeed(right_speed, REVERSE, orientation);}
+        else{rightMotor.setSpeed(right_speed, FORWARD, orientation);}
+    } else {
+        rightMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
+    }
 }
 
 
@@ -115,6 +127,10 @@ void Drive::combined_direction(int joystick_x, int joystick_y, byte orientation)
  * @param orientation            Declare whether the robot is rightside up or upside down
  */
 void Drive::two_stick_drive(int left_input, int right_input, byte orientation){
+    two_stick_drive(left_input, right_input, orientation, true, true);
+}
+
+void Drive::two_stick_drive(int left_input, int right_input, byte orientation, bool left_enabled, bool right_enabled){
 
     int leftMotorSpeed = map(left_input, _minForwardInput, _maxForwardInput, -maxPwmVal, maxPwmVal);
     int rightMotorSpeed = map(right_input, _minForwardInput, _maxForwardInput, -maxPwmVal, maxPwmVal);
@@ -132,18 +148,34 @@ void Drive::two_stick_drive(int left_input, int right_input, byte orientation){
     int left_speed = constrain(abs(leftMotorSpeed), 0, maxPwmVal);
     int right_speed = constrain(abs(rightMotorSpeed), 0, maxPwmVal);
 
-    if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE, orientation);}
-    else{leftMotor.setSpeed(left_speed, FORWARD, orientation);}
+    if (left_enabled) {
+        if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE, orientation);}
+        else{leftMotor.setSpeed(left_speed, FORWARD, orientation);}
+    } else {
+        leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
+    }
 
-    if(rightMotorSpeed < 0){rightMotor.setSpeed(right_speed, REVERSE, orientation);}
-    else{rightMotor.setSpeed(right_speed, FORWARD, orientation);}
+    if (right_enabled) {
+        if(rightMotorSpeed < 0){rightMotor.setSpeed(right_speed, REVERSE, orientation);}
+        else{rightMotor.setSpeed(right_speed, FORWARD, orientation);}
+    } else {
+        rightMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
+    }
 
 }
 
 
 //Stop both drive motors
 void Drive::stop(){
+    stopLeft();
+    stopRight();
+}
+
+void Drive::stopLeft(){
     leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
+}
+
+void Drive::stopRight(){
     rightMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
 }
 

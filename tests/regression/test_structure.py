@@ -33,7 +33,6 @@ BYTE_IDENTICAL_FILES = [
     "components/myrobot/include/Buttons.h",
     "components/myrobot/include/Drive.h",
     "components/myrobot/include/DriveMotor.h",
-    "components/myrobot/include/Drum.h",
     "components/myrobot/include/LED.h",
     "components/myrobot/include/PowerFunctions.h",
 
@@ -67,9 +66,9 @@ INTENTIONALLY_MODIFIED_FILES = {
         "ledcChangeFrequency(). ledcWrite now uses explicit channel constants "
         "instead of pin numbers (v1.3 used the pin as the channel); channels "
         "are per-instance so M1 and M2 do not alias.",
-    "components/myrobot/src/Drum.cpp":
-        "Migrated from v1.3 ledcAttach() to v2.0.14 ledcAttachPin() + "
-        "ledcChangeFrequency(). ledcWrite now uses ESC_PWM_CHANNEL.",
+    "components/myrobot/src/PulseOutput.cpp":
+        "Generic S1/S2 pulse-generation runtime for servo, ESC, and weapon_esc "
+        "roles; replaces the legacy fixed Drum output path.",
     "components/myrobot/src/LED.cpp":
         "Reverted from LEDC channel control to plain digitalWrite() so the "
         "pairing-indicator task (sketch.cpp::led1_indicator_task) can share "
@@ -161,8 +160,8 @@ class TestIntentionallyModified:
             "Migrate to ledcAttachPin + ledcChangeFrequency."
         )
 
-    def test_drum_uses_new_ledc_api(self):
-        text = (PROJECT_ROOT / "components/myrobot/src/Drum.cpp").read_text()
+    def test_pulse_output_uses_new_ledc_api(self):
+        text = (PROJECT_ROOT / "components/myrobot/src/PulseOutput.cpp").read_text()
         assert "ledcAttachPin" in text
         assert "ledcChangeFrequency" in text
         uncommented = "\n".join(
@@ -170,6 +169,14 @@ class TestIntentionallyModified:
             if not line.lstrip().startswith("//")
         )
         assert not re.search(r"\bledcAttach\s*\(", uncommented)
+
+    def test_legacy_drum_files_removed_from_active_runtime(self):
+        assert not (PROJECT_ROOT / "components/myrobot/include/Drum.h").exists()
+        assert not (PROJECT_ROOT / "components/myrobot/src/Drum.cpp").exists()
+        task_header = (PROJECT_ROOT / "components/myrobot/include/TaskManager.h").read_text()
+        task_src = (PROJECT_ROOT / "components/myrobot/src/TaskManager.cpp").read_text()
+        assert "Drum" not in task_header
+        assert "drum." not in task_src
 
     def test_led_uses_digital_control_for_pin(self):
         # The LED class drives its pin via plain digitalWrite() so the
@@ -192,7 +199,8 @@ class TestIntentionallyModified:
             "DRIVE_MOTOR1_REV_PWM_CHANNEL",
             "DRIVE_MOTOR2_FWD_PWM_CHANNEL",
             "DRIVE_MOTOR2_REV_PWM_CHANNEL",
-            "ESC_PWM_CHANNEL",
+            "SERVO1_PWM_CHANNEL",
+            "SERVO2_PWM_CHANNEL",
         )
         values = {}
         for name in names:
@@ -455,12 +463,10 @@ class TestPinDefines:
             "BATTERY_MULTIPLIER": "8.95f", "EMA_ALPHA": "0.1f",
             "ESC_PWM_FREQ": "2000", "DRIVE_MOTOR_PWM_FREQ": "20000",
             "DRIVE_MOTOR_PWM_RESOLUTION": "8", "ESC_PWM_RESOLUTION": "8",
-            "ESC_MIN_PULSEWIDTH": "125", "ESC_MID_PULSEWIDTH": "188", "ESC_MAX_PULSEWIDTH": "250",
             "CONTROLLER_TIMEOUT": "1000", "DEBOUNCE_TIME": "10", "LONG_PRESS_TIME": "1000",
             "BUTTON_READ_WAIT": "50", "BATT_READ_FREQ": "100", "BATT_SAMPLE_COUNT": "5",
             "SAMPLE_PERIOD": "10", "BATTERY_DEBOUNCE_TIME": "3000",
             "BATT_HYSTERESIS": "100.0f",
-            "WEAPON_BIDIRECTIONAL": "true", "WEAPON_ENABLE": "true",
             "ENABLE_LOW_BATTERY_SHUTDOWN": "true", "TASK_MANAGER_READ_FREQ": "50",
             "APP_CPU_NUM": "0",
         }

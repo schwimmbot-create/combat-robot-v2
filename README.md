@@ -21,7 +21,7 @@ main/                       # app_main + Arduino setup()/loop()
   sketch.cpp                # Arduino-side start; pulls in components
 
 components/
-  myrobot/                  # v1.3 port: Drive, Drum, TaskManager, PowerFunctions
+  myrobot/                  # Drive, S1/S2 PulseOutput roles, TaskManager, PowerFunctions
   board_config/             # pin map per BOARD_REV + BoardInfo struct
   ble_gamepad/              # NimBLE client; bench GATT service for PC tools
   output_config/            # NVS-backed per-output config (direction, source, deadzone)
