@@ -82,3 +82,17 @@ def test_protocol_changes_reset_pulse_defaults_and_servo_ppm_available():
     assert "rc_servo_pwm: { min_us: 1000" in html
     assert "<details" not in html  # generated via DOM helper, not literal markup
     assert "Advanced: pulse calibration" in html
+
+
+def test_esc_arming_ui():
+    html = HTML.read_text()
+    for token in (
+        "function renderEscArmingControls",
+        "Manual arming — user performs ESC sequence",
+        "Auto-arm at boot",
+        "Auto-arm after holding a button/source",
+        "Arming signal sequence",
+        "esc_arm_mode: cfg.esc_arm?.mode",
+        "esc_arm_final_low_ms",
+    ):
+        assert token in html

@@ -40,6 +40,15 @@ private:
     int16_t readConfigSource(oc_source_id_t src, const ControllerState& cs) const;
     PulseProtocol protocolFromConfig(const oc_output_cfg_t* cfg) const;
     PulseEscSemantics escSemanticsFromConfig(const oc_output_cfg_t* cfg) const;
+    bool updateEscArming(oc_output_id_t id, PulseOutput& pulse, const oc_output_cfg_t* cfg, const ControllerState& cs, const PulseProtocol& protocol);
+
+    struct EscArmState {
+        bool armed = false;
+        bool sequence_running = false;
+        uint32_t sequence_started_ms = 0;
+        uint32_t hold_started_ms = 0;
+        uint32_t signature = 0;
+    };
 
     Drive drive;
     PulseOutput _s1Pulse;
@@ -72,6 +81,9 @@ private:
     volatile bool _s1DigitalPhysicalHigh = false;
     volatile bool _s2DigitalLogical = false;
     volatile bool _s2DigitalPhysicalHigh = false;
+
+    EscArmState _s1EscArm;
+    EscArmState _s2EscArm;
 
     TaskHandle_t taskHandle;
 };

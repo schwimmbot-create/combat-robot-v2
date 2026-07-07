@@ -42,3 +42,17 @@ def test_weapon_role_safety_is_attached_to_s1_s2_runtime():
     assert "cfg->deadman_source" in src
     assert "output_config_channel_allowed(id, batteryState)" in src
     assert "pulse.safeState(semantics)" in src
+
+
+def test_esc_arming_state_machine_runtime():
+    header = TASK_H.read_text()
+    src = TASK_CPP.read_text()
+    assert "EscArmState" in header
+    assert "bool TaskManager::updateEscArming" in src
+    assert "OC_ESC_ARM_MANUAL" in src
+    assert "OC_ESC_ARM_BOOT" in src
+    assert "OC_ESC_ARM_HOLD_SOURCE" in src
+    assert "cfg->esc_arm_low_us" in src
+    assert "cfg->esc_arm_high_us" in src
+    assert "pulse.writePulseUs(cfg->esc_arm_low_us)" in src
+    assert "if (!escArmed)" in src

@@ -150,6 +150,13 @@ typedef enum {
 } oc_weapon_safety_mode_t;
 
 typedef enum {
+    OC_ESC_ARM_MANUAL = 0,
+    OC_ESC_ARM_BOOT = 1,
+    OC_ESC_ARM_HOLD_SOURCE = 2,
+    OC_ESC_ARM__COUNT = 3,
+} oc_esc_arm_mode_t;
+
+typedef enum {
     OC_DIGITAL_MODE_DIRECT       = 0,
     OC_DIGITAL_MODE_ANALOG_ABOVE = 1,
     OC_DIGITAL_MODE_ANALOG_BELOW = 2,
@@ -196,6 +203,14 @@ typedef struct {
     oc_source_id_t  arming_source;
     oc_source_id_t  deadman_source;
     uint16_t        ramp_ms;
+    oc_esc_arm_mode_t esc_arm_mode;
+    oc_source_id_t  esc_arm_source;
+    uint16_t        esc_arm_hold_ms;
+    uint16_t        esc_arm_low_us;
+    uint16_t        esc_arm_high_us;
+    uint16_t        esc_arm_low_ms;
+    uint16_t        esc_arm_high_ms;
+    uint16_t        esc_arm_final_low_ms;
     oc_power_override_t power_good;
     oc_power_override_t power_warn;
     oc_power_override_t power_low;

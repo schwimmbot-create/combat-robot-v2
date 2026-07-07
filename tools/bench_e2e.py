@@ -317,6 +317,53 @@ def configure_s1_digital(api: RobotApi, *, primary: str, active_high: bool = Tru
         raise BenchError(f"API config S1 digital patch failed: {resp}")
 
 
+def configure_s2_esc_arming(api: RobotApi) -> None:
+    payload = {
+        "S2": {
+            "display_name": "Bench ESC",
+            "direction": "normal",
+            "servo_mode": "uni",
+            "deadzone": 10,
+            "primary": "RT",
+            "secondary": "NONE",
+            "purpose": "esc",
+            "protocol": "oneshot125",
+            "semantics": "esc_forward_only",
+            "weapon_safety": True,
+            "failsafe": "safe_state",
+            "weapon_mode": "deadman_only",
+            "deadman_source": "A",
+            "esc_arm_mode": "hold_source",
+            "esc_arm_source": "B",
+            "esc_arm_hold_ms": 1500,
+            "esc_arm_low_us": 125,
+            "esc_arm_high_us": 250,
+            "esc_arm_low_ms": 500,
+            "esc_arm_high_ms": 500,
+            "esc_arm_final_low_ms": 500,
+            "min_pulse_us": 125,
+            "center_pulse_us": 188,
+            "max_pulse_us": 250,
+            "frame_hz": 2000,
+            "neutral_deadzone": 2,
+            "power_good": "default",
+            "power_warn": "default",
+            "power_low": "disable",
+        }
+    }
+    resp = api.post_json("/api/config", payload)
+    if resp.get("ok") is not True:
+        raise BenchError(f"API config S2 ESC arming patch failed: {resp}")
+    cfg = api.get("/api/config")
+    s2 = cfg.get("outputs", {}).get("S2", {})
+    arm = s2.get("esc_arm", {})
+    if s2.get("purpose") != "esc" or s2.get("protocol") != "oneshot125" or arm.get("mode") != "hold_source":
+        raise BenchError(f"API config S2 ESC arming echo mismatch: {s2}")
+    if arm.get("source") != "B" or arm.get("hold_ms") != 1500 or arm.get("low_us") != 125 or arm.get("high_us") != 250:
+        raise BenchError(f"API config S2 ESC arming sequence echo mismatch: {arm}")
+    print("PASS API accepts S2 ESC hold-to-arm sequence config")
+
+
 def restore_s1_servo(api: RobotApi) -> None:
     resp = api.post_json("/api/config", {
         "S1": {
@@ -345,6 +392,52 @@ def restore_s1_servo(api: RobotApi) -> None:
         raise BenchError(f"API restore S1 servo failed: {resp}")
 
 
+def restore_s2_servo(api: RobotApi) -> None:
+    resp = api.post_json("/api/config", {
+        "S2": {
+            "display_name": "Servo 2",
+            "direction": "normal",
+            "servo_mode": "bi",
+            "deadzone": 10,
+            "primary": "NONE",
+            "secondary": "NONE",
+            "purpose": "servo",
+            "protocol": "rc_servo_pwm",
+            "semantics": "position_servo",
+            "weapon_safety": False,
+            "failsafe": "safe_state",
+            "weapon_mode": "arming_and_deadman",
+            "arming_source": "NONE",
+            "deadman_source": "NONE",
+            "esc_arm_mode": "manual",
+            "esc_arm_source": "NONE",
+            "esc_arm_hold_ms": 2000,
+            "esc_arm_low_us": 1000,
+            "esc_arm_high_us": 2000,
+            "esc_arm_low_ms": 1000,
+            "esc_arm_high_ms": 1000,
+            "esc_arm_final_low_ms": 1000,
+            "min_pulse_us": 1000,
+            "center_pulse_us": 1500,
+            "max_pulse_us": 2000,
+            "frame_hz": 50,
+            "neutral_deadzone": 5,
+            "active_high": True,
+            "default_state": False,
+            "digital_mode": "direct",
+            "digital_preset": "direct",
+            "digital_on_threshold": 1,
+            "digital_off_threshold": 0,
+            "digital_custom_pct": 50,
+            "power_good": "default",
+            "power_warn": "default",
+            "power_low": "default",
+        }
+    })
+    if resp.get("ok") is not True:
+        raise BenchError(f"API restore S2 servo failed: {resp}")
+
+
 def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
     status = api.get("/api/status")
     if status.get("wifi_ap_mode") is not True or status.get("wifi_ip") != "192.168.4.1":
@@ -370,6 +463,8 @@ def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
         if "HTTP Error 400" not in str(exc) and "invalid patch" not in str(exc):
             raise
     print("PASS API rejects obsolete top-level Weapon config")
+
+    configure_s2_esc_arming(api)
 
     # API bench injection directly exercises the WiFi REST path into the robot's
     # HID parser. Firmware bench override suppresses live BLE notifications after
@@ -438,6 +533,7 @@ def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
         raise BenchError(f"API bench neutral reset failed: {resp}")
     assert_status_field(robot, "API bench neutral reset", lambda s: s.ly == 0 and s.rt == 0 and s.lt == 0 and s.buttons == 0 and s.dpad == 0)
     restore_s1_servo(api)
+    restore_s2_servo(api)
 
     # Leave the bench in the normal real-BLE state for manual follow-up and for
     # any next test stage.

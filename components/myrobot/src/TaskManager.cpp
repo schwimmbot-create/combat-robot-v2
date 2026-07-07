@@ -386,6 +386,70 @@ PulseEscSemantics TaskManager::escSemanticsFromConfig(const oc_output_cfg_t* cfg
         : PULSE_ESC_FORWARD_ONLY;
 }
 
+bool TaskManager::updateEscArming(oc_output_id_t id, PulseOutput& pulse, const oc_output_cfg_t* cfg, const ControllerState& cs, const PulseProtocol& protocol) {
+    if (!cfg || cfg->purpose != OC_PURPOSE_ESC) return true;
+    EscArmState& st = (id == OC_OUT_S1) ? _s1EscArm : _s2EscArm;
+    const uint32_t signature = ((uint32_t)cfg->esc_arm_mode << 28) ^
+        ((uint32_t)cfg->protocol << 24) ^ ((uint32_t)cfg->esc_arm_source << 16) ^
+        ((uint32_t)cfg->esc_arm_low_us << 1) ^ ((uint32_t)cfg->esc_arm_high_us << 12) ^
+        ((uint32_t)cfg->esc_arm_low_ms << 3) ^ ((uint32_t)cfg->esc_arm_high_ms << 5) ^
+        ((uint32_t)cfg->esc_arm_final_low_ms << 7) ^ cfg->esc_arm_hold_ms;
+    if (st.signature != signature) {
+        st = EscArmState{};
+        st.signature = signature;
+    }
+    if (cfg->esc_arm_mode == OC_ESC_ARM_MANUAL) {
+        st.armed = true;
+        st.sequence_running = false;
+        return true;
+    }
+
+    const uint32_t now = millis();
+    if (!st.armed && !st.sequence_running) {
+        if (cfg->esc_arm_mode == OC_ESC_ARM_BOOT) {
+            st.sequence_running = true;
+            st.sequence_started_ms = now;
+        } else if (cfg->esc_arm_mode == OC_ESC_ARM_HOLD_SOURCE) {
+            const bool held = cfg->esc_arm_source != OC_SRC_NONE && readConfigSource(cfg->esc_arm_source, cs) != 0;
+            if (!held) {
+                st.hold_started_ms = 0;
+                pulse.writePulseUs(cfg->esc_arm_low_us);
+                return false;
+            }
+            if (st.hold_started_ms == 0) st.hold_started_ms = now;
+            if ((uint32_t)(now - st.hold_started_ms) >= cfg->esc_arm_hold_ms) {
+                st.sequence_running = true;
+                st.sequence_started_ms = now;
+            } else {
+                pulse.writePulseUs(cfg->esc_arm_low_us);
+                return false;
+            }
+        }
+    }
+
+    if (st.sequence_running) {
+        const uint32_t elapsed = now - st.sequence_started_ms;
+        const uint32_t low1_end = cfg->esc_arm_low_ms;
+        const uint32_t high_end = low1_end + cfg->esc_arm_high_ms;
+        const uint32_t low2_end = high_end + cfg->esc_arm_final_low_ms;
+        if (elapsed < low1_end) {
+            pulse.writePulseUs(cfg->esc_arm_low_us);
+            return false;
+        }
+        if (elapsed < high_end) {
+            pulse.writePulseUs(cfg->esc_arm_high_us);
+            return false;
+        }
+        if (elapsed < low2_end) {
+            pulse.writePulseUs(cfg->esc_arm_low_us);
+            return false;
+        }
+        st.sequence_running = false;
+        st.armed = true;
+    }
+    return st.armed;
+}
+
 bool TaskManager::weaponRoleArmed(const oc_output_cfg_t* cfg, const ControllerState& cs) const {
     if (!cfg || !cfg->weapon_safety) return true;
     switch (cfg->weapon_mode) {
@@ -430,6 +494,10 @@ void TaskManager::updatePulseOutput(oc_output_id_t id, PulseOutput& pulse, const
     ledcChangeFrequency(id == OC_OUT_S1 ? SERVO1_PWM_CHANNEL : SERVO2_PWM_CHANNEL, protocol.frame_hz, AUX_PWM_RESOLUTION);
 
     const bool channelAllowed = !ENABLE_LOW_BATTERY_SHUTDOWN || output_config_channel_allowed(id, batteryState);
+    const bool escArmed = updateEscArming(id, pulse, cfg, cs, protocol);
+    if (!escArmed) {
+        return;
+    }
     const bool roleAllowed = connected && channelAllowed && weaponRoleArmed(cfg, cs) && cfg->primary != OC_SRC_NONE;
     const PulseEscSemantics semantics = escSemanticsFromConfig(cfg);
     if (!roleAllowed) {

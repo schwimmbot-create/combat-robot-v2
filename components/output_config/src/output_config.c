@@ -117,6 +117,12 @@ static const char *const kPowerNames[] = {
     "reduce",
 };
 
+static const char *const kEscArmModeNames[OC_ESC_ARM__COUNT] = {
+    "manual",
+    "boot",
+    "hold_source",
+};
+
 static const char *const kDigitalModeNames[OC_DIGITAL_MODE__COUNT] = {
     "direct",
     "analog_above",
@@ -149,6 +155,9 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .frame_hz = 0, .neutral_deadzone_pct = 0, .weapon_safety = false,
         .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
         .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .esc_arm_mode = OC_ESC_ARM_MANUAL, .esc_arm_source = OC_SRC_NONE, .esc_arm_hold_ms = 2000,
+        .esc_arm_low_us = 1000, .esc_arm_high_us = 2000, .esc_arm_low_ms = 1000,
+        .esc_arm_high_ms = 1000, .esc_arm_final_low_ms = 1000,
         .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
@@ -162,6 +171,9 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .frame_hz = 0, .neutral_deadzone_pct = 0, .weapon_safety = false,
         .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
         .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .esc_arm_mode = OC_ESC_ARM_MANUAL, .esc_arm_source = OC_SRC_NONE, .esc_arm_hold_ms = 2000,
+        .esc_arm_low_us = 1000, .esc_arm_high_us = 2000, .esc_arm_low_ms = 1000,
+        .esc_arm_high_ms = 1000, .esc_arm_final_low_ms = 1000,
         .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
@@ -175,6 +187,9 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .frame_hz = 50, .neutral_deadzone_pct = 5, .weapon_safety = false,
         .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
         .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .esc_arm_mode = OC_ESC_ARM_MANUAL, .esc_arm_source = OC_SRC_NONE, .esc_arm_hold_ms = 2000,
+        .esc_arm_low_us = 1000, .esc_arm_high_us = 2000, .esc_arm_low_ms = 1000,
+        .esc_arm_high_ms = 1000, .esc_arm_final_low_ms = 1000,
         .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
@@ -188,6 +203,9 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .frame_hz = 50, .neutral_deadzone_pct = 5, .weapon_safety = false,
         .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
         .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .esc_arm_mode = OC_ESC_ARM_MANUAL, .esc_arm_source = OC_SRC_NONE, .esc_arm_hold_ms = 2000,
+        .esc_arm_low_us = 1000, .esc_arm_high_us = 2000, .esc_arm_low_ms = 1000,
+        .esc_arm_high_ms = 1000, .esc_arm_final_low_ms = 1000,
         .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
@@ -250,8 +268,10 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
         if ((unsigned)c->semantics >= OC_SEM__COUNT) return false;
         if ((unsigned)c->failsafe > OC_FAILSAFE_HOLD_LAST) return false;
         if ((unsigned)c->weapon_mode > OC_WEAPON_BENCH_OVERRIDE) return false;
+        if ((unsigned)c->esc_arm_mode >= OC_ESC_ARM__COUNT) return false;
         if ((unsigned)c->arming_source >= OC_SRC__COUNT) return false;
         if ((unsigned)c->deadman_source >= OC_SRC__COUNT) return false;
+        if ((unsigned)c->esc_arm_source >= OC_SRC__COUNT) return false;
         if ((unsigned)c->power_good > OC_POWER_REDUCE) return false;
         if ((unsigned)c->power_warn > OC_POWER_REDUCE) return false;
         if ((unsigned)c->power_low > OC_POWER_REDUCE) return false;
@@ -260,6 +280,8 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
         if ((i == OC_OUT_M1 || i == OC_OUT_M2) &&
             (c->purpose != OC_PURPOSE_DRIVE || c->protocol != OC_PROTO_NONE)) return false;
         if (c->pwm_duty_pct > 100) return false;
+        if (c->esc_arm_hold_ms > 10000 || c->esc_arm_low_ms > 10000 || c->esc_arm_high_ms > 10000 || c->esc_arm_final_low_ms > 10000) return false;
+        if (c->esc_arm_low_us > 3000 || c->esc_arm_high_us > 3000 || c->esc_arm_low_us >= c->esc_arm_high_us) return false;
         if (c->protocol == OC_PROTO_ONESHOT42 || c->protocol == OC_PROTO_MULTISHOT) return false;
         if (c->weapon_safety && c->failsafe == OC_FAILSAFE_HOLD_LAST) return false;
         if (c->min_pulse_us || c->center_pulse_us || c->max_pulse_us) {
@@ -553,6 +575,24 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"deadman_source\":");
         ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[c->deadman_source]);
         ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"esc_arm\":{");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "\"mode\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kEscArmModeNames[c->esc_arm_mode]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"source\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[c->esc_arm_source]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"hold_ms\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->esc_arm_hold_ms);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"low_us\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->esc_arm_low_us);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"high_us\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->esc_arm_high_us);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"low_ms\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->esc_arm_low_ms);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"high_ms\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->esc_arm_high_ms);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"final_low_ms\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->esc_arm_final_low_ms);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"power\":{");
         ok &= json_append_raw(out_buf, out_buf_len, &used, "\"GOOD\":");
         ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kPowerNames[c->power_good]);
@@ -754,6 +794,13 @@ static bool weapon_mode_from_str(const char *s, oc_weapon_safety_mode_t *out) {
     return true;
 }
 
+static bool esc_arm_mode_from_str(const char *s, oc_esc_arm_mode_t *out) {
+    int v;
+    if (!table_lookup(s, kEscArmModeNames, OC_ESC_ARM__COUNT, &v)) return false;
+    *out = (oc_esc_arm_mode_t)v;
+    return true;
+}
+
 static bool power_from_str(const char *s, oc_power_override_t *out) {
     int v;
     if (!table_lookup(s, kPowerNames, 4, &v)) return false;
@@ -854,7 +901,10 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             strcmp(key, "frame_hz") == 0 || strcmp(key, "neutral_deadzone") == 0 ||
             strcmp(key, "ramp_ms") == 0 || strcmp(key, "pwm_frequency_hz") == 0 ||
             strcmp(key, "pwm_duty_pct") == 0 || strcmp(key, "digital_on_threshold") == 0 ||
-            strcmp(key, "digital_off_threshold") == 0 || strcmp(key, "digital_custom_pct") == 0) {
+            strcmp(key, "digital_off_threshold") == 0 || strcmp(key, "digital_custom_pct") == 0 ||
+            strcmp(key, "esc_arm_hold_ms") == 0 || strcmp(key, "esc_arm_low_us") == 0 ||
+            strcmp(key, "esc_arm_high_us") == 0 || strcmp(key, "esc_arm_low_ms") == 0 ||
+            strcmp(key, "esc_arm_high_ms") == 0 || strcmp(key, "esc_arm_final_low_ms") == 0) {
             while (*p && isspace((unsigned char)*p)) p++;
             if (*p != ':') return false;
             p++;
@@ -886,6 +936,24 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             } else if (strcmp(key, "pwm_duty_pct") == 0) {
                 if (d > 100) return false;
                 if (s_cfg[id].pwm_duty_pct != (uint8_t)d) { s_cfg[id].pwm_duty_pct = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "esc_arm_hold_ms") == 0) {
+                if (d > 10000) return false;
+                if (s_cfg[id].esc_arm_hold_ms != (uint16_t)d) { s_cfg[id].esc_arm_hold_ms = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "esc_arm_low_us") == 0) {
+                if (d > 3000) return false;
+                if (s_cfg[id].esc_arm_low_us != (uint16_t)d) { s_cfg[id].esc_arm_low_us = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "esc_arm_high_us") == 0) {
+                if (d > 3000) return false;
+                if (s_cfg[id].esc_arm_high_us != (uint16_t)d) { s_cfg[id].esc_arm_high_us = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "esc_arm_low_ms") == 0) {
+                if (d > 10000) return false;
+                if (s_cfg[id].esc_arm_low_ms != (uint16_t)d) { s_cfg[id].esc_arm_low_ms = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "esc_arm_high_ms") == 0) {
+                if (d > 10000) return false;
+                if (s_cfg[id].esc_arm_high_ms != (uint16_t)d) { s_cfg[id].esc_arm_high_ms = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "esc_arm_final_low_ms") == 0) {
+                if (d > 10000) return false;
+                if (s_cfg[id].esc_arm_final_low_ms != (uint16_t)d) { s_cfg[id].esc_arm_final_low_ms = (uint16_t)d; dirty = true; }
             } else if (strcmp(key, "digital_on_threshold") == 0) {
                 if (d < -1024 || d > 1024) return false;
                 if (s_cfg[id].digital_on_threshold != (int16_t)d) { s_cfg[id].digital_on_threshold = (int16_t)d; dirty = true; }
@@ -949,6 +1017,14 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
                 oc_weapon_safety_mode_t mode;
                 if (!weapon_mode_from_str(value, &mode)) return false;
                 if (s_cfg[id].weapon_mode != mode) { s_cfg[id].weapon_mode = mode; dirty = true; }
+            } else if (strcmp(key, "esc_arm_mode") == 0) {
+                oc_esc_arm_mode_t mode;
+                if (!esc_arm_mode_from_str(value, &mode)) return false;
+                if (s_cfg[id].esc_arm_mode != mode) { s_cfg[id].esc_arm_mode = mode; dirty = true; }
+            } else if (strcmp(key, "esc_arm_source") == 0) {
+                oc_source_id_t s;
+                if (!output_config_source_from_str(value, &s)) return false;
+                if (s_cfg[id].esc_arm_source != s) { s_cfg[id].esc_arm_source = s; dirty = true; }
             } else if (strcmp(key, "arming_source") == 0) {
                 oc_source_id_t s;
                 if (!output_config_source_from_str(value, &s)) return false;

@@ -27,5 +27,10 @@ def test_bench_exercises_button_inversion_and_thresholds():
         "restore_s1_servo",
         "obsolete Weapon config patch unexpectedly succeeded",
         "PASS API rejects obsolete top-level Weapon config",
+        "configure_s2_esc_arming",
+        "esc_arm_mode\": \"hold_source\"",
+        "esc_arm_low_us\": 125",
+        "PASS API accepts S2 ESC hold-to-arm sequence config",
+        "restore_s2_servo",
     ):
         assert token in src

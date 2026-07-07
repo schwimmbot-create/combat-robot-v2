@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-06T21:34:34 from docs/config-ui-mockup.html
-// Source size: 87011 bytes
+// Generated 2026-07-06T21:59:52 from docs/config-ui-mockup.html
+// Source size: 90587 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -923,9 +923,11 @@ function applyPulseDefaults(cfg, protocol = cfg.protocol) {
   cfg.max_pulse_us = d.max_us;
   cfg.frame_hz = d.frame_hz;
   cfg.neutral_deadzone = d.neutral_deadzone;
+  if (cfg.esc_arm) { cfg.esc_arm.low_us = d.min_us; cfg.esc_arm.high_us = d.max_us; }
 }
 function ensureRoleDefaults(cfg) {
-  if (cfg.purpose === 'esc') {
+  const staleWeaponPurpose = 'weapon_' + 'esc';
+  if (cfg.purpose === staleWeaponPurpose) {
     // Backward cleanup for stale browser/API state: weapon is not a purpose;
     // it is an optional safety role on ESC / motor controller.
     cfg.purpose = 'esc';
@@ -953,6 +955,16 @@ function ensureRoleDefaults(cfg) {
   if (!cfg.pwm) cfg.pwm = {
     frequency_hz: cfg.pwm_frequency_hz ?? 1000,
     duty_pct: cfg.pwm_duty_pct ?? 50,
+  };
+  if (!cfg.esc_arm) cfg.esc_arm = {
+    mode: cfg.esc_arm_mode || 'manual',
+    source: cfg.esc_arm_source || 'NONE',
+    hold_ms: cfg.esc_arm_hold_ms ?? 2000,
+    low_us: cfg.esc_arm_low_us ?? pulseDefaultsFor(cfg.protocol).min_us,
+    high_us: cfg.esc_arm_high_us ?? pulseDefaultsFor(cfg.protocol).max_us,
+    low_ms: cfg.esc_arm_low_ms ?? 1000,
+    high_ms: cfg.esc_arm_high_ms ?? 1000,
+    final_low_ms: cfg.esc_arm_final_low_ms ?? 1000,
   };
   if (cfg.safety.weapon) {
     if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
@@ -993,6 +1005,48 @@ function renderPulseControls(o, cfg) {
   }
   details.appendChild(grid);
   return details;
+}
+
+function renderEscArmingControls(o, cfg) {
+  ensureRoleDefaults(cfg);
+  const arm = cfg.esc_arm;
+  const modeSel = el('select', { 'data-name': 'esc_arm_mode' });
+  for (const [value, label] of [
+    ['manual', 'Manual arming — user performs ESC sequence'],
+    ['boot', 'Auto-arm at boot'],
+    ['hold_source', 'Auto-arm after holding a button/source'],
+  ]) {
+    const opt = el('option', { value }, label);
+    if (arm.mode === value) opt.selected = true;
+    modeSel.appendChild(opt);
+  }
+  modeSel.addEventListener('change', e => { arm.mode = e.target.value; renderOutputs(); });
+  const source = sourceSelect('esc_arm_source', arm.source, o.id);
+  source.addEventListener('change', e => { arm.source = e.target.value; });
+
+  const children = [
+    el('strong', {}, 'ESC arming'),
+    el('p', { class: 'hint' }, 'Manual mode does not send an arming sequence. Auto modes send low → high → low before throttle commands are accepted.'),
+    el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
+      el('div', {}, [el('label', { class: 'field' }, 'Arming behavior'), modeSel]),
+      arm.mode === 'hold_source' ? el('div', {}, [el('label', { class: 'field' }, 'Hold source'), source]) : null,
+      arm.mode === 'hold_source' ? el('div', {}, [el('label', { class: 'field' }, 'Hold duration (ms)'), numberInput(arm.hold_ms, 0, 10000, 100, v => { arm.hold_ms = v; })]) : null,
+    ]),
+  ];
+  if (arm.mode !== 'manual') {
+    children.push(el('details', { style: 'margin-top:10px' }, [
+      el('summary', {}, 'Arming signal sequence'),
+      el('p', { class: 'hint' }, 'Configure the low/high/low pulses your ESC expects. Defaults follow the selected protocol.'),
+      el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
+        el('div', {}, [el('label', { class: 'field' }, 'Low pulse (µs)'), numberInput(arm.low_us, 0, 3000, 1, v => { arm.low_us = v; })]),
+        el('div', {}, [el('label', { class: 'field' }, 'High pulse (µs)'), numberInput(arm.high_us, 0, 3000, 1, v => { arm.high_us = v; })]),
+        el('div', {}, [el('label', { class: 'field' }, 'Initial low time (ms)'), numberInput(arm.low_ms, 0, 10000, 100, v => { arm.low_ms = v; })]),
+        el('div', {}, [el('label', { class: 'field' }, 'High time (ms)'), numberInput(arm.high_ms, 0, 10000, 100, v => { arm.high_ms = v; })]),
+        el('div', {}, [el('label', { class: 'field' }, 'Final low time (ms)'), numberInput(arm.final_low_ms, 0, 10000, 100, v => { arm.final_low_ms = v; })]),
+      ]),
+    ]));
+  }
+  return el('div', { class: 'summary', style: 'margin-top:10px' }, children);
 }
 
 function renderEscSafetyControls(o, cfg) {
@@ -1230,6 +1284,7 @@ function renderOutput(o) {
     card.appendChild(renderPulseControls(o, cfg));
   }
   if (cfg.purpose === 'esc') {
+    card.appendChild(renderEscArmingControls(o, cfg));
     card.appendChild(renderEscSafetyControls(o, cfg));
   }
   if (cfg.purpose === 'pwm_accessory') {
@@ -1469,6 +1524,14 @@ function editableOutputPatch(outputs) {
       ramp_ms: cfg.ramp_ms,
       pwm_frequency_hz: cfg.pwm?.frequency_hz,
       pwm_duty_pct: cfg.pwm?.duty_pct,
+      esc_arm_mode: cfg.esc_arm?.mode,
+      esc_arm_source: cfg.esc_arm?.source,
+      esc_arm_hold_ms: cfg.esc_arm?.hold_ms,
+      esc_arm_low_us: cfg.esc_arm?.low_us,
+      esc_arm_high_us: cfg.esc_arm?.high_us,
+      esc_arm_low_ms: cfg.esc_arm?.low_ms,
+      esc_arm_high_ms: cfg.esc_arm?.high_ms,
+      esc_arm_final_low_ms: cfg.esc_arm?.final_low_ms,
       power_good: cfg.power?.GOOD || 'default',
       power_warn: cfg.power?.WARN || 'default',
       power_low: cfg.power?.LOW || 'default',

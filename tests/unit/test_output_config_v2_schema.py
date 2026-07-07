@@ -20,6 +20,9 @@ def test_output_config_v2_enums_exist():
         "OC_SEM_ESC_BIDIRECTIONAL",
         "OC_POWER_DISABLE",
         "OC_WEAPON_ARMING_AND_DEADMAN",
+        "OC_ESC_ARM_MANUAL",
+        "OC_ESC_ARM_BOOT",
+        "OC_ESC_ARM_HOLD_SOURCE",
         "OC_DIGITAL_MODE_DIRECT",
         "OC_DIGITAL_MODE_ANALOG_ABOVE",
         "OC_DIGITAL_MODE_ANALOG_BELOW",
@@ -95,6 +98,14 @@ def test_output_config_patch_accepts_v2_editable_fields():
         "digital_on_threshold",
         "digital_off_threshold",
         "digital_custom_pct",
+        "esc_arm_mode",
+        "esc_arm_source",
+        "esc_arm_hold_ms",
+        "esc_arm_low_us",
+        "esc_arm_high_us",
+        "esc_arm_low_ms",
+        "esc_arm_high_ms",
+        "esc_arm_final_low_ms",
     ):
         assert f'"{field}"' in src
 
@@ -117,3 +128,13 @@ def test_current_output_contract_has_four_channels():
     assert "OC_OUT_WEAPON" not in header
     assert '"M1", "M2", "S1", "S2"' in src
     assert 'strcmp(key, "Weapon") == 0' in src
+
+
+def test_esc_arming_validation_contract():
+    src = OC_C.read_text()
+    header = OC_H.read_text()
+    assert "oc_esc_arm_mode_t" in header
+    assert "kEscArmModeNames" in src
+    assert "esc_arm_low_us >= c->esc_arm_high_us" in src
+    assert "esc_arm_hold_ms > 10000" in src
+    assert "esc_arm_mode_from_str" in src
