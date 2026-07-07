@@ -1579,6 +1579,7 @@ class TestBatteryManagementContract:
             assert needle in html
         assert "Inherit →" not in html
         assert "Default for this output" not in html
+        assert "open: true" not in html
 
 
 def test_obsolete_weapon_patch_is_rejected():

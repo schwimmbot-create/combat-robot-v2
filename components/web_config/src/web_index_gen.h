@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-07T16:34:51 from docs/config-ui-mockup.html
-// Source size: 122139 bytes
+// Generated 2026-07-07T16:48:04 from docs/config-ui-mockup.html
+// Source size: 122127 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -1688,7 +1688,7 @@ function renderPowerCard(id) {
   const cfg = state.outputs[id];
   if (!powerIsEnabled(id, cfg)) return null;
   if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
-  const details = el('details', { class: `power-card${id === 'H1' ? ' config-only' : ''}`, 'data-power-card': id, open: true });
+  const details = el('details', { class: `power-card${id === 'H1' ? ' config-only' : ''}`, 'data-power-card': id });
   const overrideCount = BATTERY_STATES.filter(([stateName]) => (cfg.power?.[stateName] || 'default') !== 'default').length;
   const rerender = () => renderPowerBehavior();
   details.appendChild(el('summary', {}, [
