@@ -9,7 +9,6 @@ static const char* TAG = "PowerFunctions";
 
 static constexpr uint16_t BATTERY_EMPTY_MV_PER_CELL = 3300;
 static constexpr uint16_t BATTERY_FULL_MV_PER_CELL = 4200;
-static constexpr uint16_t BATTERY_WARN_MARGIN_MV_PER_CELL = 150;
 
 static volatile uint16_t s_lastBatteryMillivolts = 0;
 static volatile uint8_t s_lastBatteryPercent = 0;
@@ -88,6 +87,10 @@ uint8_t PowerFunctions::getLastBatteryState() {
     return s_lastBatteryState;
 }
 
+uint16_t PowerFunctions::battery_warn_millivolts(uint8_t cell_count, uint8_t warn_percent) {
+    return battery_cutoff_millivolts(cell_count, warn_percent);
+}
+
 uint16_t PowerFunctions::battery_cutoff_millivolts(uint8_t cell_count, uint8_t cutoff_percent) {
     if (cell_count == 0) cell_count = BC_CELL_COUNT_DEFAULT;
     if (cutoff_percent > 100) cutoff_percent = 100;
@@ -141,10 +144,9 @@ void PowerFunctions::batteryMonitorTask(void* pvParameters) {
 
         const uint8_t cells = battery_config_get_cell_count();
         const uint8_t cutoffPercent = battery_config_get_cutoff_percent();
+        const uint8_t warnPercent = battery_config_get_warn_percent();
         const int lowVoltage_mV = battery_cutoff_millivolts(cells, cutoffPercent);
-        const int warnVoltage_mV = min(
-            (int)(BATTERY_FULL_MV_PER_CELL * cells),
-            lowVoltage_mV + (int)(BATTERY_WARN_MARGIN_MV_PER_CELL * cells));
+        const int warnVoltage_mV = battery_warn_millivolts(cells, warnPercent);
         self->shutdownVoltage_mV = lowVoltage_mV;
 
         const uint16_t filtered_mV = (uint16_t)max(0.0f, self->ema_mV);

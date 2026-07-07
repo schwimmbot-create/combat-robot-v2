@@ -303,7 +303,9 @@ static void send_json_status(AsyncWebServerRequest *req) {
     json += "\"battery_state\":" + String(s.battery_state) + ",";
     json += "\"battery_cell_count\":" + String(s.battery_cell_count) + ",";
     json += "\"battery_cutoff_pct\":" + String(s.battery_cutoff_pct) + ",";
+    json += "\"battery_warn_pct\":" + String(s.battery_warn_pct) + ",";
     json += "\"battery_cutoff_mv\":" + String(s.battery_cutoff_mv) + ",";
+    json += "\"battery_warn_mv\":" + String(s.battery_warn_mv) + ",";
     json += "\"outputs\":{";
     json += "\"S1\":{";
     json += "\"logical\":" + String(main_get_digital_output_logical(OC_OUT_S1) ? "true" : "false") + ",";
@@ -867,9 +869,13 @@ void web_config_get_status(web_status_t *out) {
     out->battery_state = PowerFunctions::getLastBatteryState();
     out->battery_cell_count = battery_config_get_cell_count();
     out->battery_cutoff_pct = battery_config_get_cutoff_percent();
+    out->battery_warn_pct = battery_config_get_warn_percent();
     out->battery_cutoff_mv = PowerFunctions::battery_cutoff_millivolts(
         out->battery_cell_count,
         out->battery_cutoff_pct);
+    out->battery_warn_mv = PowerFunctions::battery_warn_millivolts(
+        out->battery_cell_count,
+        out->battery_warn_pct);
 
     out->firmware_version = VERSION;
 }

@@ -759,13 +759,22 @@ class TestBleGamepadGuiContract:
             "Motor 2 / P2",
             "Servo / ESC 1",
             "Servo / ESC 2",
-            "UART",
             "Header H1",
-            "LED1",
+            "configOnly: true",
             "SW1",
-            "LED2 / RGB ignored for now",
+            "RGB / RGBW LED strip",
+            "RGB / RGBW lighting plan",
+            "LED count",
+            "Rainbow",
+            "Chaser / scanner",
+            "Battery meter",
+            "SW1 timing/actions",
+            "Clear controllers and start pairing",
         ):
             assert token in html
+        assert "display_name: 'UART'" not in html
+        assert "display_name: 'LED1'" not in html
+        assert "LED2 / RGB ignored for now" not in html
 
         output_block = re.search(r"const BOARD_OUTPUT_PROFILES = \{[\s\S]+?\n\};", html)
         assert output_block, "BOARD_OUTPUT_PROFILES missing"
@@ -1359,12 +1368,26 @@ class TestConfigUiMockup:
         assert "<canvas" in html
         assert "Left Stick" in html and "Right Stick" in html
 
+    def test_live_stick_view_uses_circular_gate(self, html):
+        m = re.search(r"function drawStick\([\s\S]+?\n\}\s*\n\s*function liveTick", html)
+        assert m, "drawStick body not found"
+        body = m.group(0)
+        assert "gateRadius" in body
+        assert "ctx.arc(cx0, cy0, gateRadius" in body
+        assert "ctx.clip()" in body
+        assert "Math.hypot(nx, ny)" in body
+        assert "strokeRect" not in body
+
     def test_has_button_chip_strip(self, html):
         for tag in ("btn-chip", "L1 Bumper", "R1 Bumper", "D-Pad Up"):
             assert tag in html
 
     def test_has_save_and_reset(self, html):
         assert "btn-save" in html and "btn-reset" in html
+
+    def test_header_and_menu_bar_have_no_sticky_gap(self, html):
+        assert "top: 51px" not in html
+        assert "top: calc(44px + env(safe-area-inset-top))" in html
 
     def test_chunks_2_3_real_fetch_and_ws(self, gen_html):
         # The mockup calls /api/config for both the load-on-boot and the
@@ -1417,11 +1440,12 @@ class TestBatteryManagementContract:
     def test_status_json_reports_voltage_percent_cell_count_and_cutoff(self):
         header = self.WEB_HEADER.read_text()
         src = self.WEB_CONFIG.read_text()
-        for field in ["battery_mv", "battery_pct", "battery_cell_count", "battery_cutoff_pct", "battery_cutoff_mv"]:
+        for field in ["battery_mv", "battery_pct", "battery_cell_count", "battery_warn_pct", "battery_cutoff_pct", "battery_warn_mv", "battery_cutoff_mv"]:
             assert field in header, f"web_status_t missing {field}"
             assert f"\\\"{field}\\\"" in src, f"/api/status JSON missing {field}"
         assert "PowerFunctions::getLastBatteryMillivolts" in src
         assert "battery_config_get_cell_count" in src
+        assert "battery_config_get_warn_percent" in src
         assert "battery_config_get_cutoff_percent" in src
 
     def test_battery_config_endpoint_exists_and_validates_ranges(self):
@@ -1432,7 +1456,7 @@ class TestBatteryManagementContract:
         )
         assert "HTTP_GET" in src and "battery_config_to_json" in src
         assert "HTTP_POST" in src and "battery_config_apply_json_patch" in src
-        assert "cell_count" in src and "cutoff_percent" in src
+        assert "cell_count" in src and "warn_percent" in src and "cutoff_percent" in src
         assert "invalid battery config" in src
 
     def test_battery_cell_count_supports_1_through_8(self):
@@ -1459,6 +1483,7 @@ class TestBatteryManagementContract:
             "battery-voltage",
             "battery-percent",
             "battery-state",
+            "battery-warn-mv",
             "battery-cutoff-mv",
             "setInterval(() => { liveTick(); refreshStatus(); }, 1000);",
             "state.battery",
@@ -1488,11 +1513,13 @@ class TestBatteryManagementContract:
         # Save the user-supplied values so refreshStatus after a successful save
         # (or a half-typed edit) doesn't snap the inputs back to server defaults.
         assert "battery-cell-count" in apply_block
+        assert "battery-warn-percent" in apply_block
         assert "battery-cutoff-percent" in apply_block
         # The guard must be stronger than just "input is focused": it must skip
         # the overwrite while there are unsaved user edits.
         for needle in (
             "state.battery.cell_count_dirty",
+            "state.battery.warn_percent_dirty",
             "state.battery.cutoff_percent_dirty",
         ):
             assert needle in apply_block, (
@@ -1525,14 +1552,33 @@ class TestBatteryManagementContract:
             'id="battery-percent"',
             'id="battery-state"',
             'id="battery-cell-count"',
+            'id="battery-warn-percent"',
             'id="battery-cutoff-percent"',
+            'id="battery-warn-mv"',
             'id="battery-cutoff-mv"',
             'id="btn-battery-save"',
             '/api/config/battery',
             'battery_cell_count',
+            'battery_warn_pct',
             'battery_cutoff_pct',
+            'warn_percent',
         ]:
             assert needle in html
+
+    def test_power_behavior_cards_are_collapsible_enabled_only_and_highlight_overrides(self):
+        html = self.MOCKUP.read_text()
+        for needle in [
+            "const POWER_DEFAULTS = { GOOD: 'allow', WARN: 'reduce', LOW: 'disable' }",
+            "function powerIsEnabled",
+            "cfg.purpose === 'disabled'",
+            "el('details', { class: `power-card",
+            "select.power-select.override",
+            "Only enabled output channels appear here",
+            "GOOD = Allow, WARN = Reduce to 50%, LOW = Disable",
+        ]:
+            assert needle in html
+        assert "Inherit →" not in html
+        assert "Default for this output" not in html
 
 
 def test_obsolete_weapon_patch_is_rejected():

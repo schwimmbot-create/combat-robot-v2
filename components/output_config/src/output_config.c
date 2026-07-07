@@ -391,6 +391,11 @@ static esp_err_t save_all(void) {
 }
 
 // Validate ranges. Returns true if a config blob is sane.
+
+static bool source_is_digital_only(oc_source_id_t src) {
+    return src == OC_SRC_NONE || (src >= OC_SRC_BTN_A && src <= OC_SRC_DPAD_RIGHT);
+}
+
 static bool digital_thresholds_are_sane(const oc_output_cfg_t *c) {
     if ((unsigned)c->digital_mode >= OC_DIGITAL_MODE__COUNT) return false;
     if ((unsigned)c->digital_preset >= OC_DIGITAL_PRESET__COUNT) return false;
@@ -430,6 +435,9 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
         if (!digital_thresholds_are_sane(c)) return false;
         if ((i == OC_OUT_M1 || i == OC_OUT_M2) &&
             (c->purpose != OC_PURPOSE_DRIVE || c->protocol != OC_PROTO_NONE)) return false;
+        if ((i == OC_OUT_M1 || i == OC_OUT_M2) &&
+            (c->motor_mode == OC_MOTOR_MODE_MOMENTARY || c->motor_mode == OC_MOTOR_MODE_LATCHING) &&
+            !source_is_digital_only(c->primary)) return false;
         if (c->pwm_duty_pct > 100) return false;
         if ((i == OC_OUT_M1 || i == OC_OUT_M2) && (c->pwm_frequency_hz < 1000 || c->pwm_frequency_hz > 40000)) return false;
         if (!(i == OC_OUT_M1 || i == OC_OUT_M2) && c->pwm_frequency_hz > 40000) return false;
@@ -1313,6 +1321,9 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             } else if (strcmp(key, "primary") == 0) {
                 oc_source_id_t s;
                 if (!output_config_source_from_str(value, &s)) return false;
+                if ((id == OC_OUT_M1 || id == OC_OUT_M2) &&
+                    (s_cfg[id].motor_mode == OC_MOTOR_MODE_MOMENTARY || s_cfg[id].motor_mode == OC_MOTOR_MODE_LATCHING) &&
+                    !source_is_digital_only(s)) return false;
                 if (s_cfg[id].primary != s) { s_cfg[id].primary = s; dirty = true; }
             } else if (strcmp(key, "secondary") == 0) {
                 oc_source_id_t s;
@@ -1321,6 +1332,9 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             } else if (strcmp(key, "motor_mode") == 0) {
                 oc_motor_mode_t mode;
                 if (!motor_mode_from_str(value, &mode)) return false;
+                if ((id == OC_OUT_M1 || id == OC_OUT_M2) &&
+                    (mode == OC_MOTOR_MODE_MOMENTARY || mode == OC_MOTOR_MODE_LATCHING) &&
+                    !source_is_digital_only(s_cfg[id].primary)) return false;
                 if (s_cfg[id].motor_mode != mode) { s_cfg[id].motor_mode = mode; dirty = true; }
             } else {
                 // Unknown string key: accept silently for forward-compat.

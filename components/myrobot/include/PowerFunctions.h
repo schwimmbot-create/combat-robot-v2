@@ -17,6 +17,7 @@ public:
     static uint8_t getLastBatteryPercent();
     static uint8_t getLastBatteryState();
     static uint16_t battery_cutoff_millivolts(uint8_t cell_count, uint8_t cutoff_percent);
+    static uint16_t battery_warn_millivolts(uint8_t cell_count, uint8_t warn_percent);
     static uint8_t battery_percent_from_millivolts(uint16_t millivolts, uint8_t cell_count);
 
 private:

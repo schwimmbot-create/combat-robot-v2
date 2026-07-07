@@ -46,7 +46,9 @@ struct web_status_t {
     uint8_t battery_state;       // 1=good 2=warn 3=low
     uint8_t battery_cell_count;  // configured LiPo cell count
     uint8_t battery_cutoff_pct;  // configured percent remaining at cutoff
+    uint8_t battery_warn_pct;    // configured percent remaining at warning
     uint16_t battery_cutoff_mv;  // computed pack cutoff in millivolts
+    uint16_t battery_warn_mv;    // computed pack warning threshold in millivolts
     const char *pairing_state_str;
     const char *firmware_version;
 };

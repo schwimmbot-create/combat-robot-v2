@@ -628,6 +628,20 @@ def configure_manual_m1(api: RobotApi, *, mode: str, primary: str = "A", duty: i
 def verify_manual_motor_outputs(api: RobotApi, robot: SerialCli) -> None:
     # Out-of-range motor PWM frequency should be rejected at the API/config layer.
     try:
+        api.post_json("/api/config", {"M1": {"motor_mode": "momentary", "primary": "LY"}})
+        raise BenchError("manual M1 momentary analog stick source unexpectedly succeeded")
+    except BenchError as exc:
+        if "HTTP Error 400" not in str(exc) and "invalid patch" not in str(exc):
+            raise
+    try:
+        api.post_json("/api/config", {"M1": {"motor_mode": "latching", "primary": "RT"}})
+        raise BenchError("manual M1 latching analog trigger source unexpectedly succeeded")
+    except BenchError as exc:
+        if "HTTP Error 400" not in str(exc) and "invalid patch" not in str(exc):
+            raise
+    print("PASS manual M1 momentary/latching reject analog stick/trigger sources")
+
+    try:
         api.post_json("/api/config", {"M1": {"pwm_frequency_hz": 999}})
         raise BenchError("M1 PWM frequency below lower bound unexpectedly succeeded")
     except BenchError as exc:

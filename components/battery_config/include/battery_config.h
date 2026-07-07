@@ -19,6 +19,7 @@ extern "C" {
 #define BC_NVS_NAMESPACE          "battery_cfg"
 #define BC_NVS_KEY_CELL_COUNT     "cells_v1"
 #define BC_NVS_KEY_CUTOFF_PERCENT "cutoff_pct_v1"
+#define BC_NVS_KEY_WARN_PERCENT   "warn_pct_v1"
 
 #define BC_CELL_COUNT_DEFAULT       3
 #define BC_CELL_COUNT_MIN           1
@@ -30,11 +31,17 @@ extern "C" {
 #define BC_CUTOFF_PERCENT_MIN       0
 #define BC_CUTOFF_PERCENT_MAX      80
 
+// Default mirrors the old warn threshold: cutoff 33% plus 150 mV/cell ~= 50%.
+#define BC_WARN_PERCENT_DEFAULT    50
+#define BC_WARN_PERCENT_MIN         1
+#define BC_WARN_PERCENT_MAX       100
+
 #define BC_JSON_BUF_SIZE          256
 
 typedef struct {
     uint8_t cell_count;
     uint8_t cutoff_percent;
+    uint8_t warn_percent;
 } battery_config_t;
 
 esp_err_t battery_config_init(void);
@@ -42,8 +49,10 @@ void battery_config_reset_defaults(void);
 
 uint8_t battery_config_get_cell_count(void);
 uint8_t battery_config_get_cutoff_percent(void);
+uint8_t battery_config_get_warn_percent(void);
 esp_err_t battery_config_set_cell_count(uint8_t cells);
 esp_err_t battery_config_set_cutoff_percent(uint8_t percent);
+esp_err_t battery_config_set_warn_percent(uint8_t percent);
 esp_err_t battery_config_commit(void);
 
 int battery_config_to_json(char *out_buf, size_t out_buf_len);

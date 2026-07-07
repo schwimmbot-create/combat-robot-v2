@@ -180,3 +180,13 @@ def test_composable_drive_setup_api_and_legacy_mapping():
         "output_config_get_drive_setup",
     ):
         assert token in src
+
+
+def test_manual_motor_momentary_latching_reject_analog_sources():
+    src = OC_C.read_text()
+    html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text()
+    assert "source_is_digital_only" in src
+    assert "OC_MOTOR_MODE_MOMENTARY || c->motor_mode == OC_MOTOR_MODE_LATCHING" in src
+    assert "!source_is_digital_only(c->primary)" in src
+    assert "MANUAL_MOTOR_DIGITAL_SOURCES" in html
+    assert "Momentary and latching controls use digital sources only" in html

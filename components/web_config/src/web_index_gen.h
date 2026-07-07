@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-07T15:03:29 from docs/config-ui-mockup.html
-// Source size: 105682 bytes
+// Generated 2026-07-07T16:34:51 from docs/config-ui-mockup.html
+// Source size: 122139 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -50,7 +50,7 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
   /* Tabs */
   nav.tabs {
     display: flex;
-    position: sticky; top: 51px; z-index: 4;
+    position: sticky; top: calc(44px + env(safe-area-inset-top)); z-index: 4;
     background: rgba(15,17,22,0.92);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid var(--border);
@@ -181,6 +181,31 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
     border: 1px solid var(--border); background: rgba(255,255,255,0.03);
     font-size: 12px; color: var(--muted); }
   .summary strong { color: var(--fg); }
+  .power-cards { display: grid; gap: 10px; margin-top: 10px; }
+  .power-card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--card); padding: 0; overflow: hidden; }
+  .power-card.config-only { border-style: dashed; opacity: 0.9; }
+  .power-card summary { list-style: none; cursor: pointer; padding: 12px; display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+  .power-card summary::-webkit-details-marker { display: none; }
+  .power-card summary::before { content: '▸'; color: var(--muted); margin-right: 4px; }
+  .power-card[open] summary::before { content: '▾'; }
+  .power-title { font-weight: 700; color: var(--fg); }
+  .power-subtitle { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .power-card-body { padding: 0 12px 12px; }
+  .power-row { display: grid; grid-template-columns: 72px minmax(150px, 1fr); gap: 8px; align-items: center; padding: 7px 0; border-top: 1px solid rgba(255,255,255,0.06); }
+  .power-row:first-of-type { border-top: 0; }
+  .power-state { font-size: 12px; font-weight: 800; letter-spacing: .04em; }
+  .power-state.good { color: #4ade80; }
+  .power-state.warn { color: #facc15; }
+  .power-state.low { color: #f87171; }
+  select.power-select.override { color: #ffd0a6; border-color: rgba(255,107,53,.75); background: rgba(255,107,53,.14); box-shadow: 0 0 0 1px rgba(255,107,53,.2) inset; }
+  .power-badge { font-size: 11px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 7px; white-space: nowrap; }
+  .power-badge.override { color: #ffd0a6; border-color: rgba(255,107,53,.45); background: rgba(255,107,53,.12); }
+  .power-badge.default { color: var(--muted); }
+  .power-safety { border-color: rgba(74,222,128,.35); background: rgba(74,222,128,.08); }
+  .power-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .power-actions button { width: auto; }
+  @media (max-width: 560px) { .power-row { grid-template-columns: 1fr; align-items: stretch; } }
+
   .mock-bot { display: grid; gap: 10px; margin-top: 10px; }
   .mock-row { display: grid; grid-template-columns: 52px 76px 1fr 34px; gap: 8px; align-items: center; }
   .mock-dir { font: 700 11px/1 ui-monospace, "SF Mono", Menlo, monospace; color: var(--muted); text-transform: uppercase; }
@@ -288,24 +313,28 @@ Drive behavior is configured in Driving Setup.</span></span></h2>
         <span class="k">Voltage</span><span class="v" id="battery-voltage">—</span>
         <span class="k">Remaining</span><span class="v" id="battery-percent">—</span>
         <span class="k">State</span><span class="v" id="battery-state">—</span>
+        <span class="k">Warn threshold</span><span class="v" id="battery-warn-mv">—</span>
         <span class="k">Cutoff</span><span class="v" id="battery-cutoff-mv">—</span>
       </div>
       <div class="grid-2" style="margin-top:10px;">
         <label class="field">Cell count
           <input id="battery-cell-count" type="number" min="1" max="8" step="1" style="width:100%; margin-top:4px;">
         </label>
-        <label class="field">Cutoff remaining %
+        <label class="field">Warn remaining %
+          <input id="battery-warn-percent" type="number" min="1" max="100" step="1" style="width:100%; margin-top:4px;">
+        </label>
+        <label class="field">Low cutoff remaining %
           <input id="battery-cutoff-percent" type="number" min="0" max="80" step="1" style="width:100%; margin-top:4px;">
         </label>
       </div>
-      <p class="meta" style="margin:8px 0;">Default is 3S at 33%, matching the old ~3.60 V/cell cutoff. Range: 1–8 cells, 0–80%.</p>
+      <p class="meta" style="margin:8px 0;">Default is 3S with WARN at 50% and LOW cutoff at 33%, matching the old ~3.75 V/cell warning and ~3.60 V/cell cutoff. Warn must be greater than cutoff.</p>
       <button id="btn-battery-save" class="oled" style="margin-top:4px;">Save Battery Settings</button>
       <span id="battery-save-status" class="meta" style="margin-left:8px;"></span>
     </div>
 
     <div class="card">
       <h2>Power Behavior</h2>
-      <p class="meta">Choose what each named channel does in GOOD, WARN, and LOW battery states. Defaults are inherited from the channel purpose; per-channel overrides win. Safety stop and system/config remain locked always active.</p>
+      <p class="meta">Choose what enabled channels do in GOOD, WARN, and LOW battery states. Defaults are GOOD = Allow, WARN = Reduce to 50%, LOW = Disable. Changed values are highlighted. Safety stop and system/config remain locked always active.</p>
       <div id="power-behavior"></div>
     </div>
 
@@ -437,13 +466,11 @@ const BOARD_OUTPUT_PROFILES = {
       { id: 'M2', display_name: 'Motor 2 / P2', kind: 'motor', runtimeControlled: true },
       { id: 'S1', display_name: 'Servo / ESC 1', kind: 'servo' },
       { id: 'S2', display_name: 'Servo / ESC 2', kind: 'servo' },
+      { id: 'H1', display_name: 'Header H1', kind: 'servo', configOnly: true },
     ],
     io: [
-      { id: 'UART', display_name: 'UART', status: 'Reserved', detail: 'Board UART pads/header for future telemetry or debug accessories; not currently controller-mapped.' },
-      { id: 'H1', display_name: 'Header H1', status: 'Spare header', detail: 'Free spare header on v2; keep unassigned until the attached accessory is known.' },
-      { id: 'SW1', display_name: 'SW1', status: 'Free switch input', detail: 'GPIO5 / MODE_BUTTON. Hold 5s to clear stored controllers and enter pairing.' },
-      { id: 'LED1', display_name: 'LED1', status: 'Standard LED', detail: 'GPIO10 debug LED. Blinks during pairing and stays solid when paired.' },
-      { id: 'LED2', display_name: 'LED2 / RGB ignored for now', status: 'Ignored', detail: 'RGB LED shares the GPIO8/SCL line; leave it out of the outputs workflow for now.' },
+      { id: 'SW1', display_name: 'SW1', status: 'Mode button', detail: 'GPIO5 / MODE_BUTTON. Configure actions by hold duration below.' },
+      { id: 'RGB', display_name: 'RGB / RGBW LED strip', status: 'Configurable status lighting', detail: 'One onboard RGBW LED plus a header for daisy-chained addressable LEDs.' },
     ],
   },
   board_v3: {
@@ -471,6 +498,7 @@ const DRIVE_AXES = [
 const THROTTLE_AXES = ['LY','RY','RT_MINUS_LT','LT_MINUS_RT','RT_ONLY','LT_ONLY','DPAD_Y'];
 const STEERING_AXES = ['LX','RX','DPAD_X'];
 const DRIVE_MODIFIER_SOURCES = ['NONE','A','B','X','Y','L1','R1','L2','R2','SELECT','START','L3','R3','HOME'];
+const MANUAL_MOTOR_DIGITAL_SOURCES = ['NONE','A','B','X','Y','L1','R1','L2','R2','SELECT','START','L3','R3','HOME','DPAD_UP','DPAD_DOWN','DPAD_LEFT','DPAD_RIGHT'];
 const DRIVE_MODE_LEGACY = {
   none:         { layout: 'differential', method: 'none', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'LX' },
   tank_split:   { layout: 'differential', method: 'tank', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'LX' },
@@ -532,7 +560,10 @@ const state = {
     M2:     { display_name: 'Motor 2', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'RY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, motor_mode: 'proportional', pwm: { frequency_hz: 20000, duty_pct: 100 }, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
     S1:     { display_name: 'Servo 1', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
     S2:     { display_name: 'Servo 2', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    H1:     { display_name: 'Header H1', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' }, config_only: true },
   },
+  sw1: { short_action: 'pairing', long_action: 'clear_pair', long_hold_ms: 5000, double_action: 'none' },
+  rgb: { led_count: 1, type: 'RGBW', brightness_pct: 40, idle_pattern: 'solid', idle_color: '#0040ff', paired_pattern: 'solid', paired_color: '#00ff40', pairing_pattern: 'pulse', pairing_color: '#ff9f00', low_battery_pattern: 'chaser', low_battery_color: '#ff0000', rainbow_speed: 50, chaser_tail: 4, user_status_enabled: true },
   gp: null,
   mockDrive: null,
   bleConnected: false,
@@ -540,7 +571,7 @@ const state = {
   pairedMacs: [],
   wifi: { mode: '—', ip: '—', ssid: '—' },
   board: { rev: '—' },
-  battery: { mv: '—', pct: '—', state: '—', state_label: '—', cell_count: 3, cutoff_percent: 33, cutoff_mv: '—', cell_count_dirty: false, cutoff_percent_dirty: false },
+  battery: { mv: '—', pct: '—', state: '—', state_label: '—', cell_count: 3, warn_percent: 50, cutoff_percent: 33, warn_mv: '—', cutoff_mv: '—', cell_count_dirty: false, warn_percent_dirty: false, cutoff_percent_dirty: false },
 };
 
 // ---- DOM helpers --------------------------------------------------------
@@ -570,12 +601,6 @@ const PROTOCOL_OPTIONS = [
   ['multishot', 'MultiShot'],
   ['gpio', 'GPIO'],
   ['pwm_duty', 'Generic PWM duty'],
-];
-const POWER_OPTIONS = [
-  ['default', 'Inherit'],
-  ['allow', 'Allow'],
-  ['disable', 'Disable'],
-  ['reduce', 'Reduce'],
 ];
 function outputDisplayName(id) {
   const cfg = state.outputs[id] || {};
@@ -633,6 +658,25 @@ function renderReservedSourcesBanner() {
     el('strong', {}, 'Drive setup reserved sources: '),
     `${labels.join(' + ')} are reserved by Driving Setup and are not selectable for Servo / ESC until you change Driving Setup.`,
   ]);
+}
+
+function isManualMotorDigitalSource(src) {
+  return MANUAL_MOTOR_DIGITAL_SOURCES.includes(src || 'NONE');
+}
+
+function manualMotorSourceSelect(value, ownerId) {
+  const sel = el('select', { 'data-name': 'primary' });
+  const owners = assignedSourceOwners(ownerId);
+  const choices = selectableSources().filter(src => isManualMotorDigitalSource(src.id));
+  for (const src of choices) {
+    const owner = owners.get(src.id);
+    const label = owner && src.id !== value ? `${src.label} — Used by ${owner}` : src.label;
+    const option = el('option', { value: src.id }, label);
+    if (src.id === value) option.selected = true;
+    if (owner && src.id !== value) option.disabled = true;
+    sel.appendChild(option);
+  }
+  return sel;
 }
 
 function sourceSelect(name, value, ownerId) {
@@ -1252,10 +1296,13 @@ function motorModeSelect(value, onChange) {
 function renderManualMotorControls(o, cfg, nameInput, dirWrap, primary) {
   const pwm = cfg.pwm || (cfg.pwm = { frequency_hz: 20000, duty_pct: 100 });
   if (!cfg.motor_mode) cfg.motor_mode = 'proportional';
+  if ((cfg.motor_mode === 'momentary' || cfg.motor_mode === 'latching') && !isManualMotorDigitalSource(cfg.primary)) cfg.primary = 'NONE';
+  const source = (cfg.motor_mode === 'momentary' || cfg.motor_mode === 'latching') ? manualMotorSourceSelect(cfg.primary, o.id) : primary;
+  source.addEventListener('change', e => { state.outputs[o.id].primary = e.target.value; applyDigitalPreset(state.outputs[o.id]); renderOutputs(); });
   const card = el('div', { class: 'grid-2', style: 'margin-top:10px' }, [
     el('div', {}, [el('label', { class: 'field' }, 'Channel name'), nameInput]),
-    el('div', {}, [el('label', { class: 'field' }, 'Manual behavior'), motorModeSelect(cfg.motor_mode, v => { cfg.motor_mode = v; renderOutputs(); })]),
-    el('div', {}, [el('label', { class: 'field' }, 'Control source'), primary]),
+    el('div', {}, [el('label', { class: 'field' }, 'Manual behavior'), motorModeSelect(cfg.motor_mode, v => { cfg.motor_mode = v; if ((v === 'momentary' || v === 'latching') && !isManualMotorDigitalSource(cfg.primary)) cfg.primary = 'NONE'; renderOutputs(); })]),
+    el('div', {}, [el('label', { class: 'field' }, 'Control source'), source, (cfg.motor_mode === 'momentary' || cfg.motor_mode === 'latching') ? el('p', { class: 'hint' }, 'Momentary and latching controls use digital sources only: buttons, bumpers, stick clicks, Home, or D-pad. Sticks and analog triggers are hidden to avoid accidental toggles.') : null]),
     el('div', {}, [el('label', { class: 'field' }, 'Direction'), dirWrap]),
     el('div', {}, [el('label', { class: 'field' }, 'PWM frequency (Hz)'), numberInput(pwm.frequency_hz || 20000, 1000, 40000, 100, v => { pwm.frequency_hz = v; })]),
     el('div', {}, [el('label', { class: 'field' }, 'On power (%)'), numberInput(pwm.duty_pct ?? 100, 0, 100, 1, v => { pwm.duty_pct = v; })]),
@@ -1280,6 +1327,7 @@ function renderOutput(o) {
     active_high: true, default_state: false,
     digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50,
     power: { GOOD: 'default', WARN: 'default', LOW: 'default' },
+    config_only: !!o.configOnly,
   };
   const cfg = state.outputs[o.id];
   ensureRoleDefaults(cfg);
@@ -1295,7 +1343,7 @@ function renderOutput(o) {
     }
   });
 
-  const isServo = o.kind === 'servo' || o.id === 'S1' || o.id === 'S2';
+  const isServo = o.kind === 'servo';
   const isDigitalOutput = cfg.purpose === 'digital_output';
   ensureDigitalDefaults(cfg);
   const servoSel = el('select', { 'data-name': 'servo_mode' },
@@ -1365,6 +1413,7 @@ function renderOutput(o) {
     el('span', { class: 'id' }, o.id),
   ]));
   if (o.detail) card.appendChild(el('p', { class: 'hint' }, o.detail));
+  if (o.configOnly || cfg.config_only) card.appendChild(el('p', { class: 'hint' }, 'Planning/config-only until this header pin is verified and wired in firmware; options mirror S1/S2 capabilities.'));
   if (!o.runtimeControlled) {
     card.appendChild(el('div', { class: 'grid-2' }, [
       el('div', {}, [
@@ -1475,6 +1524,82 @@ function activeBoardProfile() {
   return BOARD_OUTPUT_PROFILES.board_v2;
 }
 
+
+const SW1_ACTIONS = [
+  ['none', 'No action'],
+  ['pairing', 'Start pairing mode'],
+  ['clear_pair', 'Clear controllers and start pairing'],
+  ['cancel_pairing', 'Cancel pairing mode'],
+  ['reset_outputs', 'Reset output config to defaults'],
+  ['battery_status', 'Show battery/status blink'],
+];
+function sw1ActionSelect(value, onChange) {
+  return driveSelect(value || 'none', SW1_ACTIONS, onChange);
+}
+function renderSw1Controls() {
+  const cfg = state.sw1 || (state.sw1 = { short_action: 'pairing', long_action: 'clear_pair', long_hold_ms: 5000, double_action: 'none' });
+  const hold = numberInput(cfg.long_hold_ms || 5000, 1000, 10000, 500, v => { cfg.long_hold_ms = v; });
+  return el('div', { class: 'summary', style: 'margin-top:10px' }, [
+    el('strong', {}, 'SW1 timing/actions'),
+    el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
+      el('div', {}, [el('label', { class: 'field' }, 'Short press'), sw1ActionSelect(cfg.short_action, v => { cfg.short_action = v; })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Double press'), sw1ActionSelect(cfg.double_action, v => { cfg.double_action = v; })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Hold action'), sw1ActionSelect(cfg.long_action, v => { cfg.long_action = v; })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Hold time (ms)'), hold]),
+    ]),
+    el('p', { class: 'hint' }, 'Firmware currently uses the safe default: hold SW1 for 5 seconds to clear controllers and start pairing. Other actions are proposed options for the physical mode button workflow.'),
+  ]);
+}
+
+
+const RGB_PATTERNS = [
+  ['off', 'Off'],
+  ['solid', 'Solid color'],
+  ['pulse', 'Breathing / pulse'],
+  ['blink', 'Blink'],
+  ['rainbow', 'Rainbow'],
+  ['chaser', 'Chaser / scanner'],
+  ['battery_meter', 'Battery meter'],
+  ['controller_activity', 'Controller activity'],
+];
+const RGB_TYPES = [['RGBW','RGBW / SK6812-style'], ['RGB','RGB / WS2812-style']];
+function colorInput(value, onChange) {
+  const inp = el('input', { type: 'color', value: value || '#ffffff' });
+  inp.addEventListener('input', e => onChange(e.target.value));
+  return inp;
+}
+function renderRgbPatternRow(label, patternKey, colorKey) {
+  const cfg = state.rgb;
+  return el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
+    el('div', {}, [el('label', { class: 'field' }, `${label} pattern`), driveSelect(cfg[patternKey] || 'solid', RGB_PATTERNS, v => { cfg[patternKey] = v; })]),
+    el('div', {}, [el('label', { class: 'field' }, `${label} color`), colorInput(cfg[colorKey] || '#ffffff', v => { cfg[colorKey] = v; })]),
+  ]);
+}
+function renderRgbControls() {
+  const cfg = state.rgb || (state.rgb = { led_count: 1, type: 'RGBW', brightness_pct: 40 });
+  return el('div', { class: 'summary', style: 'margin-top:10px' }, [
+    el('strong', {}, 'RGB / RGBW lighting plan'),
+    el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
+      el('div', {}, [el('label', { class: 'field' }, 'LED count'), numberInput(cfg.led_count || 1, 1, 64, 1, v => { cfg.led_count = v; }), el('p', { class: 'hint' }, '1 = onboard LED only. Increase when using the daisy-chain header.')]),
+      el('div', {}, [el('label', { class: 'field' }, 'LED type'), driveSelect(cfg.type || 'RGBW', RGB_TYPES, v => { cfg.type = v; })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Global brightness (%)'), numberInput(cfg.brightness_pct || 40, 1, 100, 1, v => { cfg.brightness_pct = v; })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Expose user status colors'), driveSelect(cfg.user_status_enabled ? 'yes' : 'no', [['yes','Yes'], ['no','No']], v => { cfg.user_status_enabled = v === 'yes'; })]),
+    ]),
+    renderRgbPatternRow('Idle', 'idle_pattern', 'idle_color'),
+    renderRgbPatternRow('Paired', 'paired_pattern', 'paired_color'),
+    renderRgbPatternRow('Pairing', 'pairing_pattern', 'pairing_color'),
+    renderRgbPatternRow('Low battery', 'low_battery_pattern', 'low_battery_color'),
+    el('details', { style: 'margin-top:10px' }, [
+      el('summary', {}, 'Advanced pattern tuning'),
+      el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
+        el('div', {}, [el('label', { class: 'field' }, 'Rainbow speed (%)'), numberInput(cfg.rainbow_speed || 50, 1, 100, 1, v => { cfg.rainbow_speed = v; })]),
+        el('div', {}, [el('label', { class: 'field' }, 'Chaser tail length'), numberInput(cfg.chaser_tail || 4, 1, 16, 1, v => { cfg.chaser_tail = v; })]),
+      ]),
+    ]),
+    el('p', { class: 'hint' }, 'Feature plan: map robot states to patterns, support onboard-only or daisy-chained strips, cap brightness for battery, and reserve special overlays for pairing, low battery, failsafe, and controller activity. This section is UI/planning until the firmware RGB pattern engine is wired to these settings.'),
+  ]);
+}
+
 function renderBoardIoCard(io) {
   const card = el('article', { class: 'output board-io', 'data-io': io.id });
   card.appendChild(el('header', {}, [
@@ -1485,6 +1610,8 @@ function renderBoardIoCard(io) {
     el('strong', {}, io.status + ': '),
     io.detail,
   ]));
+  if (io.id === 'SW1') card.appendChild(renderSw1Controls());
+  if (io.id === 'RGB') card.appendChild(renderRgbControls());
   return card;
 }
 
@@ -1498,45 +1625,118 @@ function renderOutputs() {
   renderPowerBehavior();
 }
 
-function powerSelect(outputId, stateName) {
+const BATTERY_STATES = [
+  ['GOOD', 'GOOD', 'good'],
+  ['WARN', 'WARN', 'warn'],
+  ['LOW', 'LOW', 'low'],
+];
+const POWER_ACTION_LABELS = {
+  allow: 'Allow',
+  disable: 'Disable',
+  reduce: 'Reduce to 50%',
+};
+const POWER_DEFAULTS = { GOOD: 'allow', WARN: 'reduce', LOW: 'disable' };
+function powerDefaultFor(_id, _cfg, stateName) {
+  return POWER_DEFAULTS[stateName] || 'disable';
+}
+function powerResolvedAction(id, cfg, stateName) {
+  const explicit = cfg?.power?.[stateName] || 'default';
+  return explicit === 'default' ? powerDefaultFor(id, cfg, stateName) : explicit;
+}
+function powerIsEnabled(id, cfg) {
+  if (!cfg) return false;
+  if (cfg.purpose === 'disabled') return false;
+  return true;
+}
+function powerPurposeLabel(id, cfg) {
+  if (id === 'M1' || id === 'M2') return 'Drive motor';
+  if (id === 'H1') return `Header / ${cfg?.purpose || 'aux'} — config-only`;
+  const p = cfg?.purpose || '—';
+  if (p === 'servo') return 'Servo / accessory';
+  if (p === 'esc') return cfg?.safety?.weapon ? 'ESC / weapon-role accessory' : 'ESC / motor controller';
+  if (p === 'digital_output') return 'Digital output';
+  if (p === 'digital_input') return 'Digital input';
+  if (p === 'pwm_accessory') return 'PWM accessory';
+  return p;
+}
+function powerSelect(outputId, stateName, onChange) {
   const cfg = state.outputs[outputId];
   if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
-  const sel = el('select', { 'data-power': `${outputId}-${stateName}` });
-  for (const [value, label] of POWER_OPTIONS) {
-    const opt = el('option', { value }, label);
-    if ((cfg.power[stateName] || 'default') === value) opt.selected = true;
+  const defaultAction = powerDefaultFor(outputId, cfg, stateName);
+  const resolved = powerResolvedAction(outputId, cfg, stateName);
+  const isOverride = (cfg.power[stateName] || 'default') !== 'default';
+  const sel = el('select', { class: `power-select${isOverride ? ' override' : ''}`, 'data-power': `${outputId}-${stateName}` });
+  for (const value of ['allow', 'reduce', 'disable']) {
+    const opt = el('option', { value }, POWER_ACTION_LABELS[value]);
+    if (resolved === value) opt.selected = true;
     sel.appendChild(opt);
   }
-  sel.addEventListener('change', e => { cfg.power[stateName] = e.target.value; });
+  sel.addEventListener('change', e => {
+    const value = e.target.value;
+    cfg.power[stateName] = value === defaultAction ? 'default' : value;
+    if (onChange) onChange();
+  });
   return sel;
 }
-
+function renderPowerRow(id, cfg, stateName, label, cls, rerender) {
+  return el('div', { class: 'power-row' }, [
+    el('div', { class: `power-state ${cls}` }, label),
+    powerSelect(id, stateName, rerender),
+  ]);
+}
+function renderPowerCard(id) {
+  const cfg = state.outputs[id];
+  if (!powerIsEnabled(id, cfg)) return null;
+  if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
+  const details = el('details', { class: `power-card${id === 'H1' ? ' config-only' : ''}`, 'data-power-card': id, open: true });
+  const overrideCount = BATTERY_STATES.filter(([stateName]) => (cfg.power?.[stateName] || 'default') !== 'default').length;
+  const rerender = () => renderPowerBehavior();
+  details.appendChild(el('summary', {}, [
+    el('div', {}, [
+      el('div', { class: 'power-title' }, outputDisplayName(id)),
+      el('div', { class: 'power-subtitle' }, powerPurposeLabel(id, cfg)),
+    ]),
+    overrideCount ? el('span', { class: 'power-badge override' }, `${overrideCount} changed`) : el('span', { class: 'power-badge default' }, 'Default'),
+  ]));
+  const body = el('div', { class: 'power-card-body' });
+  if (id === 'H1') body.appendChild(el('p', { class: 'hint' }, 'Planning / config-only — not active at runtime yet.'));
+  for (const [stateName, label, cls] of BATTERY_STATES) body.appendChild(renderPowerRow(id, cfg, stateName, label, cls, rerender));
+  const reset = el('button', { class: 'ghost', type: 'button' }, 'Reset this output to defaults');
+  reset.addEventListener('click', () => { cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' }; renderPowerBehavior(); });
+  body.appendChild(el('div', { class: 'power-actions' }, reset));
+  details.appendChild(body);
+  return details;
+}
 function renderPowerBehavior() {
   const root = document.getElementById('power-behavior');
   if (!root) return;
   root.innerHTML = '';
-  const table = el('table', { class: 'power-table' });
-  table.appendChild(el('thead', {}, el('tr', {}, [
-    el('th', {}, 'Channel'), el('th', {}, 'Purpose'), el('th', {}, 'GOOD'), el('th', {}, 'WARN'), el('th', {}, 'LOW'),
-  ])));
-  const body = el('tbody');
-  for (const id of ['M1','M2','S1','S2']) {
-    const cfg = state.outputs[id];
-    if (!cfg) continue;
-    body.appendChild(el('tr', {}, [
-      el('td', {}, outputDisplayName(id)),
-      el('td', {}, cfg.purpose || '—'),
-      el('td', {}, powerSelect(id, 'GOOD')),
-      el('td', {}, powerSelect(id, 'WARN')),
-      el('td', {}, powerSelect(id, 'LOW')),
-    ]));
-  }
-  body.appendChild(el('tr', {}, [
-    el('td', {}, 'Safety Stop / System'), el('td', {}, 'locked'), el('td', {}, 'Always'), el('td', {}, 'Always'), el('td', {}, 'Always'),
+  root.appendChild(el('p', { class: 'meta' }, `Only enabled output channels appear here. Defaults are GOOD = Allow, WARN = Reduce to 50%, LOW = Disable. If you change a value from its default, the select box is highlighted.`));
+  root.appendChild(el('div', { class: 'summary power-safety' }, [
+    el('strong', {}, '🔒 Safety Stop is always active. '),
+    'Disconnect stop, failsafe, and system safety behavior cannot be disabled from this section.',
   ]));
-  table.appendChild(body);
-  root.appendChild(table);
-  root.appendChild(el('p', { class: 'hint' }, 'Example: set Motor 1 (M1) LOW = Allow while Servo 1 (S1) LOW = Disable. If S1 or S2 is configured as an ESC with Safety-critical weapon role, LOW defaults should be Disable.'));
+  const ids = activeBoardProfile().outputs.map(o => o.id).filter(id => powerIsEnabled(id, state.outputs[id]));
+  const overrideList = [];
+  for (const id of ids) {
+    const cfg = state.outputs[id];
+    if (!cfg?.power) continue;
+    for (const [stateName] of BATTERY_STATES) {
+      const explicit = cfg.power[stateName] || 'default';
+      if (explicit !== 'default') overrideList.push(`${outputDisplayName(id)} ${stateName} = ${POWER_ACTION_LABELS[explicit]}`);
+    }
+  }
+  root.appendChild(el('div', { class: 'summary' }, [
+    el('strong', {}, overrideList.length ? `${overrideList.length} changed setting${overrideList.length === 1 ? '' : 's'}: ` : 'Using defaults. '),
+    overrideList.length ? overrideList.join('; ') : 'GOOD = Allow, WARN = Reduce to 50%, LOW = Disable for all enabled outputs.',
+  ]));
+  const cards = el('div', { class: 'power-cards' });
+  for (const id of ids) {
+    const card = renderPowerCard(id);
+    if (card) cards.appendChild(card);
+  }
+  if (!ids.length) cards.appendChild(el('p', { class: 'hint' }, 'No enabled output channels. Enable channels in the Outputs tab to configure power behavior.'));
+  root.appendChild(cards);
 }
 
 // ---- Live controller visualization -------------------------------------
@@ -1560,15 +1760,44 @@ function renderButtonChips(gp) {
 function drawStick(canvas, lx, ly) {
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#2a2f3a'; ctx.lineWidth = 1;
-  ctx.strokeRect(0.5, 0.5, w-1, h-1);
+  const cx0 = w / 2;
+  const cy0 = h / 2;
+  const gateRadius = Math.min(w, h) / 2 - 2;
+  const dotRadius = 6;
+  const travelRadius = gateRadius - dotRadius - 2;
+
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, w, h);
+
+  // Draw a circular stick gate instead of a square box.
+  ctx.save();
+  ctx.beginPath();
+  ctx.arc(cx0, cy0, gateRadius, 0, Math.PI * 2);
+  ctx.clip();
+  ctx.fillStyle = '#05070b';
+  ctx.fillRect(0, 0, w, h);
   ctx.strokeStyle = '#333';
-  ctx.beginPath(); ctx.moveTo(w/2, 0); ctx.lineTo(w/2, h); ctx.moveTo(0, h/2); ctx.lineTo(w, h/2); ctx.stroke();
-  const cx = w/2 + (lx / 512) * (w/2 - 6);
-  const cy = h/2 + (ly / 512) * (h/2 - 6);
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(cx0, cy0 - gateRadius); ctx.lineTo(cx0, cy0 + gateRadius);
+  ctx.moveTo(cx0 - gateRadius, cy0); ctx.lineTo(cx0 + gateRadius, cy0);
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.strokeStyle = '#2a2f3a';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.arc(cx0, cy0, gateRadius - 0.75, 0, Math.PI * 2);
+  ctx.stroke();
+
+  let nx = lx / 512;
+  let ny = ly / 512;
+  const mag = Math.hypot(nx, ny);
+  if (mag > 1) { nx /= mag; ny /= mag; }
+  const cx = cx0 + nx * travelRadius;
+  const cy = cy0 + ny * travelRadius;
   ctx.fillStyle = '#ff6b35';
-  ctx.beginPath(); ctx.arc(cx, cy, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.arc(cx, cy, dotRadius, 0, Math.PI * 2); ctx.fill();
 }
 
 function liveTick() {
@@ -1657,7 +1886,9 @@ async function apiPostJSON(path, body) {
 // ---- Save / Reset wiring -----------------------------------------------
 function editableOutputPatch(outputs) {
   const patch = { drive_mode: state.drive_mode, drive: normalizeDriveSetup(state.drive || {}, state.drive_mode) };
+  const firmwareOutputIds = new Set(['M1','M2','S1','S2']);
   for (const [id, cfg] of Object.entries(outputs)) {
+    if (!firmwareOutputIds.has(id)) continue;
     ensureDigitalDefaults(cfg);
     if (cfg.purpose === 'digital_output') applyDigitalPreset(cfg);
     patch[id] = {
@@ -1725,9 +1956,11 @@ function configBackupPayload() {
       firmware_version: document.getElementById('fw-version')?.textContent || null,
     },
     outputs_patch: editableOutputPatch(state.outputs),
+    local_ui_only: { H1: state.outputs.H1, sw1: state.sw1, rgb: state.rgb },
     battery: {
       cell_count: state.battery.cell_count,
       cutoff_percent: state.battery.cutoff_percent,
+      warn_percent: state.battery.warn_percent,
     },
     max_paired: state.max_paired,
   };
@@ -1755,14 +1988,18 @@ function patchFromUploadedConfig(data) {
   if (!data || typeof data !== 'object') throw new Error('file is not a JSON object');
   if (data.outputs_patch && typeof data.outputs_patch === 'object') {
     if (data.outputs_patch.Weapon !== undefined) throw new Error('obsolete Weapon output is not supported; configure weapon as S1/S2 role');
-    return data.outputs_patch;
+    const patch = { ...data.outputs_patch };
+    if (data.local_ui_only?.H1) patch.H1 = data.local_ui_only.H1;
+    if (data.local_ui_only?.sw1) patch.sw1 = data.local_ui_only.sw1;
+    if (data.local_ui_only?.rgb) patch.rgb = data.local_ui_only.rgb;
+    return patch;
   }
   if (data.outputs && typeof data.outputs === 'object') {
     if (data.outputs.Weapon !== undefined) throw new Error('obsolete Weapon output is not supported; configure weapon as S1/S2 role');
     const patch = {};
     if (data.drive_mode && DRIVE_MODE_LEGACY[data.drive_mode]) patch.drive_mode = data.drive_mode;
     if (data.drive && typeof data.drive === 'object') patch.drive = normalizeDriveSetup(data.drive, patch.drive_mode || state.drive_mode);
-    for (const id of ['M1','M2','S1','S2']) {
+    for (const id of activeBoardProfile().outputs.map(o => o.id)) {
       if (data.outputs[id] && typeof data.outputs[id] === 'object') patch[id] = data.outputs[id];
     }
     if (Object.keys(patch).length > 0) return patch;
@@ -1775,7 +2012,7 @@ function patchFromUploadedConfig(data) {
 function applyUploadedPatchToForm(patch) {
   if (patch.drive_mode && DRIVE_MODE_LEGACY[patch.drive_mode]) state.drive_mode = patch.drive_mode;
   if (patch.drive && typeof patch.drive === 'object') state.drive = normalizeDriveSetup(patch.drive, state.drive_mode);
-  for (const id of ['M1','M2','S1','S2']) {
+  for (const id of activeBoardProfile().outputs.map(o => o.id)) {
     if (patch[id] && typeof patch[id] === 'object' && state.outputs[id]) state.outputs[id] = patch[id];
   }
   renderOutputs();
@@ -1789,17 +2026,23 @@ async function applyUploadedConfig(data) {
   if (data.battery && typeof data.battery === 'object') {
     const cells = Number(data.battery.cell_count);
     const cutoff = Number(data.battery.cutoff_percent);
+    const warn = Number(data.battery.warn_percent ?? 50);
     if (Number.isFinite(cells) && cells >= 1 && cells <= 8 &&
-        Number.isFinite(cutoff) && cutoff >= 0 && cutoff <= 80) {
-      await apiPostJSON('/api/config/battery', { cell_count: cells, cutoff_percent: cutoff });
+        Number.isFinite(cutoff) && cutoff >= 0 && cutoff <= 80 &&
+        Number.isFinite(warn) && warn >= 1 && warn <= 100 && warn > cutoff) {
+      await apiPostJSON('/api/config/battery', { cell_count: cells, cutoff_percent: cutoff, warn_percent: warn });
       state.battery.cell_count = cells;
       state.battery.cutoff_percent = cutoff;
+      state.battery.warn_percent = warn;
       state.battery.cell_count_dirty = false;
       state.battery.cutoff_percent_dirty = false;
+      state.battery.warn_percent_dirty = false;
       const cellInput = document.getElementById('battery-cell-count');
       const cutoffInput = document.getElementById('battery-cutoff-percent');
+      const warnInput = document.getElementById('battery-warn-percent');
       if (cellInput) cellInput.value = String(cells);
       if (cutoffInput) cutoffInput.value = String(cutoff);
+      if (warnInput) warnInput.value = String(warn);
     }
   }
 
@@ -1905,29 +2148,34 @@ document.getElementById('btn-board-reset').addEventListener('click', async () =>
 
 // ---- Battery config wiring ---------------------------------------------
 function markBatteryDirty() {
-  // Any keystroke in either input pauses the 1s status poll from clobbering it.
+  // Any keystroke in the inputs pauses the 1s status poll from clobbering it.
   state.battery.cell_count_dirty = true;
   state.battery.cutoff_percent_dirty = true;
+  state.battery.warn_percent_dirty = true;
 }
-['battery-cell-count', 'battery-cutoff-percent'].forEach(id => {
+['battery-cell-count', 'battery-warn-percent', 'battery-cutoff-percent'].forEach(id => {
   const el = document.getElementById(id);
   if (el) el.addEventListener('input', markBatteryDirty);
 });
 document.getElementById('btn-battery-save').addEventListener('click', async () => {
   const cells = parseInt(document.getElementById('battery-cell-count').value, 10);
+  const warn = parseInt(document.getElementById('battery-warn-percent').value, 10);
   const cutoff = parseInt(document.getElementById('battery-cutoff-percent').value, 10);
   if (!Number.isFinite(cells) || cells < 1 || cells > 8 ||
-      !Number.isFinite(cutoff) || cutoff < 0 || cutoff > 80) {
+      !Number.isFinite(warn) || warn < 1 || warn > 100 ||
+      !Number.isFinite(cutoff) || cutoff < 0 || cutoff > 80 || warn <= cutoff) {
     document.getElementById('battery-save-status').textContent = 'check ranges';
-    toast('Battery settings must be 1–8 cells and 0–80% cutoff', 'err');
+    toast('Battery settings must be 1–8 cells, warn 1–100%, cutoff 0–80%, and warn > cutoff', 'err');
     return;
   }
   try {
-    await apiPostJSON('/api/config/battery', { cell_count: cells, cutoff_percent: cutoff });
+    await apiPostJSON('/api/config/battery', { cell_count: cells, warn_percent: warn, cutoff_percent: cutoff });
     state.battery.cell_count = cells;
+    state.battery.warn_percent = warn;
     state.battery.cutoff_percent = cutoff;
     // Saved values now match the firmware, so the dirty flag is clear.
     state.battery.cell_count_dirty = false;
+    state.battery.warn_percent_dirty = false;
     state.battery.cutoff_percent_dirty = false;
     document.getElementById('battery-save-status').textContent = 'saved';
     toast('Battery settings saved');
@@ -1955,7 +2203,9 @@ function applyStatus(s) {
   const battStateLabel = { 1: 'Good', 2: 'Warn', 3: 'Low' }[battState] || '—';
   const battCells = Number(s.battery_cell_count ?? state.battery.cell_count ?? 3);
   const battCutoffPct = Number(s.battery_cutoff_pct ?? state.battery.cutoff_percent ?? 33);
+  const battWarnPct = Number(s.battery_warn_pct ?? state.battery.warn_percent ?? 50);
   const battCutoffMv = Number(s.battery_cutoff_mv || 0);
+  const battWarnMv = Number(s.battery_warn_mv || 0);
   // Mutate state.battery field-by-field. Replacing the whole object (the
   // previous version of this code) wiped the *_dirty flags set by the input
   // event listener, letting the next 1s poll clobber the user's pending edit.
@@ -1965,23 +2215,33 @@ function applyStatus(s) {
   state.battery.state_label = battStateLabel;
   state.battery.cell_count = battCells;
   state.battery.cutoff_percent = battCutoffPct;
+  state.battery.warn_percent = battWarnPct;
   state.battery.cutoff_mv = battCutoffMv;
+  state.battery.warn_mv = battWarnMv;
   const batteryText = battMv ? `${(battMv/1000).toFixed(2)} V · ${battPct}% · ${battStateLabel}` : '—';
   document.getElementById('fw-battery').textContent = batteryText;
   document.getElementById('battery-voltage').textContent = battMv ? `${(battMv/1000).toFixed(2)} V` : '—';
   document.getElementById('battery-percent').textContent = battMv ? `${battPct}%` : '—';
   document.getElementById('battery-state').textContent = battState ? battStateLabel : '—';
+  document.getElementById('battery-warn-mv').textContent = battWarnMv ? `${(battWarnMv/1000).toFixed(2)} V (${battWarnPct}%)` : '—';
   document.getElementById('battery-cutoff-mv').textContent = battCutoffMv ? `${(battCutoffMv/1000).toFixed(2)} V (${battCutoffPct}%)` : '—';
   // Only refresh the inputs when the user has no unsaved edit. The 1s status poll
   // would otherwise snap cell count / cutoff back to whatever the firmware last
   // reported, making it impossible to type a new value before clicking Save.
   const cellInput = document.getElementById('battery-cell-count');
+  const warnInput = document.getElementById('battery-warn-percent');
   const cutoffInput = document.getElementById('battery-cutoff-percent');
   if (cellInput
       && document.activeElement !== cellInput
       && !state.battery.cell_count_dirty
       && String(cellInput.value) !== String(battCells)) {
     cellInput.value = String(battCells);
+  }
+  if (warnInput
+      && document.activeElement !== warnInput
+      && !state.battery.warn_percent_dirty
+      && String(warnInput.value) !== String(battWarnPct)) {
+    warnInput.value = String(battWarnPct);
   }
   if (cutoffInput
       && document.activeElement !== cutoffInput
@@ -2035,6 +2295,15 @@ async function loadConfig() {
             && document.activeElement !== cellInput
             && String(cellInput.value) !== String(b.cell_count)) {
           cellInput.value = String(b.cell_count);
+        }
+      }
+      if (typeof b.warn_percent === 'number' && !state.battery.warn_percent_dirty) {
+        state.battery.warn_percent = b.warn_percent;
+        const warnInput = document.getElementById('battery-warn-percent');
+        if (warnInput
+            && document.activeElement !== warnInput
+            && String(warnInput.value) !== String(b.warn_percent)) {
+          warnInput.value = String(b.warn_percent);
         }
       }
       if (typeof b.cutoff_percent === 'number' && !state.battery.cutoff_percent_dirty) {
