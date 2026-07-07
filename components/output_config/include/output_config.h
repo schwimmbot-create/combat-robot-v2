@@ -48,8 +48,8 @@ typedef enum {
     OC_SERVO_UNI  = 1,
 } oc_servo_mode_t;
 
-// Drive mixer mode. This is live runtime behavior: TaskManager reads
-// it each control update and chooses the appropriate Drive mixer.
+// Legacy drive mixer mode. Kept for JSON/API compatibility; new runtime
+// code uses oc_drive_setup_t below.
 typedef enum {
     OC_DRIVE_TANK_SPLIT   = 0,    // left Y = left side, right Y = right side
     OC_DRIVE_ARCADE_LEFT  = 1,    // left Y throttle, left X turn
@@ -57,6 +57,36 @@ typedef enum {
     OC_DRIVE_ARCADE_SPLIT = 3,    // left Y throttle, right X turn
     OC_DRIVE__COUNT       = 4,
 } oc_drive_mode_t;
+
+typedef enum {
+    OC_DRIVE_LAYOUT_DIFFERENTIAL = 0,
+    OC_DRIVE_LAYOUT_SERVO_STEERING = 1,
+    OC_DRIVE_LAYOUT__COUNT = 2,
+} oc_drive_layout_t;
+
+typedef enum {
+    OC_DRIVE_METHOD_NONE = 0,
+    OC_DRIVE_METHOD_TANK = 1,
+    OC_DRIVE_METHOD_ARCADE = 2,
+    OC_DRIVE_METHOD_SERVO_STEERING = 3,
+    OC_DRIVE_METHOD__COUNT = 4,
+} oc_drive_method_t;
+
+typedef enum {
+    OC_DRIVE_AXIS_NONE = 0,
+    OC_DRIVE_AXIS_LY = 1,
+    OC_DRIVE_AXIS_RY = 2,
+    OC_DRIVE_AXIS_LX = 3,
+    OC_DRIVE_AXIS_RX = 4,
+    OC_DRIVE_AXIS_RT_MINUS_LT = 5,
+    OC_DRIVE_AXIS_LT_MINUS_RT = 6,
+    OC_DRIVE_AXIS_RT_ONLY = 7,
+    OC_DRIVE_AXIS_LT_ONLY = 8,
+    OC_DRIVE_AXIS_DPAD_Y = 9,
+    OC_DRIVE_AXIS_DPAD_X = 10,
+    OC_DRIVE_AXIS__COUNT = 11,
+} oc_drive_axis_t;
+
 
 // Available controller input sources the UI can choose from. This
 // list intentionally matches the standard HID gamepad report layout
@@ -95,6 +125,29 @@ typedef enum {
     OC_SRC_DPAD_RIGHT = 23,
     OC_SRC__COUNT     = 24,
 } oc_source_id_t;
+
+typedef struct {
+    oc_drive_layout_t layout;
+    oc_drive_method_t method;
+    oc_drive_axis_t left_axis;
+    oc_drive_axis_t right_axis;
+    oc_drive_axis_t throttle_axis;
+    oc_drive_axis_t steering_axis;
+    oc_output_id_t drive_motor_output;
+    oc_output_id_t steering_output;
+    oc_source_id_t precision_source;
+    uint8_t precision_scale_pct;
+    oc_source_id_t brake_source;
+    oc_source_id_t invert_steering_source;
+} oc_drive_setup_t;
+
+typedef enum {
+    OC_MOTOR_MODE_PROPORTIONAL = 0,
+    OC_MOTOR_MODE_MOMENTARY = 1,
+    OC_MOTOR_MODE_LATCHING = 2,
+    OC_MOTOR_MODE_DISABLED = 3,
+    OC_MOTOR_MODE__COUNT = 4,
+} oc_motor_mode_t;
 
 typedef enum {
     OC_PURPOSE_DISABLED       = 0,
@@ -195,6 +248,7 @@ typedef struct {
     uint8_t         deadzone_pct;  // 0..50; percent of stick range to ignore
     oc_source_id_t  primary;       // Source for forward-or-on direction
     oc_source_id_t  secondary;     // Source for reverse-or-off (motors/UNI servos)
+    oc_motor_mode_t motor_mode;    // M1/M2 manual-output behavior when drive method is none
 
     char            display_name[OC_DISPLAY_NAME_MAX_LEN + 1];
     oc_purpose_t    purpose;
@@ -241,6 +295,7 @@ typedef struct {
 #define OC_NVS_NAMESPACE        "output_cfg"
 #define OC_NVS_KEY_BLOB         "cfg_v1"
 #define OC_NVS_KEY_DRIVE_MODE   "drive_v1"
+#define OC_NVS_KEY_DRIVE_SETUP  "drive_setup_v1"
 // Runtime cap on paired BLE controllers (1..BLE_MAX_PAIRED_CONTROLLERS).
 // Defaults to 1 (Kevin's "one controller at a time" model); the upper
 // bound matches the BLE array size. Stored as its own small key so old
@@ -279,12 +334,20 @@ esp_err_t output_config_set_source(oc_output_id_t id,
                                    oc_source_id_t primary,
                                    oc_source_id_t secondary);
 
-// Live drive mixer mode. Stored separately from the per-output blob so
-// older cfg_v1 blobs remain valid.
+// Drive setup. Legacy drive_mode is still exposed for old clients, but
+// runtime should read output_config_get_drive_setup().
 oc_drive_mode_t output_config_get_drive_mode(void);
 esp_err_t output_config_set_drive_mode(oc_drive_mode_t mode);
 const char *output_config_drive_mode_name(oc_drive_mode_t mode);
 bool output_config_drive_mode_from_str(const char *s, oc_drive_mode_t *out);
+const oc_drive_setup_t *output_config_get_drive_setup(void);
+esp_err_t output_config_set_drive_setup(const oc_drive_setup_t *setup);
+const char *output_config_drive_layout_name(oc_drive_layout_t layout);
+const char *output_config_drive_method_name(oc_drive_method_t method);
+const char *output_config_drive_axis_name(oc_drive_axis_t axis);
+bool output_config_drive_layout_from_str(const char *s, oc_drive_layout_t *out);
+bool output_config_drive_method_from_str(const char *s, oc_drive_method_t *out);
+bool output_config_drive_axis_from_str(const char *s, oc_drive_axis_t *out);
 
 // Runtime cap on the BLE whitelist (1..OC_MAX_PAIRED_CAP). Default
 // OC_MAX_PAIRED_DEFAULT when NVS is missing/invalid. Mirrored into the

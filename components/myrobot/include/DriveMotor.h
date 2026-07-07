@@ -12,6 +12,7 @@ class DriveMotor{
                    byte fwd_channel, byte rev_channel,
                    bool flip_direction = false);
         void begin();
+        void setPwmFrequency(uint16_t frequency_hz);
         void setSpeed(uint16_t speed, byte direction, byte orientation = RIGHTSIDE_UP);
 
 
@@ -24,8 +25,7 @@ class DriveMotor{
         byte _direction;
         bool _flip_direction;
 
-        const uint16_t pwmFreq = 25000; //Hz
-        const byte resolution = 8; //bits [0-254]
+        uint16_t _pwm_frequency_hz = DRIVE_MOTOR_PWM_FREQ;
 
 };
 

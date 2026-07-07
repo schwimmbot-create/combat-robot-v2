@@ -56,7 +56,9 @@ class RobotStatus:
     connected: bool
     bench: bool
     connected_mac: str
+    lx: int
     ly: int
+    rx: int
     ry: int
     lt: int
     rt: int
@@ -72,6 +74,14 @@ class RobotStatus:
     s2_pulse_us: int
     s2_duty: int
     s2_arm: str
+    drive_layout: str
+    drive_method: str
+    drive_throttle_axis: str
+    drive_steering_axis: str
+    drive_throttle: int
+    drive_steering: int
+    drive_left: int
+    drive_right: int
     paired: list[str]
 
 
@@ -79,12 +89,16 @@ STATUS_RE = re.compile(
     r"CLI STATUS pairing=(?P<pairing>\w+) connected=(?P<connected>[01]) "
     r"bench=(?P<bench>[01]) max_paired=(?P<max_paired>\d+) "
     r"connected_mac=(?P<connected_mac>\S+) "
-    r"axes=\{ly:(?P<ly>-?\d+),ry:(?P<ry>-?\d+),lt:(?P<lt>-?\d+),"
-    r"rt:(?P<rt>-?\d+),buttons:(?P<buttons>\d+),dpad:(?P<dpad>\d+)\} "
+    r"axes=\{lx:(?P<lx>-?\d+),ly:(?P<ly>-?\d+),rx:(?P<rx>-?\d+),ry:(?P<ry>-?\d+),"
+    r"lt:(?P<lt>-?\d+),rt:(?P<rt>-?\d+),buttons:(?P<buttons>\d+),dpad:(?P<dpad>\d+)\} "
     r"outputs=\{S1:\{logical:(?P<s1_logical>[01]),physical_high:(?P<s1_physical_high>[01]),"
     r"pulse_us:(?P<s1_pulse_us>\d+),duty:(?P<s1_duty>\d+),arm:(?P<s1_arm>\w+)\},"
     r"S2:\{logical:(?P<s2_logical>[01]),physical_high:(?P<s2_physical_high>[01]),"
     r"pulse_us:(?P<s2_pulse_us>\d+),duty:(?P<s2_duty>\d+),arm:(?P<s2_arm>\w+)\}\} "
+    r"drive=\{layout:(?P<drive_layout>\w+),method:(?P<drive_method>\w+),"
+    r"throttle_axis:(?P<drive_throttle_axis>\w+),steering_axis:(?P<drive_steering_axis>\w+),"
+    r"throttle:(?P<drive_throttle>-?\d+),steering:(?P<drive_steering>-?\d+),"
+    r"left:(?P<drive_left>-?\d+),right:(?P<drive_right>-?\d+)\} "
     r"paired=\[(?P<paired>[^\]]*)\]"
 )
 
@@ -176,7 +190,9 @@ def parse_status(text: str) -> RobotStatus:
         connected=m.group("connected") == "1",
         bench=m.group("bench") == "1",
         connected_mac=m.group("connected_mac"),
+        lx=int(m.group("lx")),
         ly=int(m.group("ly")),
+        rx=int(m.group("rx")),
         ry=int(m.group("ry")),
         lt=int(m.group("lt")),
         rt=int(m.group("rt")),
@@ -192,6 +208,14 @@ def parse_status(text: str) -> RobotStatus:
         s2_pulse_us=int(m.group("s2_pulse_us")),
         s2_duty=int(m.group("s2_duty")),
         s2_arm=m.group("s2_arm"),
+        drive_layout=m.group("drive_layout"),
+        drive_method=m.group("drive_method"),
+        drive_throttle_axis=m.group("drive_throttle_axis"),
+        drive_steering_axis=m.group("drive_steering_axis"),
+        drive_throttle=int(m.group("drive_throttle")),
+        drive_steering=int(m.group("drive_steering")),
+        drive_left=int(m.group("drive_left")),
+        drive_right=int(m.group("drive_right")),
         paired=paired,
     )
 
@@ -547,6 +571,240 @@ def restore_s2_servo(api: RobotApi) -> None:
         raise BenchError(f"API restore S2 servo failed: {resp}")
 
 
+
+
+def configure_drive(api: RobotApi, drive: dict) -> None:
+    resp = api.post_json("/api/config", {"drive": drive})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API drive patch failed: {resp}")
+    echoed = api.get("/api/config").get("drive", {})
+    for key, value in drive.items():
+        if echoed.get(key) != value:
+            raise BenchError(f"API drive echo mismatch for {key}: expected {value!r}, got {echoed.get(key)!r}; drive={echoed}")
+
+
+def restore_default_drive(api: RobotApi) -> None:
+    configure_drive(api, {
+        "layout": "differential",
+        "method": "tank",
+        "left_axis": "LY",
+        "right_axis": "RY",
+        "throttle_axis": "LY",
+        "steering_axis": "LX",
+        "drive_motor_output": "M1",
+        "steering_output": "S1",
+        "precision_source": "NONE",
+        "precision_scale_pct": 50,
+        "brake_source": "NONE",
+        "invert_steering_source": "NONE",
+    })
+
+
+
+def configure_manual_m1(api: RobotApi, *, mode: str, primary: str = "A", duty: int = 100, freq: int = 20000) -> None:
+    resp = api.post_json("/api/config", {
+        "M1": {
+            "display_name": "Motor 1",
+            "direction": "normal",
+            "servo_mode": "bi",
+            "deadzone": 10,
+            "primary": primary,
+            "secondary": "NONE",
+            "motor_mode": mode,
+            "purpose": "drive",
+            "protocol": "none",
+            "semantics": "none",
+            "pwm_frequency_hz": freq,
+            "pwm_duty_pct": duty,
+            "power_good": "default",
+            "power_warn": "default",
+            "power_low": "default",
+        }
+    })
+    if resp.get("ok") is not True:
+        raise BenchError(f"API configure manual M1 failed: {resp}")
+
+
+def verify_manual_motor_outputs(api: RobotApi, robot: SerialCli) -> None:
+    # Out-of-range motor PWM frequency should be rejected at the API/config layer.
+    try:
+        api.post_json("/api/config", {"M1": {"pwm_frequency_hz": 999}})
+        raise BenchError("M1 PWM frequency below lower bound unexpectedly succeeded")
+    except BenchError as exc:
+        if "HTTP Error 400" not in str(exc) and "invalid patch" not in str(exc):
+            raise
+    try:
+        api.post_json("/api/config", {"M1": {"pwm_frequency_hz": 40001}})
+        raise BenchError("M1 PWM frequency above upper bound unexpectedly succeeded")
+    except BenchError as exc:
+        if "HTTP Error 400" not in str(exc) and "invalid patch" not in str(exc):
+            raise
+    print("PASS M1 PWM frequency bounds reject out-of-range values")
+
+    resp = api.post_json("/api/config", {"M1": {"pwm_frequency_hz": 30000}})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API M1 valid PWM frequency failed: {resp}")
+    if api.get("/api/config").get("outputs", {}).get("M1", {}).get("pwm", {}).get("frequency_hz") != 30000:
+        raise BenchError("API M1 PWM frequency echo mismatch after valid patch")
+    print("PASS M1 PWM frequency accepts valid in-range value")
+
+    configure_drive(api, {
+        "layout": "differential",
+        "method": "none",
+        "left_axis": "LY",
+        "right_axis": "RY",
+        "throttle_axis": "LY",
+        "steering_axis": "LX",
+        "drive_motor_output": "M1",
+        "steering_output": "S1",
+        "precision_source": "NONE",
+        "precision_scale_pct": 50,
+        "brake_source": "NONE",
+        "invert_steering_source": "NONE",
+    })
+    configure_manual_m1(api, mode="momentary", primary="A", duty=100, freq=20000)
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex()})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench neutral before manual M1 failed: {resp}")
+    assert_status_field(robot, "manual M1 momentary released -> stop", lambda s: s.drive_method == "none" and s.drive_left == 0 and s.drive_right == 0)
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(b0=0x01)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench A for manual M1 failed: {resp}")
+    assert_status_field(robot, "manual M1 momentary A -> M1 only", lambda s: s.buttons == 1 and s.drive_method == "none" and s.drive_left > 450 and s.drive_right == 0)
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex()})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench release for manual M1 failed: {resp}")
+    assert_status_field(robot, "manual M1 momentary release -> stop", lambda s: s.buttons == 0 and s.drive_left == 0 and s.drive_right == 0)
+
+    configure_manual_m1(api, mode="latching", primary="A", duty=100, freq=20000)
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(b0=0x01)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench A latch-on failed: {resp}")
+    assert_status_field(robot, "manual M1 latch A toggles on", lambda s: s.buttons == 1 and s.drive_left > 450 and s.drive_right == 0)
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex()})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench release after latch-on failed: {resp}")
+    assert_status_field(robot, "manual M1 latch stays on after release", lambda s: s.buttons == 0 and s.drive_left > 450 and s.drive_right == 0)
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(b0=0x01)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench A latch-off failed: {resp}")
+    assert_status_field(robot, "manual M1 latch A toggles off", lambda s: s.buttons == 1 and s.drive_left == 0 and s.drive_right == 0)
+
+    restore_default_drive(api)
+    configure_manual_m1(api, mode="proportional", primary="LY", duty=100, freq=20000)
+    print("PASS manual M1 momentary/latching Drive Method None coverage")
+
+def verify_composable_drive_setup(api: RobotApi, robot: SerialCli) -> None:
+    configure_drive(api, {
+        "layout": "differential",
+        "method": "arcade",
+        "throttle_axis": "RT_MINUS_LT",
+        "steering_axis": "LX",
+        "precision_source": "NONE",
+        "precision_scale_pct": 50,
+        "brake_source": "NONE",
+        "invert_steering_source": "NONE",
+    })
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=128, l2=0, lx=127)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench drive trigger throttle failed: {resp}")
+    base = assert_status_field(
+        robot,
+        "drive RT/LT trigger throttle -> forward arcade",
+        lambda s: s.rt == 512 and s.lt == 0 and s.drive_throttle > 200 and abs(s.drive_steering) <= 4 and s.drive_left > 200 and s.drive_right > 200,
+    )
+
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=128, l2=0, lx=0)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench drive trigger + steering failed: {resp}")
+    assert_status_field(
+        robot,
+        "drive left stick steering mixes M1/M2",
+        lambda s: s.drive_throttle > 200 and s.drive_steering < -450 and s.drive_left < s.drive_right,
+    )
+
+    configure_drive(api, {
+        "layout": "differential",
+        "method": "arcade",
+        "throttle_axis": "RT_MINUS_LT",
+        "steering_axis": "LX",
+        "precision_source": "L1",
+        "precision_scale_pct": 50,
+        "brake_source": "NONE",
+        "invert_steering_source": "NONE",
+    })
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=128, lx=127, b0=0x40)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench precision modifier failed: {resp}")
+    assert_status_field(
+        robot,
+        "drive precision modifier scales throttle",
+        lambda s, base_throttle=base.drive_throttle: 90 <= s.drive_throttle <= max(110, base_throttle - 80) and s.drive_throttle < base_throttle,
+    )
+
+    configure_drive(api, {
+        "layout": "differential",
+        "method": "arcade",
+        "throttle_axis": "RT_MINUS_LT",
+        "steering_axis": "LX",
+        "precision_source": "NONE",
+        "precision_scale_pct": 50,
+        "brake_source": "B",
+        "invert_steering_source": "NONE",
+    })
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=128, lx=0, b0=0x02)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench brake modifier failed: {resp}")
+    assert_status_field(
+        robot,
+        "drive brake modifier zeroes throttle and steering",
+        lambda s: s.buttons & 0x02 and s.drive_throttle == 0 and s.drive_steering == 0 and s.drive_left == 0 and s.drive_right == 0,
+    )
+
+    configure_drive(api, {
+        "layout": "differential",
+        "method": "arcade",
+        "throttle_axis": "DPAD_Y",
+        "steering_axis": "DPAD_X",
+        "precision_source": "NONE",
+        "precision_scale_pct": 50,
+        "brake_source": "NONE",
+        "invert_steering_source": "NONE",
+    })
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(hat=0)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench dpad drive failed: {resp}")
+    assert_status_field(
+        robot,
+        "drive DPAD_Y throttle",
+        lambda s: s.dpad == 1 and s.drive_throttle > 450 and s.drive_left > 450 and s.drive_right > 450,
+    )
+
+    restore_s1_servo(api)
+    configure_drive(api, {
+        "layout": "servo_steering",
+        "method": "servo_steering",
+        "drive_motor_output": "M1",
+        "steering_output": "S1",
+        "throttle_axis": "RT_MINUS_LT",
+        "steering_axis": "LX",
+        "precision_source": "NONE",
+        "precision_scale_pct": 50,
+        "brake_source": "NONE",
+        "invert_steering_source": "NONE",
+    })
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=128, lx=0)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench servo steering failed: {resp}")
+    assert_status_field(
+        robot,
+        "servo steering layout maps LX to S1 pulse and RT to M1",
+        lambda s: s.drive_throttle > 200 and s.drive_left > 200 and s.drive_right == 0 and s.drive_steering < -450 and 990 <= s.s1_pulse_us <= 1020,
+    )
+    restore_default_drive(api)
+    restore_s1_servo(api)
+    print("PASS composable drive setup trigger/dpad/modifier/servo-steering coverage")
+
 def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
     status = api.get("/api/status")
     if status.get("wifi_ap_mode") is not True or status.get("wifi_ip") != "192.168.4.1":
@@ -594,6 +852,9 @@ def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
     if resp.get("ok") is not True or resp.get("len") != 10:
         raise BenchError(f"API bench hid axis/triggers injection failed: {resp}")
     assert_status_field(robot, "API bench hid axis/triggers", lambda s: s.ly == -508 and s.rt == 256 and s.lt == 128)
+
+    verify_composable_drive_setup(api, robot)
+    verify_manual_motor_outputs(api, robot)
 
     configure_s1_digital(api, primary="A", active_high=True)
     resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex()})

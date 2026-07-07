@@ -7,8 +7,8 @@ GEN = PROJECT_ROOT / "components/web_config/src/web_index_gen.h"
 
 def test_four_channel_ui_has_no_dedicated_weapon_output():
     html = HTML.read_text()
-    assert "M1/M2 are drive motors only" in html
-    assert "there is no dedicated Weapon output" in html
+    assert "M1 and M2 are the high-current brushed motor outputs" in html
+    assert "S1 and S2 are low-current signal outputs" in html
     assert "id: 'Weapon'" not in html
     assert "state.outputs.Weapon" not in html
     assert "['M1','M2','Weapon','S1','S2']" not in html
@@ -109,5 +109,23 @@ def test_esc_arming_ui():
         "Arming signal sequence",
         "esc_arm_mode: cfg.esc_arm?.mode",
         "esc_arm_final_low_ms",
+    ):
+        assert token in html
+
+
+def test_composable_drive_setup_ui_controls():
+    html = HTML.read_text()
+    for token in (
+        "Driving Setup",
+        "DRIVE_LAYOUTS",
+        "Servo steering + drive motor",
+        "RT forward / LT reverse",
+        "D-pad Up / Down",
+        "Advanced: drive modifiers",
+        "Precision mode source",
+        "Brake source",
+        "Invert steering source",
+        "normalizeDriveSetup",
+        "runtimeDriveOutputs",
     ):
         assert token in html

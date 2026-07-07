@@ -81,3 +81,34 @@ def test_expanded_pulse_protocol_runtime_mapping():
         assert token in src
     assert "OC_PROTO_MULTISHOT" in src
     assert "frame_hz" in pulse_h
+
+
+def test_composable_drive_runtime_and_servo_steering():
+    header = TASK_H.read_text()
+    src = TASK_CPP.read_text()
+    drive_h = (PROJECT_ROOT / "components/myrobot/include/Drive.h").read_text()
+    drive_cpp = (PROJECT_ROOT / "components/myrobot/src/Drive.cpp").read_text()
+    for token in (
+        "readDriveAxis",
+        "OC_DRIVE_AXIS_RT_MINUS_LT",
+        "OC_DRIVE_AXIS_DPAD_Y",
+        "applyDriveModifiersToThrottle",
+        "applyDriveModifiersToSteering",
+        "outputReservedForDriveSteering",
+        "updateSteeringServo",
+        "output_config_get_drive_setup",
+        "OC_DRIVE_LAYOUT_SERVO_STEERING",
+        "getDriveThrottle",
+    ):
+        assert token in header or token in src
+    assert "single_motor_drive" in drive_h
+    assert "void Drive::single_motor_drive" in drive_cpp
+    assert "drive={layout:%s,method:%s,throttle_axis:%s,steering_axis:%s,throttle:%d,steering:%d,left:%d,right:%d}" in (PROJECT_ROOT / "main/sketch.cpp").read_text()
+
+
+def test_loop_feeds_stick_x_axes_to_task_manager():
+    main = (PROJECT_ROOT / "main/sketch.cpp").read_text()
+    assert "controllerState.leftStickX    = gs.leftStickX" in main
+    assert "controllerState.rightStickX   = gs.rightStickX" in main
+    assert "controllerState.leftStickX    = 0" in main
+    assert "controllerState.rightStickX   = 0" in main

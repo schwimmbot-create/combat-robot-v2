@@ -36,6 +36,13 @@ def test_output_config_v2_enums_exist():
         "OC_DIGITAL_MODE_ANALOG_BELOW",
         "OC_DIGITAL_PRESET_TRIGGER_HALF",
         "OC_DIGITAL_PRESET_CUSTOM",
+        "OC_DRIVE_LAYOUT_DIFFERENTIAL",
+        "OC_DRIVE_LAYOUT_SERVO_STEERING",
+        "OC_DRIVE_METHOD_TANK",
+        "OC_DRIVE_METHOD_ARCADE",
+        "OC_DRIVE_AXIS_RT_MINUS_LT",
+        "OC_DRIVE_AXIS_DPAD_X",
+        "oc_drive_setup_t",
     ):
         assert token in header
 
@@ -159,3 +166,17 @@ def test_esc_arming_validation_contract():
     assert "esc_arm_low_us >= c->esc_arm_high_us" in src
     assert "esc_arm_hold_ms > 10000" in src
     assert "esc_arm_mode_from_str" in src
+
+
+def test_composable_drive_setup_api_and_legacy_mapping():
+    src = OC_C.read_text()
+    for token in (
+        "drive_setup_for_legacy_mode",
+        "OC_NVS_KEY_DRIVE_SETUP",
+        "apply_drive_patch",
+        "RT_MINUS_LT",
+        "DPAD_Y",
+        "precision_scale_pct",
+        "output_config_get_drive_setup",
+    ):
+        assert token in src

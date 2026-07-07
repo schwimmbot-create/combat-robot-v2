@@ -119,42 +119,82 @@ void TaskManager::managerTask(void* pvParameters) {
                 const bool driveRightAllowed = !ENABLE_LOW_BATTERY_SHUTDOWN ||
                     output_config_channel_allowed(OC_OUT_M2, self->batteryState);
                 ControllerState currentCs{
-                    self->_leftTurnInput,
-                    self->_leftDriveInput,
-                    self->_rightTurnInput,
-                    self->_rightDriveInput,
-                    self->_forwardEscInput,
-                    self->_reverseEscInput,
+                    self->_leftTurnInput,     // leftStickX
+                    self->_leftDriveInput,    // leftStickY
+                    self->_rightTurnInput,    // rightStickX
+                    self->_rightDriveInput,   // rightStickY
+                    self->_forwardEscInput,   // rightTrigger
+                    self->_reverseEscInput,   // leftTrigger
                     self->_buttonsInput,
                     self->_dpadInput,
                 };
 
-                if (driveLeftAllowed || driveRightAllowed) {
-                    switch(output_config_get_drive_mode()) {
-                        case OC_DRIVE_ARCADE_LEFT:
-                            self->drive.combined_direction(self->_leftTurnInput, self->_leftDriveInput, self->currentOrientation,
-                                                           driveLeftAllowed, driveRightAllowed);
-                            break;
-                        case OC_DRIVE_ARCADE_RIGHT:
-                            self->drive.combined_direction(self->_rightTurnInput, self->_rightDriveInput, self->currentOrientation,
-                                                           driveLeftAllowed, driveRightAllowed);
-                            break;
-                        case OC_DRIVE_ARCADE_SPLIT:
-                            self->drive.combined_direction(self->_rightTurnInput, self->_leftDriveInput, self->currentOrientation,
-                                                           driveLeftAllowed, driveRightAllowed);
-                            break;
-                        case OC_DRIVE_TANK_SPLIT:
-                        default:
-                            self->drive.two_stick_drive(self->_leftDriveInput, self->_rightDriveInput, self->currentOrientation,
-                                                        driveLeftAllowed, driveRightAllowed);
-                            break;
+                const oc_drive_setup_t* driveSetup = output_config_get_drive_setup();
+                const oc_output_cfg_t* m1Cfg = output_config_get(OC_OUT_M1);
+                const oc_output_cfg_t* m2Cfg = output_config_get(OC_OUT_M2);
+                self->drive.setMotorPwmFrequency(true, m1Cfg && m1Cfg->pwm_frequency_hz ? m1Cfg->pwm_frequency_hz : DRIVE_MOTOR_PWM_FREQ);
+                self->drive.setMotorPwmFrequency(false, m2Cfg && m2Cfg->pwm_frequency_hz ? m2Cfg->pwm_frequency_hz : DRIVE_MOTOR_PWM_FREQ);
+                self->_driveThrottle = 0;
+                self->_driveSteering = 0;
+                self->_driveLeftCommand = 0;
+                self->_driveRightCommand = 0;
+                if (driveSetup->method == OC_DRIVE_METHOD_NONE) {
+                    const int16_t left = self->manualMotorCommand(OC_OUT_M1, m1Cfg, currentCs, true, driveLeftAllowed);
+                    const int16_t right = self->manualMotorCommand(OC_OUT_M2, m2Cfg, currentCs, true, driveRightAllowed);
+                    self->drive.single_motor_drive(true, left, self->currentOrientation, driveLeftAllowed);
+                    self->drive.single_motor_drive(false, right, self->currentOrientation, driveRightAllowed);
+                    self->_driveLeftCommand = left;
+                    self->_driveRightCommand = right;
+                } else if (driveLeftAllowed || driveRightAllowed) {
+                    self->_m1Latched = false;
+                    self->_m2Latched = false;
+                    self->_m1PrevManualActive = false;
+                    self->_m2PrevManualActive = false;
+                    if (driveSetup->layout == OC_DRIVE_LAYOUT_SERVO_STEERING) {
+                        int16_t throttle = self->readDriveAxis(driveSetup->throttle_axis, currentCs);
+                        int16_t steering = self->readDriveAxis(driveSetup->steering_axis, currentCs);
+                        throttle = self->applyDriveModifiersToThrottle(throttle, driveSetup, currentCs);
+                        steering = self->applyDriveModifiersToSteering(steering, driveSetup, currentCs);
+                        const bool useLeftMotor = driveSetup->drive_motor_output == OC_OUT_M1;
+                        const bool allowed = useLeftMotor ? driveLeftAllowed : driveRightAllowed;
+                        self->drive.single_motor_drive(useLeftMotor, throttle, self->currentOrientation, allowed);
+                        if (useLeftMotor) self->drive.stopRight(); else self->drive.stopLeft();
+                        self->updateSteeringServo(driveSetup->steering_output, steering, currentCs, true);
+                        self->_driveThrottle = throttle;
+                        self->_driveSteering = steering;
+                        self->_driveLeftCommand = useLeftMotor ? throttle : 0;
+                        self->_driveRightCommand = useLeftMotor ? 0 : throttle;
+                    } else if (driveSetup->method == OC_DRIVE_METHOD_ARCADE) {
+                        int16_t throttle = self->readDriveAxis(driveSetup->throttle_axis, currentCs);
+                        int16_t steering = self->readDriveAxis(driveSetup->steering_axis, currentCs);
+                        throttle = self->applyDriveModifiersToThrottle(throttle, driveSetup, currentCs);
+                        steering = self->applyDriveModifiersToSteering(steering, driveSetup, currentCs);
+                        self->drive.combined_direction(steering, throttle, self->currentOrientation,
+                                                       driveLeftAllowed, driveRightAllowed);
+                        self->_driveThrottle = throttle;
+                        self->_driveSteering = steering;
+                        self->_driveLeftCommand = constrain((int32_t)throttle + steering, -512, 511);
+                        self->_driveRightCommand = constrain((int32_t)throttle - steering, -512, 511);
+                    } else {
+                        int16_t left = self->readDriveAxis(driveSetup->left_axis, currentCs);
+                        int16_t right = self->readDriveAxis(driveSetup->right_axis, currentCs);
+                        left = self->applyDriveModifiersToThrottle(left, driveSetup, currentCs);
+                        right = self->applyDriveModifiersToThrottle(right, driveSetup, currentCs);
+                        self->drive.two_stick_drive(left, right, self->currentOrientation,
+                                                    driveLeftAllowed, driveRightAllowed);
+                        self->_driveLeftCommand = left;
+                        self->_driveRightCommand = right;
                     }
                 } else {
+                    self->_m1Latched = false;
+                    self->_m2Latched = false;
+                    self->_m1PrevManualActive = false;
+                    self->_m2PrevManualActive = false;
                     self->drive.stop();
                 }
 
-                self->updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse, currentCs, true);
-                self->updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse, currentCs, true);
+                if (!self->outputReservedForDriveSteering(OC_OUT_S1)) self->updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse, currentCs, true);
+                if (!self->outputReservedForDriveSteering(OC_OUT_S2)) self->updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse, currentCs, true);
                 self->motorsStopped = !(driveLeftAllowed || driveRightAllowed);
                 //Put in things that can be updated even if voltage is low
                 //Be careful not to put anything that could draw high current and could overdrain the battery
@@ -171,6 +211,7 @@ void TaskManager::managerTask(void* pvParameters) {
                 ControllerState emptyCs{0, 0, 0, 0, 0, 0, 0, 0};
                 self->updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse, emptyCs, false);
                 self->updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse, emptyCs, false);
+                self->_m1Latched = false; self->_m2Latched = false; self->_m1PrevManualActive = false; self->_m2PrevManualActive = false;
                 self->stopAllMotors();
             }
             // clear the flag so we don't reapply next loop
@@ -183,6 +224,7 @@ void TaskManager::managerTask(void* pvParameters) {
             ControllerState emptyCs{0, 0, 0, 0, 0, 0, 0, 0};
             self->updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse, emptyCs, false);
             self->updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse, emptyCs, false);
+            self->_m1Latched = false; self->_m2Latched = false; self->_m1PrevManualActive = false; self->_m2PrevManualActive = false;
             self->stopAllMotors();
             self->ledStrip.setColor(0, 0, 255, 0);        // Blue LEDs indicate the controller has timed out
         } 
@@ -322,6 +364,139 @@ const char* TaskManager::getEscArmPhaseName(oc_output_id_t id) const {
         case ESC_ARM_PHASE_INACTIVE:
         default: return "inactive";
     }
+}
+
+int16_t TaskManager::getDriveThrottle() const { return _driveThrottle; }
+int16_t TaskManager::getDriveSteering() const { return _driveSteering; }
+int16_t TaskManager::getDriveLeftCommand() const { return _driveLeftCommand; }
+int16_t TaskManager::getDriveRightCommand() const { return _driveRightCommand; }
+
+static int16_t map_trigger_pair_to_axis(int16_t forward, int16_t reverse) {
+    int32_t diff = (int32_t)forward - (int32_t)reverse;
+    diff = constrain(diff, -1023, 1023);
+    return (int16_t)map(diff, -1023, 1023, -512, 511);
+}
+
+static int16_t map_trigger_one_way_to_axis(int16_t trigger) {
+    int32_t v = constrain((int32_t)trigger, 0, 1023);
+    return (int16_t)map(v, 0, 1023, 0, 511);
+}
+
+int16_t TaskManager::readDriveAxis(oc_drive_axis_t axis, const ControllerState& cs) const {
+    switch (axis) {
+        case OC_DRIVE_AXIS_LY: return (int16_t)cs.leftStickY;
+        case OC_DRIVE_AXIS_RY: return (int16_t)cs.rightStickY;
+        case OC_DRIVE_AXIS_LX: return (int16_t)cs.leftStickX;
+        case OC_DRIVE_AXIS_RX: return (int16_t)cs.rightStickX;
+        case OC_DRIVE_AXIS_RT_MINUS_LT: return map_trigger_pair_to_axis(cs.rightTrigger, cs.leftTrigger);
+        case OC_DRIVE_AXIS_LT_MINUS_RT: return map_trigger_pair_to_axis(cs.leftTrigger, cs.rightTrigger);
+        case OC_DRIVE_AXIS_RT_ONLY: return map_trigger_one_way_to_axis(cs.rightTrigger);
+        case OC_DRIVE_AXIS_LT_ONLY: return map_trigger_one_way_to_axis(cs.leftTrigger);
+        case OC_DRIVE_AXIS_DPAD_Y:
+            return ((cs.dpad & 0x01) ? 511 : 0) + ((cs.dpad & 0x02) ? -512 : 0);
+        case OC_DRIVE_AXIS_DPAD_X:
+            return ((cs.dpad & 0x08) ? 511 : 0) + ((cs.dpad & 0x04) ? -512 : 0);
+        case OC_DRIVE_AXIS_NONE:
+        default: return 0;
+    }
+}
+
+bool TaskManager::driveModifierActive(oc_source_id_t src, const ControllerState& cs) const {
+    return src != OC_SRC_NONE && readConfigSource(src, cs) != 0;
+}
+
+int16_t TaskManager::applyDriveModifiersToThrottle(int16_t throttle, const oc_drive_setup_t* setup, const ControllerState& cs) const {
+    if (!setup) return throttle;
+    if (driveModifierActive(setup->brake_source, cs)) return 0;
+    if (driveModifierActive(setup->precision_source, cs)) {
+        throttle = (int16_t)((int32_t)throttle * setup->precision_scale_pct / 100);
+    }
+    return throttle;
+}
+
+int16_t TaskManager::applyDriveModifiersToSteering(int16_t steering, const oc_drive_setup_t* setup, const ControllerState& cs) const {
+    if (!setup) return steering;
+    if (driveModifierActive(setup->brake_source, cs)) return 0;
+    if (driveModifierActive(setup->precision_source, cs)) {
+        steering = (int16_t)((int32_t)steering * setup->precision_scale_pct / 100);
+    }
+    if (driveModifierActive(setup->invert_steering_source, cs)) steering = (int16_t)-steering;
+    return steering;
+}
+
+bool TaskManager::outputReservedForDriveSteering(oc_output_id_t id) const {
+    const oc_drive_setup_t* setup = output_config_get_drive_setup();
+    return setup && setup->layout == OC_DRIVE_LAYOUT_SERVO_STEERING && setup->steering_output == id;
+}
+
+void TaskManager::updateSteeringServo(oc_output_id_t id, int16_t steering, const ControllerState& cs, bool connected) {
+    if (id != OC_OUT_S1 && id != OC_OUT_S2) return;
+    PulseOutput& pulse = (id == OC_OUT_S1) ? _s1Pulse : _s2Pulse;
+    const oc_output_cfg_t* cfg = output_config_get(id);
+    PulseProtocol protocol = protocolFromConfig(cfg);
+    pulse.begin(protocol);
+    if (!connected) {
+        pulse.safeState(PULSE_ESC_BIDIRECTIONAL);
+        return;
+    }
+    int16_t value = cfg && cfg->direction == OC_DIR_REVERSED ? (int16_t)-steering : steering;
+    value = constrain(value, -512, 511);
+    uint16_t pulseUs;
+    if (cfg && cfg->servo_mode == OC_SERVO_UNI) {
+        uint16_t magnitude = (uint16_t)constrain(value > 0 ? value : 0, 0, 511);
+        pulseUs = pulse_output_map_range(magnitude, 0, 511, protocol.center_us, protocol.max_us);
+    } else if (value >= 0) {
+        pulseUs = pulse_output_map_range((uint16_t)value, 0, 511, protocol.center_us, protocol.max_us);
+    } else {
+        pulseUs = pulse_output_map_range((uint16_t)(-value), 0, 512, protocol.center_us, protocol.min_us);
+    }
+    pulse.writePulseUs(pulseUs);
+}
+
+bool TaskManager::manualMotorSourceActive(const oc_output_cfg_t* cfg, const ControllerState& cs) const {
+    if (!cfg || cfg->primary == OC_SRC_NONE) return false;
+    return readConfigSourceMagnitude(cfg->primary, cs) > 0;
+}
+
+int16_t TaskManager::manualMotorCommand(oc_output_id_t id, const oc_output_cfg_t* cfg, const ControllerState& cs, bool connected, bool allowed) {
+    if (!cfg || !connected || !allowed || cfg->motor_mode == OC_MOTOR_MODE_DISABLED) {
+        if (id == OC_OUT_M1) { _m1Latched = false; _m1PrevManualActive = false; }
+        if (id == OC_OUT_M2) { _m2Latched = false; _m2PrevManualActive = false; }
+        return 0;
+    }
+
+    int16_t command = 0;
+    const bool active = manualMotorSourceActive(cfg, cs);
+    const int16_t fixed = (int16_t)map((long)constrain((int)cfg->pwm_duty_pct, 0, 100), 0, 100, 0, 511);
+
+    switch (cfg->motor_mode) {
+        case OC_MOTOR_MODE_PROPORTIONAL: {
+            if (cfg->primary == OC_SRC_LT || cfg->primary == OC_SRC_RT) {
+                command = (int16_t)map((long)readConfigSourceMagnitude(cfg->primary, cs), 0, 1023, 0, 511);
+            } else {
+                command = constrain(readConfigSource(cfg->primary, cs), -512, 511);
+            }
+            break;
+        }
+        case OC_MOTOR_MODE_MOMENTARY:
+            command = active ? fixed : 0;
+            break;
+        case OC_MOTOR_MODE_LATCHING: {
+            bool& latched = (id == OC_OUT_M1) ? _m1Latched : _m2Latched;
+            bool& prev = (id == OC_OUT_M1) ? _m1PrevManualActive : _m2PrevManualActive;
+            if (active && !prev) latched = !latched;
+            prev = active;
+            command = latched ? fixed : 0;
+            break;
+        }
+        case OC_MOTOR_MODE_DISABLED:
+        default:
+            command = 0;
+            break;
+    }
+
+    if (cfg->direction == OC_DIR_REVERSED) command = -command;
+    return constrain(command, -512, 511);
 }
 
 int16_t TaskManager::readConfigSource(oc_source_id_t src, const ControllerState& cs) const {

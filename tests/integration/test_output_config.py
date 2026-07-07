@@ -184,19 +184,19 @@ class TestOutputConfigImplementation:
         assert "if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE" in drive
         assert "else{leftMotor.setSpeed(left_speed, FORWARD" in drive
 
-    def test_runtime_drive_mode_switches_mixers(self):
+    def test_runtime_composable_drive_setup_switches_mixers(self):
         tm = (PROJECT_ROOT / "components" / "myrobot" / "src" / "TaskManager.cpp").read_text()
         assert '#include "output_config.h"' in tm
         assert "output_config_init();" in tm
-        assert "switch(output_config_get_drive_mode())" in tm
-        assert "case OC_DRIVE_ARCADE_LEFT:" in tm
-        assert "combined_direction(self->_leftTurnInput, self->_leftDriveInput" in tm
-        assert "case OC_DRIVE_ARCADE_RIGHT:" in tm
-        assert "combined_direction(self->_rightTurnInput, self->_rightDriveInput" in tm
-        assert "case OC_DRIVE_ARCADE_SPLIT:" in tm
-        assert "combined_direction(self->_rightTurnInput, self->_leftDriveInput" in tm
-        assert "case OC_DRIVE_TANK_SPLIT:" in tm
-        assert "two_stick_drive(self->_leftDriveInput, self->_rightDriveInput" in tm
+        assert "output_config_get_drive_setup()" in tm
+        assert "driveSetup->layout == OC_DRIVE_LAYOUT_SERVO_STEERING" in tm
+        assert "driveSetup->method == OC_DRIVE_METHOD_ARCADE" in tm
+        assert "readDriveAxis(driveSetup->throttle_axis" in tm
+        assert "readDriveAxis(driveSetup->steering_axis" in tm
+        assert "drive.combined_direction(steering, throttle" in tm
+        assert "drive.two_stick_drive(left, right" in tm
+        assert "drive.single_motor_drive" in tm
+        assert "updateSteeringServo" in tm
 
     def test_drive_modes_are_serialized_and_patchable(self, src_text, header_text):
         for tok in ("OC_DRIVE_TANK_SPLIT", "OC_DRIVE_ARCADE_LEFT",
@@ -1214,23 +1214,27 @@ class TestConfigUiMockup:
         assert "above center = forward, below center = reverse" in html
         assert "Optional reverse-only input" in html
 
-    def test_output_ui_renders_drive_mode_selector(self, html):
-        assert "const DRIVE_MODES = [" in html
-        for mode in ("tank_split", "arcade_left", "arcade_right", "arcade_split"):
-            assert mode in html
-        assert "Driving Style" in html
-        assert "Saved to NVS and used by the runtime drive mixer after Save." in html
-        assert "Drive mode is live:" in html
+    def test_output_ui_renders_composable_drive_setup(self, html):
+        assert "const DRIVE_LAYOUTS = [" in html
+        assert "const DRIVE_METHODS" in html
+        assert "const DRIVE_AXES" in html
+        for token in ("differential", "servo_steering", "tank", "arcade", "RT_MINUS_LT", "DPAD_Y"):
+            assert token in html
+        assert "Driving Setup" in html
+        assert "Drive layout" in html
+        assert "Throttle source" in html
+        assert "Steering source" in html
+        assert "Advanced: drive modifiers" in html
 
-    def test_motor_inputs_are_shown_as_drive_mode_controlled(self, html):
+    def test_motor_inputs_are_shown_as_drive_setup_controlled(self, html):
         # Runtime evaluation: TaskManager ignores M1/M2 primary dropdowns and
-        # drives motors from output_config_get_drive_mode(). The UI must not
-        # imply M1/M2 have independently assignable controller-source dropdowns.
+        # drives motors from composable Driving Setup. The UI must not imply
+        # M1/M2 have independently assignable controller-source dropdowns.
         assert "runtimeControlled: true" in html
         assert "function runtimeDriveSources" in html
+        assert "function runtimeDriveOutputs" in html
         assert "function renderRuntimeDriveAssignment" in html
-        assert "M1/M2 are controlled by Driving Style" in html
-        assert "Drive-mode controlled" in html
+        assert "Drive-setup controlled" in html
 
     def test_drive_sources_are_auto_reserved(self, html):
         # The current code shows drive-mode-controlled sources as selectable
@@ -1244,16 +1248,15 @@ class TestConfigUiMockup:
             "function renderReservedSourcesBanner()",
             "const RESERVED_SOURCES = reservedSourceSet()",
             "for (const src of selectableSources())",
-            "Drive-mode reserved sources",
+            "Drive setup reserved sources",
             "function sourceSelect(name, value, ownerId)",
             "function assignedSourceOwners(exceptOutputId)",
         ):
             assert token in html, f"missing {token}"
         # Selectable sources must NOT include anything that the active drive
         # mode owns, even when no other output has claimed it yet.
-        tank = re.search(
-            r"tank_split[^}]+}", html)
-        assert tank, "tank_split config not found"
+        assert "DRIVE_MODE_LEGACY" in html
+        assert "tank_split" in html
         m = re.search(
             r"function selectableSources\(\)\s*\{([\s\S]+?)\n\}",
             html)
@@ -1274,7 +1277,7 @@ class TestConfigUiMockup:
             "function sourceSelect(name, value, ownerId)",
             "option.disabled = true",
             "Used by ",
-            "runtimeDriveSources(state.drive_mode)",
+            "runtimeDriveSources()",
             "sourceSelect('primary', cfg.primary, o.id)",
             "sourceSelect('secondary', cfg.secondary, o.id)",
         ):
@@ -1298,13 +1301,13 @@ class TestConfigUiMockup:
 
     def test_output_ui_renders_live_mock_robot_preview(self, html):
         assert "Mock robot output" in html
-        assert "function mockDriveOutput(mode, gp)" in html
+        assert "function mockDriveOutput(drive, gp)" in html
         assert "function renderMockRobot(out)" in html
         assert "mock-left-dir" in html
         assert "mock-right-dir" in html
         assert "mock-left-bar" in html
         assert "mock-right-bar" in html
-        assert "state.mockDrive = mockDriveOutput(state.drive_mode, state.gp);" in html
+        assert "state.mockDrive = mockDriveOutput(state.drive, state.gp);" in html
 
     def test_direction_toggle_input_precedes_label_for_checked_css(self, html):
         # CSS uses `.toggle input:checked + label`; the input must be
@@ -1540,5 +1543,6 @@ def test_obsolete_weapon_patch_is_rejected():
 
 def test_m1_m2_are_drive_only_in_ui():
     html = (PROJECT_ROOT / "docs" / "config-ui-mockup.html").read_text()
-    assert "M1/M2 are drive motors only" in html
-    assert "allowedPurposes = (o.id === 'M1' || o.id === 'M2')" in html
+    assert "M1 and M2 are the high-current brushed motor outputs" in html
+    assert "Drive Method is None" in html
+    assert "function renderManualMotorControls" in html

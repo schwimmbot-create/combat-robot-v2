@@ -67,6 +67,32 @@ static const char *const kDriveModeNames[OC_DRIVE__COUNT] = {
     "arcade_split",
 };
 
+static const char *const kDriveLayoutNames[OC_DRIVE_LAYOUT__COUNT] = {
+    "differential",
+    "servo_steering",
+};
+
+static const char *const kDriveMethodNames[OC_DRIVE_METHOD__COUNT] = {
+    "none",
+    "tank",
+    "arcade",
+    "servo_steering",
+};
+
+static const char *const kDriveAxisNames[OC_DRIVE_AXIS__COUNT] = {
+    "NONE",
+    "LY",
+    "RY",
+    "LX",
+    "RX",
+    "RT_MINUS_LT",
+    "LT_MINUS_RT",
+    "RT_ONLY",
+    "LT_ONLY",
+    "DPAD_Y",
+    "DPAD_X",
+};
+
 static const char *const kPurposeNames[OC_PURPOSE__COUNT] = {
     "disabled",
     "drive",
@@ -149,6 +175,13 @@ static const char *const kDigitalPresetNames[OC_DIGITAL_PRESET__COUNT] = {
     "custom",
 };
 
+static const char *const kMotorModeNames[OC_MOTOR_MODE__COUNT] = {
+    "proportional",
+    "momentary",
+    "latching",
+    "disabled",
+};
+
 // ---- In-RAM state --------------------------------------------------------
 
 // Defaults describe the current hard-coded tank-drive behavior:
@@ -157,7 +190,7 @@ static const char *const kDigitalPresetNames[OC_DIGITAL_PRESET__COUNT] = {
 static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
     [OC_OUT_M1] = {
         .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
-        .primary = OC_SRC_LY, .secondary = OC_SRC_NONE,
+        .primary = OC_SRC_LY, .secondary = OC_SRC_NONE, .motor_mode = OC_MOTOR_MODE_PROPORTIONAL,
         .display_name = "Motor 1", .purpose = OC_PURPOSE_DRIVE, .protocol = OC_PROTO_NONE,
         .semantics = OC_SEM_NONE, .min_pulse_us = 0, .center_pulse_us = 0, .max_pulse_us = 0,
         .frame_hz = 0, .neutral_deadzone_pct = 0, .weapon_safety = false,
@@ -169,11 +202,11 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
-        .digital_custom_pct = 50, .pwm_frequency_hz = 0, .pwm_duty_pct = 0,
+        .digital_custom_pct = 50, .pwm_frequency_hz = 20000, .pwm_duty_pct = 0,
     },
     [OC_OUT_M2] = {
         .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
-        .primary = OC_SRC_RY, .secondary = OC_SRC_NONE,
+        .primary = OC_SRC_RY, .secondary = OC_SRC_NONE, .motor_mode = OC_MOTOR_MODE_PROPORTIONAL,
         .display_name = "Motor 2", .purpose = OC_PURPOSE_DRIVE, .protocol = OC_PROTO_NONE,
         .semantics = OC_SEM_NONE, .min_pulse_us = 0, .center_pulse_us = 0, .max_pulse_us = 0,
         .frame_hz = 0, .neutral_deadzone_pct = 0, .weapon_safety = false,
@@ -185,11 +218,11 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .power_good = OC_POWER_DEFAULT, .power_warn = OC_POWER_DEFAULT, .power_low = OC_POWER_DEFAULT,
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
-        .digital_custom_pct = 50, .pwm_frequency_hz = 0, .pwm_duty_pct = 0,
+        .digital_custom_pct = 50, .pwm_frequency_hz = 20000, .pwm_duty_pct = 0,
     },
     [OC_OUT_S1] = {
         .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
-        .primary = OC_SRC_NONE, .secondary = OC_SRC_NONE,
+        .primary = OC_SRC_NONE, .secondary = OC_SRC_NONE, .motor_mode = OC_MOTOR_MODE_DISABLED,
         .display_name = "Servo 1", .purpose = OC_PURPOSE_SERVO, .protocol = OC_PROTO_RC_SERVO_PWM,
         .semantics = OC_SEM_POSITION_SERVO, .min_pulse_us = 1000, .center_pulse_us = 1500, .max_pulse_us = 2000,
         .frame_hz = 50, .neutral_deadzone_pct = 5, .weapon_safety = false,
@@ -205,7 +238,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
     },
     [OC_OUT_S2] = {
         .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
-        .primary = OC_SRC_NONE, .secondary = OC_SRC_NONE,
+        .primary = OC_SRC_NONE, .secondary = OC_SRC_NONE, .motor_mode = OC_MOTOR_MODE_DISABLED,
         .display_name = "Servo 2", .purpose = OC_PURPOSE_SERVO, .protocol = OC_PROTO_RC_SERVO_PWM,
         .semantics = OC_SEM_POSITION_SERVO, .min_pulse_us = 1000, .center_pulse_us = 1500, .max_pulse_us = 2000,
         .frame_hz = 50, .neutral_deadzone_pct = 5, .weapon_safety = false,
@@ -223,12 +256,120 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
 
 static oc_output_cfg_t s_cfg[OC_OUT__COUNT];
 static oc_drive_mode_t s_drive_mode = OC_DRIVE_TANK_SPLIT;
+static oc_drive_setup_t s_drive_setup = {
+    .layout = OC_DRIVE_LAYOUT_DIFFERENTIAL,
+    .method = OC_DRIVE_METHOD_TANK,
+    .left_axis = OC_DRIVE_AXIS_LY,
+    .right_axis = OC_DRIVE_AXIS_RY,
+    .throttle_axis = OC_DRIVE_AXIS_LY,
+    .steering_axis = OC_DRIVE_AXIS_LX,
+    .drive_motor_output = OC_OUT_M1,
+    .steering_output = OC_OUT_S1,
+    .precision_source = OC_SRC_NONE,
+    .precision_scale_pct = 50,
+    .brake_source = OC_SRC_NONE,
+    .invert_steering_source = OC_SRC_NONE,
+};
 static uint8_t s_max_paired = OC_MAX_PAIRED_DEFAULT;
 static bool s_loaded = false;
 
 // ---- Small helpers -------------------------------------------------------
 
 bool output_config_id_from_str(const char *s, oc_output_id_t *out);
+static bool table_lookup(const char *s, const char *const *names, int count, int *out);
+
+static bool drive_axis_is_valid_for_throttle(oc_drive_axis_t axis) {
+    switch (axis) {
+        case OC_DRIVE_AXIS_LY:
+        case OC_DRIVE_AXIS_RY:
+        case OC_DRIVE_AXIS_RT_MINUS_LT:
+        case OC_DRIVE_AXIS_LT_MINUS_RT:
+        case OC_DRIVE_AXIS_RT_ONLY:
+        case OC_DRIVE_AXIS_LT_ONLY:
+        case OC_DRIVE_AXIS_DPAD_Y:
+            return true;
+        default:
+            return false;
+    }
+}
+
+static bool drive_axis_is_valid_for_steering(oc_drive_axis_t axis) {
+    return axis == OC_DRIVE_AXIS_LX || axis == OC_DRIVE_AXIS_RX || axis == OC_DRIVE_AXIS_DPAD_X;
+}
+
+static bool drive_setup_is_sane(const oc_drive_setup_t *setup) {
+    if (!setup) return false;
+    if ((unsigned)setup->layout >= OC_DRIVE_LAYOUT__COUNT) return false;
+    if ((unsigned)setup->method >= OC_DRIVE_METHOD__COUNT) return false;
+    if ((unsigned)setup->left_axis >= OC_DRIVE_AXIS__COUNT) return false;
+    if ((unsigned)setup->right_axis >= OC_DRIVE_AXIS__COUNT) return false;
+    if ((unsigned)setup->throttle_axis >= OC_DRIVE_AXIS__COUNT) return false;
+    if ((unsigned)setup->steering_axis >= OC_DRIVE_AXIS__COUNT) return false;
+    if ((unsigned)setup->drive_motor_output >= OC_OUT__COUNT) return false;
+    if ((unsigned)setup->steering_output >= OC_OUT__COUNT) return false;
+    if ((unsigned)setup->precision_source >= OC_SRC__COUNT) return false;
+    if ((unsigned)setup->brake_source >= OC_SRC__COUNT) return false;
+    if ((unsigned)setup->invert_steering_source >= OC_SRC__COUNT) return false;
+    if (setup->precision_scale_pct > 100) return false;
+    if (setup->method == OC_DRIVE_METHOD_NONE) return true;
+    if (setup->layout == OC_DRIVE_LAYOUT_DIFFERENTIAL) {
+        if (setup->method == OC_DRIVE_METHOD_TANK) {
+            return drive_axis_is_valid_for_throttle(setup->left_axis) &&
+                   drive_axis_is_valid_for_throttle(setup->right_axis);
+        }
+        if (setup->method == OC_DRIVE_METHOD_ARCADE) {
+            return drive_axis_is_valid_for_throttle(setup->throttle_axis) &&
+                   drive_axis_is_valid_for_steering(setup->steering_axis);
+        }
+        return false;
+    }
+    if (setup->layout == OC_DRIVE_LAYOUT_SERVO_STEERING) {
+        return setup->method == OC_DRIVE_METHOD_SERVO_STEERING &&
+               (setup->drive_motor_output == OC_OUT_M1 || setup->drive_motor_output == OC_OUT_M2) &&
+               (setup->steering_output == OC_OUT_S1 || setup->steering_output == OC_OUT_S2) &&
+               drive_axis_is_valid_for_throttle(setup->throttle_axis) &&
+               drive_axis_is_valid_for_steering(setup->steering_axis);
+    }
+    return false;
+}
+
+static oc_drive_setup_t drive_setup_for_legacy_mode(oc_drive_mode_t mode) {
+    oc_drive_setup_t setup = {
+        .layout = OC_DRIVE_LAYOUT_DIFFERENTIAL,
+        .method = OC_DRIVE_METHOD_TANK,
+        .left_axis = OC_DRIVE_AXIS_LY,
+        .right_axis = OC_DRIVE_AXIS_RY,
+        .throttle_axis = OC_DRIVE_AXIS_LY,
+        .steering_axis = OC_DRIVE_AXIS_LX,
+        .drive_motor_output = OC_OUT_M1,
+        .steering_output = OC_OUT_S1,
+        .precision_source = OC_SRC_NONE,
+        .precision_scale_pct = 50,
+        .brake_source = OC_SRC_NONE,
+        .invert_steering_source = OC_SRC_NONE,
+    };
+    switch (mode) {
+        case OC_DRIVE_ARCADE_LEFT:
+            setup.method = OC_DRIVE_METHOD_ARCADE;
+            setup.throttle_axis = OC_DRIVE_AXIS_LY;
+            setup.steering_axis = OC_DRIVE_AXIS_LX;
+            break;
+        case OC_DRIVE_ARCADE_RIGHT:
+            setup.method = OC_DRIVE_METHOD_ARCADE;
+            setup.throttle_axis = OC_DRIVE_AXIS_RY;
+            setup.steering_axis = OC_DRIVE_AXIS_RX;
+            break;
+        case OC_DRIVE_ARCADE_SPLIT:
+            setup.method = OC_DRIVE_METHOD_ARCADE;
+            setup.throttle_axis = OC_DRIVE_AXIS_LY;
+            setup.steering_axis = OC_DRIVE_AXIS_RX;
+            break;
+        case OC_DRIVE_TANK_SPLIT:
+        default:
+            break;
+    }
+    return setup;
+}
 
 static esp_err_t save_all(void) {
     nvs_handle_t h;
@@ -239,6 +380,7 @@ static esp_err_t save_all(void) {
     }
     err = nvs_set_blob(h, OC_NVS_KEY_BLOB, s_cfg, sizeof(s_cfg));
     if (err == ESP_OK) err = nvs_set_u8(h, OC_NVS_KEY_DRIVE_MODE, (uint8_t)s_drive_mode);
+    if (err == ESP_OK) err = nvs_set_blob(h, OC_NVS_KEY_DRIVE_SETUP, &s_drive_setup, sizeof(s_drive_setup));
     if (err == ESP_OK) err = nvs_set_u8(h, OC_NVS_KEY_MAX_PAIRED, s_max_paired);
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
@@ -270,6 +412,7 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
         if (c->deadzone_pct > 50) return false;
         if ((unsigned)c->primary >= OC_SRC__COUNT) return false;
         if ((unsigned)c->secondary >= OC_SRC__COUNT) return false;
+        if ((unsigned)c->motor_mode >= OC_MOTOR_MODE__COUNT) return false;
         if (c->display_name[OC_DISPLAY_NAME_MAX_LEN] != '\0') return false;
         if ((unsigned)c->purpose >= OC_PURPOSE__COUNT) return false;
         if ((unsigned)c->protocol >= OC_PROTO__COUNT) return false;
@@ -288,6 +431,8 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
         if ((i == OC_OUT_M1 || i == OC_OUT_M2) &&
             (c->purpose != OC_PURPOSE_DRIVE || c->protocol != OC_PROTO_NONE)) return false;
         if (c->pwm_duty_pct > 100) return false;
+        if ((i == OC_OUT_M1 || i == OC_OUT_M2) && (c->pwm_frequency_hz < 1000 || c->pwm_frequency_hz > 40000)) return false;
+        if (!(i == OC_OUT_M1 || i == OC_OUT_M2) && c->pwm_frequency_hz > 40000) return false;
         if (c->esc_arm_hold_ms > 10000 || c->esc_arm_low_ms > 10000 || c->esc_arm_high_ms > 10000 || c->esc_arm_final_low_ms > 10000) return false;
         if (c->esc_arm_low_us > 3000 || c->esc_arm_high_us > 3000 || c->esc_arm_low_us >= c->esc_arm_high_us) return false;
         if (c->weapon_safety && c->failsafe == OC_FAILSAFE_HOLD_LAST) return false;
@@ -303,6 +448,7 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
 void output_config_reset_defaults(void) {
     memcpy(s_cfg, kDefaults, sizeof(s_cfg));
     s_drive_mode = OC_DRIVE_TANK_SPLIT;
+    s_drive_setup = drive_setup_for_legacy_mode(OC_DRIVE_TANK_SPLIT);
     s_max_paired = OC_MAX_PAIRED_DEFAULT;
 }
 
@@ -350,6 +496,16 @@ esp_err_t output_config_init(void) {
         nvs_close(h);
         if (mode_err == ESP_OK && mode < OC_DRIVE__COUNT) {
             s_drive_mode = (oc_drive_mode_t)mode;
+        }
+    }
+    s_drive_setup = drive_setup_for_legacy_mode(s_drive_mode);
+    if (nvs_open(OC_NVS_NAMESPACE, NVS_READONLY, &h) == ESP_OK) {
+        oc_drive_setup_t setup;
+        size_t setup_len = sizeof(setup);
+        esp_err_t setup_err = nvs_get_blob(h, OC_NVS_KEY_DRIVE_SETUP, &setup, &setup_len);
+        nvs_close(h);
+        if (setup_err == ESP_OK && setup_len == sizeof(setup) && drive_setup_is_sane(&setup)) {
+            s_drive_setup = setup;
         }
     }
 
@@ -438,6 +594,52 @@ bool output_config_drive_mode_from_str(const char *s, oc_drive_mode_t *out) {
     return false;
 }
 
+const oc_drive_setup_t *output_config_get_drive_setup(void) {
+    return &s_drive_setup;
+}
+
+esp_err_t output_config_set_drive_setup(const oc_drive_setup_t *setup) {
+    if (!drive_setup_is_sane(setup)) return ESP_ERR_INVALID_ARG;
+    s_drive_setup = *setup;
+    return save_all();
+}
+
+const char *output_config_drive_layout_name(oc_drive_layout_t layout) {
+    if ((unsigned)layout >= OC_DRIVE_LAYOUT__COUNT) return "differential";
+    return kDriveLayoutNames[layout];
+}
+
+const char *output_config_drive_method_name(oc_drive_method_t method) {
+    if ((unsigned)method >= OC_DRIVE_METHOD__COUNT) return "tank";
+    return kDriveMethodNames[method];
+}
+
+const char *output_config_drive_axis_name(oc_drive_axis_t axis) {
+    if ((unsigned)axis >= OC_DRIVE_AXIS__COUNT) return "NONE";
+    return kDriveAxisNames[axis];
+}
+
+bool output_config_drive_layout_from_str(const char *s, oc_drive_layout_t *out) {
+    int v;
+    if (!table_lookup(s, kDriveLayoutNames, OC_DRIVE_LAYOUT__COUNT, &v)) return false;
+    *out = (oc_drive_layout_t)v;
+    return true;
+}
+
+bool output_config_drive_method_from_str(const char *s, oc_drive_method_t *out) {
+    int v;
+    if (!table_lookup(s, kDriveMethodNames, OC_DRIVE_METHOD__COUNT, &v)) return false;
+    *out = (oc_drive_method_t)v;
+    return true;
+}
+
+bool output_config_drive_axis_from_str(const char *s, oc_drive_axis_t *out) {
+    int v;
+    if (!table_lookup(s, kDriveAxisNames, OC_DRIVE_AXIS__COUNT, &v)) return false;
+    *out = (oc_drive_axis_t)v;
+    return true;
+}
+
 uint8_t output_config_get_max_paired(void) {
     return s_max_paired;
 }
@@ -523,6 +725,32 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
 
     ok &= json_append_raw(out_buf, out_buf_len, &used, "{\"drive_mode\":");
     ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_mode_name(s_drive_mode));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"drive\":{");
+    ok &= json_append_raw(out_buf, out_buf_len, &used, "\"layout\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_layout_name(s_drive_setup.layout));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"method\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_method_name(s_drive_setup.method));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"left_axis\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_axis_name(s_drive_setup.left_axis));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"right_axis\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_axis_name(s_drive_setup.right_axis));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"throttle_axis\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_axis_name(s_drive_setup.throttle_axis));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"steering_axis\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_drive_axis_name(s_drive_setup.steering_axis));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"drive_motor_output\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_output_id_str(s_drive_setup.drive_motor_output));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"steering_output\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, output_config_output_id_str(s_drive_setup.steering_output));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"precision_source\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[s_drive_setup.precision_source]);
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"precision_scale_pct\":");
+    ok &= json_append_int(out_buf, out_buf_len, &used, s_drive_setup.precision_scale_pct);
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"brake_source\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[s_drive_setup.brake_source]);
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"invert_steering_source\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[s_drive_setup.invert_steering_source]);
+    ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
     ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"max_paired\":");
     ok &= json_append_int(out_buf, out_buf_len, &used, s_max_paired);
     ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"outputs\":{");
@@ -552,6 +780,8 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"secondary\":");
         ok &= json_append_quoted_token(out_buf, out_buf_len, &used,
                                         kSourceNames[c->secondary]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"motor_mode\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kMotorModeNames[c->motor_mode]);
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"purpose\":");
         ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kPurposeNames[c->purpose]);
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"protocol\":");
@@ -829,6 +1059,13 @@ static bool digital_preset_from_str(const char *s, oc_digital_preset_t *out) {
     return true;
 }
 
+static bool motor_mode_from_str(const char *s, oc_motor_mode_t *out) {
+    int v;
+    if (!table_lookup(s, kMotorModeNames, OC_MOTOR_MODE__COUNT, &v)) return false;
+    *out = (oc_motor_mode_t)v;
+    return true;
+}
+
 static bool purpose_protocol_is_valid(oc_purpose_t purpose, oc_protocol_t protocol) {
     switch (purpose) {
         case OC_PURPOSE_DISABLED: return protocol == OC_PROTO_NONE;
@@ -946,6 +1183,7 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             } else if (strcmp(key, "ramp_ms") == 0) {
                 if (s_cfg[id].ramp_ms != (uint16_t)d) { s_cfg[id].ramp_ms = (uint16_t)d; dirty = true; }
             } else if (strcmp(key, "pwm_frequency_hz") == 0) {
+                if ((id == OC_OUT_M1 || id == OC_OUT_M2) && (d < 1000 || d > 40000)) return false;
                 if (s_cfg[id].pwm_frequency_hz != (uint16_t)d) { s_cfg[id].pwm_frequency_hz = (uint16_t)d; dirty = true; }
             } else if (strcmp(key, "pwm_duty_pct") == 0) {
                 if (d > 100) return false;
@@ -1080,6 +1318,10 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
                 oc_source_id_t s;
                 if (!output_config_source_from_str(value, &s)) return false;
                 if (s_cfg[id].secondary != s) { s_cfg[id].secondary = s; dirty = true; }
+            } else if (strcmp(key, "motor_mode") == 0) {
+                oc_motor_mode_t mode;
+                if (!motor_mode_from_str(value, &mode)) return false;
+                if (s_cfg[id].motor_mode != mode) { s_cfg[id].motor_mode = mode; dirty = true; }
             } else {
                 // Unknown string key: accept silently for forward-compat.
             }
@@ -1091,6 +1333,73 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
     if (!purpose_protocol_is_valid(s_cfg[id].purpose, s_cfg[id].protocol)) return false;
     if (!cfg_blob_is_sane(s_cfg)) return false;
     return !dirty ? true : true; // dirty is informational; we always report apply ok
+}
+
+
+static bool apply_drive_patch(const char *body) {
+    oc_drive_setup_t next = s_drive_setup;
+    const char *p = body;
+    if (*p != '{') return false;
+    p++;
+    while (*p && *p != '}') {
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == '}') break;
+        if (*p != '"') return false;
+        const char *key_start = ++p;
+        while (*p && *p != '"') {
+            if (*p == '\\' && p[1]) p++;
+            p++;
+        }
+        if (*p != '"') return false;
+        size_t klen = (size_t)(p - key_start);
+        char key[32] = {0};
+        if (klen >= sizeof(key)) return false;
+        memcpy(key, key_start, klen);
+        p++;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != ':') return false;
+        p++;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (strcmp(key, "precision_scale_pct") == 0) {
+            int v;
+            if (!parse_bare_int_value(&p, &v)) return false;
+            if (v < 0 || v > 100) return false;
+            next.precision_scale_pct = (uint8_t)v;
+        } else {
+            char value[24] = {0};
+            if (!parse_bare_string_value(&p, value, sizeof(value))) return false;
+            if (strcmp(key, "layout") == 0) {
+                if (!output_config_drive_layout_from_str(value, &next.layout)) return false;
+                if (next.layout == OC_DRIVE_LAYOUT_DIFFERENTIAL && next.method == OC_DRIVE_METHOD_SERVO_STEERING) next.method = OC_DRIVE_METHOD_ARCADE;
+                if (next.layout == OC_DRIVE_LAYOUT_SERVO_STEERING) next.method = OC_DRIVE_METHOD_SERVO_STEERING;
+            } else if (strcmp(key, "method") == 0) {
+                if (!output_config_drive_method_from_str(value, &next.method)) return false;
+            } else if (strcmp(key, "left_axis") == 0) {
+                if (!output_config_drive_axis_from_str(value, &next.left_axis)) return false;
+            } else if (strcmp(key, "right_axis") == 0) {
+                if (!output_config_drive_axis_from_str(value, &next.right_axis)) return false;
+            } else if (strcmp(key, "throttle_axis") == 0) {
+                if (!output_config_drive_axis_from_str(value, &next.throttle_axis)) return false;
+            } else if (strcmp(key, "steering_axis") == 0) {
+                if (!output_config_drive_axis_from_str(value, &next.steering_axis)) return false;
+            } else if (strcmp(key, "drive_motor_output") == 0) {
+                if (!output_config_id_from_str(value, &next.drive_motor_output)) return false;
+            } else if (strcmp(key, "steering_output") == 0) {
+                if (!output_config_id_from_str(value, &next.steering_output)) return false;
+            } else if (strcmp(key, "precision_source") == 0) {
+                if (!output_config_source_from_str(value, &next.precision_source)) return false;
+            } else if (strcmp(key, "brake_source") == 0) {
+                if (!output_config_source_from_str(value, &next.brake_source)) return false;
+            } else if (strcmp(key, "invert_steering_source") == 0) {
+                if (!output_config_source_from_str(value, &next.invert_steering_source)) return false;
+            }
+        }
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == ',') p++;
+    }
+    if (!drive_setup_is_sane(&next)) return false;
+    s_drive_setup = next;
+    return true;
 }
 
 esp_err_t output_config_apply_json_patch(const char *json_patch) {
@@ -1134,6 +1443,7 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
             if (!parse_bare_string_value(&p, value, sizeof(value))) return ESP_ERR_INVALID_ARG;
             if (!output_config_drive_mode_from_str(value, &mode)) return ESP_ERR_INVALID_ARG;
             s_drive_mode = mode;
+            s_drive_setup = drive_setup_for_legacy_mode(mode);
             while (*p && isspace((unsigned char)*p)) p++;
             if (*p == ',') p++;
             continue;
@@ -1166,9 +1476,13 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
         if (strcmp(key, "Weapon") == 0) {
             return ESP_ERR_INVALID_ARG;
         }
-        oc_output_id_t id;
-        if (output_config_id_from_str(key, &id)) {
-            if (!apply_patch_one(id, body)) return ESP_ERR_INVALID_ARG;
+        if (strcmp(key, "drive") == 0) {
+            if (!apply_drive_patch(body)) return ESP_ERR_INVALID_ARG;
+        } else {
+            oc_output_id_t id;
+            if (output_config_id_from_str(key, &id)) {
+                if (!apply_patch_one(id, body)) return ESP_ERR_INVALID_ARG;
+            }
         }
         // unknown output key: ignored (forward-compat)
         while (*p && isspace((unsigned char)*p)) p++;

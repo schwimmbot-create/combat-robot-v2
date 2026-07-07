@@ -29,6 +29,11 @@ void Drive::begin(){
     ESP_LOGD(TAG, "Max PWM: %d", maxPwmVal);
 }
 
+void Drive::setMotorPwmFrequency(bool left_motor, uint16_t frequency_hz){
+    if (left_motor) leftMotor.setPwmFrequency(frequency_hz);
+    else rightMotor.setPwmFrequency(frequency_hz);
+}
+
 /**
  * Sets the minimum and maximum expected input values to set the speed to.
  * Default: -512 to 511
@@ -164,6 +169,23 @@ void Drive::two_stick_drive(int left_input, int right_input, byte orientation, b
 
 }
 
+
+void Drive::single_motor_drive(bool left_motor, int input, byte orientation, bool enabled){
+    int motorSpeed = map(input, _minForwardInput, _maxForwardInput, -maxPwmVal, maxPwmVal);
+    int speed = constrain(abs(motorSpeed), 0, maxPwmVal);
+    if (!enabled || speed == 0) {
+        if (left_motor) leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
+        else rightMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
+        return;
+    }
+    if (motorSpeed < 0) {
+        if (left_motor) leftMotor.setSpeed(speed, REVERSE, orientation);
+        else rightMotor.setSpeed(speed, REVERSE, orientation);
+    } else {
+        if (left_motor) leftMotor.setSpeed(speed, FORWARD, orientation);
+        else rightMotor.setSpeed(speed, FORWARD, orientation);
+    }
+}
 
 //Stop both drive motors
 void Drive::stop(){

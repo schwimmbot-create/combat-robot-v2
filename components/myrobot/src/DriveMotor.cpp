@@ -23,14 +23,27 @@ void DriveMotor::begin() {
     // frequency. v1.3 used a single ledcAttach() call that did both.
     // ledcAttachPin returns void in v2.0.14, so we just call it.
     ledcAttachPin(_fwd_pin, _fwd_channel);
-    if (ledcChangeFrequency(_fwd_channel, DRIVE_MOTOR_PWM_FREQ, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
+    if (ledcChangeFrequency(_fwd_channel, _pwm_frequency_hz, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
         ESP_LOGE(TAG, "Failed to set FWD PWM frequency");
     }
     ledcAttachPin(_rev_pin, _rev_channel);
-    if (ledcChangeFrequency(_rev_channel, DRIVE_MOTOR_PWM_FREQ, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
+    if (ledcChangeFrequency(_rev_channel, _pwm_frequency_hz, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
         ESP_LOGE(TAG, "Failed to set REV PWM frequency");
     }
     setSpeed(0, STOP, RIGHTSIDE_UP);
+}
+
+
+void DriveMotor::setPwmFrequency(uint16_t frequency_hz) {
+    frequency_hz = constrain(frequency_hz, (uint16_t)1000, (uint16_t)40000);
+    if (_pwm_frequency_hz == frequency_hz) return;
+    _pwm_frequency_hz = frequency_hz;
+    if (ledcChangeFrequency(_fwd_channel, _pwm_frequency_hz, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
+        ESP_LOGE(TAG, "Failed to update FWD PWM frequency");
+    }
+    if (ledcChangeFrequency(_rev_channel, _pwm_frequency_hz, DRIVE_MOTOR_PWM_RESOLUTION) == 0) {
+        ESP_LOGE(TAG, "Failed to update REV PWM frequency");
+    }
 }
 
 /**

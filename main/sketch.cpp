@@ -205,9 +205,9 @@ static void cli_print_status(void) {
                   (unsigned)ble_gamepad_get_max_paired());
     Serial.print("connected_mac=");
     if (connected) print_mac(connected_mac); else Serial.print("none");
-    Serial.printf(" axes={ly:%d,ry:%d,lt:%d,rt:%d,buttons:%u,dpad:%u}",
-                  cs.leftStickY, cs.rightStickY, cs.leftTrigger,
-                  cs.rightTrigger, (unsigned)cs.buttons, (unsigned)cs.dpad);
+    Serial.printf(" axes={lx:%d,ly:%d,rx:%d,ry:%d,lt:%d,rt:%d,buttons:%u,dpad:%u}",
+                  cs.leftStickX, cs.leftStickY, cs.rightStickX, cs.rightStickY,
+                  cs.leftTrigger, cs.rightTrigger, (unsigned)cs.buttons, (unsigned)cs.dpad);
     Serial.printf(" outputs={S1:{logical:%d,physical_high:%d,pulse_us:%u,duty:%u,arm:%s},S2:{logical:%d,physical_high:%d,pulse_us:%u,duty:%u,arm:%s}}",
                   taskManager.getDigitalOutputLogical(OC_OUT_S1) ? 1 : 0,
                   taskManager.getDigitalOutputPhysicalHigh(OC_OUT_S1) ? 1 : 0,
@@ -219,6 +219,16 @@ static void cli_print_status(void) {
                   (unsigned)taskManager.getAuxPulseUs(OC_OUT_S2),
                   (unsigned)taskManager.getAuxDuty(OC_OUT_S2),
                   taskManager.getEscArmPhaseName(OC_OUT_S2));
+    const oc_drive_setup_t* driveSetup = output_config_get_drive_setup();
+    Serial.printf(" drive={layout:%s,method:%s,throttle_axis:%s,steering_axis:%s,throttle:%d,steering:%d,left:%d,right:%d}",
+                  output_config_drive_layout_name(driveSetup->layout),
+                  output_config_drive_method_name(driveSetup->method),
+                  output_config_drive_axis_name(driveSetup->throttle_axis),
+                  output_config_drive_axis_name(driveSetup->steering_axis),
+                  taskManager.getDriveThrottle(),
+                  taskManager.getDriveSteering(),
+                  taskManager.getDriveLeftCommand(),
+                  taskManager.getDriveRightCommand());
     Serial.print(" paired=[");
     ble_mac_t macs[BLE_MAX_PAIRED_CONTROLLERS];
     uint8_t count = BLE_MAX_PAIRED_CONTROLLERS;
@@ -439,7 +449,9 @@ void loop() {
     ControllerState gs = ble_gamepad_get_state();
 
     if (ble_gamepad_is_connected()) {
+        controllerState.leftStickX    = gs.leftStickX;
         controllerState.leftStickY    = gs.leftStickY;
+        controllerState.rightStickX   = gs.rightStickX;
         controllerState.rightStickY   = gs.rightStickY;
         controllerState.rightTrigger  = gs.rightTrigger;
         controllerState.leftTrigger   = gs.leftTrigger;
@@ -447,7 +459,9 @@ void loop() {
         controllerState.dpad          = gs.dpad;
         taskManager.update(true, controllerState);
     } else {
+        controllerState.leftStickX    = 0;
         controllerState.leftStickY    = 0;
+        controllerState.rightStickX   = 0;
         controllerState.rightStickY   = 0;
         controllerState.rightTrigger  = 0;
         controllerState.leftTrigger   = 0;

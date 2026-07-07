@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-06T22:54:58 from docs/config-ui-mockup.html
-// Source size: 92135 bytes
+// Generated 2026-07-07T15:03:29 from docs/config-ui-mockup.html
+// Source size: 105682 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -187,6 +187,15 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
   .mock-track { height: 14px; border-radius: 999px; overflow: hidden; background: #0b0d12; border: 1px solid var(--border); }
   .mock-fill { height: 100%; width: 0%; background: var(--good); transition: width 80ms linear, background 80ms linear; }
   .mock-fill.reverse { background: var(--bad); }
+
+.info-wrap { position: relative; display: inline-flex; align-items: center; margin-left: 8px; vertical-align: middle; }
+.info-icon { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #1f6feb; color: #fff; font-size: 12px; font-weight: 700; font-style: normal; cursor: help; }
+.info-bubble { display: none; position: absolute; left: 24px; top: -10px; z-index: 20; width: min(440px, calc(100vw - 32px)); max-width: calc(100vw - 32px); white-space: pre-line; background: #161b22; color: #f0f6fc; border: 1px solid #30363d; border-radius: 10px; box-shadow: 0 12px 30px rgba(0,0,0,.35); padding: 12px 14px; font-size: 13px; line-height: 1.45; font-weight: 400; box-sizing: border-box; overflow-wrap: anywhere; }
+.info-wrap:hover .info-bubble, .info-wrap:focus .info-bubble, .info-wrap:focus-within .info-bubble { display: block; }
+@media (max-width: 520px) {
+  .info-bubble { position: fixed; left: 16px; right: 16px; top: 72px; width: auto; max-width: calc(100vw - 32px); max-height: calc(100vh - 96px); overflow-y: auto; }
+}
+
 </style>
 </head>
 <body>
@@ -248,10 +257,13 @@ static const char INDEX_HTML[] PROGMEM = R"rawliteral(
   <!-- ===== Outputs tab ===== -->
   <section class="panel" data-panel="outputs">
     <div class="card">
-      <h2>Motor &amp; Servo Outputs</h2>
-      <p class="meta">For drive motors, choose one signed stick axis as the <strong>Drive input</strong>: above center drives forward, below center drives reverse, center is stop. Use <strong>Direction</strong> only if the motor spins the wrong way. Optional reverse-only input is for trigger/button-style controls.</p>
-      <p class="meta"><strong>Drive mode is live:</strong> choose Tank or Arcade below, then Save. The individual output cards are still setup/diagnostic metadata for direction and labels.</p>
-      <p class="meta"><strong>M1/M2 are drive motors only.</strong> Configure weapon-like, servo, digital, input, or PWM accessory roles on S1/S2; there is no dedicated Weapon output.</p>
+      <h2>Motor &amp; Servo Outputs <span class="info-wrap" tabindex="0" aria-label="This page configures physical outputs. M1 and M2 are high-current brushed motor outputs controlled by Driving Setup unless Drive Method is None. S1 and S2 are low-current signal outputs for servos, ESC signal inputs, digital I/O, or PWM accessories."><span class="info-icon">i</span><span class="info-bubble">This page configures physical outputs.
+
+M1 and M2 are the high-current brushed motor outputs. In normal driving setups they are controlled by Driving Setup. If Drive Method is None, M1/M2 can be configured individually for manual motor/accessory behavior.
+
+S1 and S2 are low-current signal outputs for RC servos, ESC signal inputs, digital outputs, digital inputs, or PWM accessories.
+
+Drive behavior is configured in Driving Setup.</span></span></h2>
       <div id="outputs"></div>
     </div>
   </section>
@@ -419,12 +431,12 @@ const BUTTONS = ['A','B','X','Y','L1','R1','L2','R2','SELECT','START','L3','R3',
 const BOARD_OUTPUT_PROFILES = {
   board_v2: {
     label: 'Board v2 (current production)',
-    note: 'v2 exposes 2 brushed motor outputs, 2 Servo / ESC outputs, UART, Header H1, SW1, and LED1. LED2 / RGB ignored for now because it shares GPIO8/SCL.',
+    note: '',
     outputs: [
-      { id: 'M1', display_name: 'Motor 1 / P1', kind: 'motor', runtimeControlled: true, detail: 'DRV8871 brushed DC output. GPIO1 = IN1, GPIO3 = IN2.' },
-      { id: 'M2', display_name: 'Motor 2 / P2', kind: 'motor', runtimeControlled: true, detail: 'DRV8871 brushed DC output. GPIO6 = IN1, GPIO7 = IN2.' },
-      { id: 'S1', display_name: 'Servo / ESC 1', kind: 'servo', detail: 'GPIO4 servo-style signal. Use for an RC servo or ESC signal input.' },
-      { id: 'S2', display_name: 'Servo / ESC 2', kind: 'servo', detail: 'GPIO8 shared auxiliary line on current v2 harness; verify attached hardware before use.' },
+      { id: 'M1', display_name: 'Motor 1 / P1', kind: 'motor', runtimeControlled: true },
+      { id: 'M2', display_name: 'Motor 2 / P2', kind: 'motor', runtimeControlled: true },
+      { id: 'S1', display_name: 'Servo / ESC 1', kind: 'servo' },
+      { id: 'S2', display_name: 'Servo / ESC 2', kind: 'servo' },
     ],
     io: [
       { id: 'UART', display_name: 'UART', status: 'Reserved', detail: 'Board UART pads/header for future telemetry or debug accessories; not currently controller-mapped.' },
@@ -436,36 +448,88 @@ const BOARD_OUTPUT_PROFILES = {
   },
   board_v3: {
     label: 'Board v3 (not fabricated)',
-    note: 'Placeholder: v3 will get its own output profile after hardware is verified.',
+    note: '',
     outputs: [],
     io: [],
   },
 };
-const DRIVE_MODES = [
-  { id: 'tank_split',   label: 'Tank: left stick = left side, right stick = right side', summary: 'Best for direct combat tank control. Left Stick Y drives M1/left; Right Stick Y drives M2/right.' },
-  { id: 'arcade_left',  label: 'Arcade: left stick throttle + turn', summary: 'One-stick arcade. Left Stick Y controls speed; Left Stick X controls steering.' },
-  { id: 'arcade_right', label: 'Arcade: right stick throttle + turn', summary: 'One-stick arcade on the right stick. Right Stick Y controls speed; Right Stick X controls steering.' },
-  { id: 'arcade_split', label: 'Split arcade: left stick speed + right stick steering', summary: 'Two-stick arcade. Left Stick Y controls speed; Right Stick X controls left/right direction.' },
+const DRIVE_LAYOUTS = [
+  ['differential', 'Differential / skid steer'],
+  ['servo_steering', 'Servo steering + drive motor'],
 ];
-const DRIVE_MODE_SOURCES = {
-  tank_split:   ['LY', 'RY'],
-  arcade_left:  ['LY', 'LX'],
-  arcade_right: ['RY', 'RX'],
-  arcade_split: ['LY', 'RX'],
+const DRIVE_METHODS = {
+  differential: [['none', 'None / manual outputs'], ['tank', 'Tank'], ['arcade', 'Arcade mix']],
+  servo_steering: [['none', 'None / manual outputs'], ['servo_steering', 'Motor + steering servo']],
 };
-
-function runtimeDriveSources(mode = state.drive_mode) {
-  return DRIVE_MODE_SOURCES[mode] || DRIVE_MODE_SOURCES.tank_split;
+const DRIVE_AXES = [
+  ['NONE', 'None'],
+  ['LY', 'Left stick Y'], ['RY', 'Right stick Y'], ['LX', 'Left stick X'], ['RX', 'Right stick X'],
+  ['RT_MINUS_LT', 'RT forward / LT reverse'], ['LT_MINUS_RT', 'LT forward / RT reverse'],
+  ['RT_ONLY', 'RT only forward'], ['LT_ONLY', 'LT only forward'],
+  ['DPAD_Y', 'D-pad Up / Down'], ['DPAD_X', 'D-pad Left / Right'],
+];
+const THROTTLE_AXES = ['LY','RY','RT_MINUS_LT','LT_MINUS_RT','RT_ONLY','LT_ONLY','DPAD_Y'];
+const STEERING_AXES = ['LX','RX','DPAD_X'];
+const DRIVE_MODIFIER_SOURCES = ['NONE','A','B','X','Y','L1','R1','L2','R2','SELECT','START','L3','R3','HOME'];
+const DRIVE_MODE_LEGACY = {
+  none:         { layout: 'differential', method: 'none', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'LX' },
+  tank_split:   { layout: 'differential', method: 'tank', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'LX' },
+  arcade_left:  { layout: 'differential', method: 'arcade', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'LX' },
+  arcade_right: { layout: 'differential', method: 'arcade', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'RY', steering_axis: 'RX' },
+  arcade_split: { layout: 'differential', method: 'arcade', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'RX' },
+};
+function defaultDriveSetup() {
+  return { layout: 'differential', method: 'tank', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'LX', drive_motor_output: 'M1', steering_output: 'S1', precision_source: 'NONE', precision_scale_pct: 50, brake_source: 'NONE', invert_steering_source: 'NONE' };
 }
-
+function normalizeDriveSetup(drive = {}, legacyMode = state?.drive_mode || 'tank_split') {
+  const base = { ...defaultDriveSetup(), ...(DRIVE_MODE_LEGACY[legacyMode] || {}) };
+  const next = { ...base, ...drive };
+  if (!DRIVE_LAYOUTS.some(x => x[0] === next.layout)) next.layout = 'differential';
+  const methods = DRIVE_METHODS[next.layout] || DRIVE_METHODS.differential;
+  if (!methods.some(x => x[0] === next.method)) next.method = methods[0][0];
+  if (next.layout === 'servo_steering' && next.method !== 'none') next.method = 'servo_steering';
+  if (!THROTTLE_AXES.includes(next.left_axis)) next.left_axis = 'LY';
+  if (!THROTTLE_AXES.includes(next.right_axis)) next.right_axis = 'RY';
+  if (!THROTTLE_AXES.includes(next.throttle_axis)) next.throttle_axis = 'LY';
+  if (!STEERING_AXES.includes(next.steering_axis)) next.steering_axis = 'LX';
+  if (!['M1','M2'].includes(next.drive_motor_output)) next.drive_motor_output = 'M1';
+  if (!['S1','S2'].includes(next.steering_output)) next.steering_output = 'S1';
+  if (!DRIVE_MODIFIER_SOURCES.includes(next.precision_source)) next.precision_source = 'NONE';
+  if (!DRIVE_MODIFIER_SOURCES.includes(next.brake_source)) next.brake_source = 'NONE';
+  if (!DRIVE_MODIFIER_SOURCES.includes(next.invert_steering_source)) next.invert_steering_source = 'NONE';
+  next.precision_scale_pct = Math.max(0, Math.min(100, Number(next.precision_scale_pct ?? 50)));
+  return next;
+}
+function expandDriveAxisSources(axis) {
+  if (axis === 'RT_MINUS_LT' || axis === 'LT_MINUS_RT') return ['RT','LT'];
+  if (axis === 'RT_ONLY') return ['RT'];
+  if (axis === 'LT_ONLY') return ['LT'];
+  if (axis === 'DPAD_Y') return ['DPAD_UP','DPAD_DOWN'];
+  if (axis === 'DPAD_X') return ['DPAD_LEFT','DPAD_RIGHT'];
+  return axis && axis !== 'NONE' ? [axis] : [];
+}
+function runtimeDriveSources() {
+  const d = normalizeDriveSetup(state.drive || {}, state.drive_mode);
+  let src = [];
+  if (d.method === 'none') src = [];
+  else if (d.layout === 'differential' && d.method === 'tank') src = [...expandDriveAxisSources(d.left_axis), ...expandDriveAxisSources(d.right_axis)];
+  else src = [...expandDriveAxisSources(d.throttle_axis), ...expandDriveAxisSources(d.steering_axis)];
+  for (const mod of [d.precision_source, d.brake_source, d.invert_steering_source]) if (mod && mod !== 'NONE') src.push(mod);
+  return [...new Set(src)];
+}
+function runtimeDriveOutputs() {
+  const d = normalizeDriveSetup(state.drive || {}, state.drive_mode);
+  return d.method === 'none' ? [] : (d.layout === 'servo_steering' ? [d.drive_motor_output, d.steering_output] : ['M1','M2']);
+}
 
 // ---- In-memory state, seeded from /api/config when loaded -------------
 const state = {
   drive_mode: 'tank_split',
+  drive: defaultDriveSetup(),
   max_paired: 1,
   outputs: {
-    M1:     { display_name: 'Motor 1', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'LY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
-    M2:     { display_name: 'Motor 2', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'RY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    M1:     { display_name: 'Motor 1', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'LY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, motor_mode: 'proportional', pwm: { frequency_hz: 20000, duty_pct: 100 }, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
+    M2:     { display_name: 'Motor 2', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'RY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, motor_mode: 'proportional', pwm: { frequency_hz: 20000, duty_pct: 100 }, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
     S1:     { display_name: 'Servo 1', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
     S2:     { display_name: 'Servo 2', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
   },
@@ -481,7 +545,6 @@ const state = {
 
 // ---- DOM helpers --------------------------------------------------------
 const PURPOSE_OPTIONS = [
-  ['drive', 'Drive motor'],
   ['servo', 'Servo'],
   ['esc', 'ESC / motor controller'],
   ['digital_output', 'Digital output'],
@@ -541,7 +604,7 @@ function el(tag, attrs = {}, children = []) {
 // the drive mixer, removing them from the assignable pool. The only way
 // to free a reserved source back to the pool is to change Driving Style.
 function reservedSourceSet() {
-  return new Set(runtimeDriveSources(state.drive_mode));
+  return new Set(runtimeDriveSources());
 }
 
 function selectableSources() {
@@ -551,9 +614,9 @@ function selectableSources() {
 
 function assignedSourceOwners(exceptOutputId) {
   const owners = new Map();
-  for (const src of reservedSourceSet()) owners.set(src, 'Driving Style (reserved)');
+  for (const src of reservedSourceSet()) owners.set(src, 'Driving Setup (reserved)');
   for (const out of activeBoardProfile().outputs) {
-    if (out.runtimeControlled || out.id === exceptOutputId) continue;
+    if ((out.runtimeControlled && normalizeDriveSetup(state.drive || {}, state.drive_mode).method !== 'none') || out.id === exceptOutputId) continue;
     const cfg = state.outputs[out.id] || {};
     for (const src of [cfg.primary, cfg.secondary]) {
       if (src && src !== 'NONE') owners.set(src, outputDisplayName(out.id));
@@ -565,12 +628,10 @@ function assignedSourceOwners(exceptOutputId) {
 function renderReservedSourcesBanner() {
   const reserved = [...reservedSourceSet()];
   if (!reserved.length) return null;
-  const mode = (DRIVE_MODES.find(m => m.id === state.drive_mode) || DRIVE_MODES[0]);
   const labels = reserved.map(id => (SOURCES.find(s => s.id === id) || { label: id }).label);
   return el('div', { class: 'summary reserved-sources' }, [
-    el('strong', {}, 'Drive-mode reserved sources: '),
-    `Driving Style "${mode.label}" reserves ${labels.join(' + ')}. `
-    + 'These inputs are not selectable for Servo / ESC until you change Driving Style.',
+    el('strong', {}, 'Drive setup reserved sources: '),
+    `${labels.join(' + ')} are reserved by Driving Setup and are not selectable for Servo / ESC until you change Driving Setup.`,
   ]);
 }
 
@@ -650,103 +711,165 @@ function mockMotor(speed) {
   return { direction: speed < 0 ? 'reverse' : 'forward', pwm };
 }
 
-function mockDriveOutput(mode, gp) {
-  if (!gp) {
-    return {
-      mode,
-      inputs: { note: 'waiting for controller' },
-      left: { direction: 'stop', pwm: 0 },
-      right: { direction: 'stop', pwm: 0 },
-    };
-  }
+function readDriveAxisMock(axis, gp) {
+  if (!gp) return 0;
   const lx = (typeof gp.lx === 'number') ? gp.lx : 0;
   const ly = (typeof gp.ly === 'number') ? gp.ly : 0;
   const rx = (typeof gp.rx === 'number') ? gp.rx : 0;
   const ry = (typeof gp.ry === 'number') ? gp.ry : 0;
-  const fwd = v => arduinoMap(v, 511, -512, -255, 255);
-  const turn = v => arduinoMap(v, -512, 511, -255, 255);
-  let left = 0, right = 0, inputs = {};
-  if (mode === 'arcade_left') {
-    const x = turn(lx), y = fwd(ly);
-    left = y + x; right = y - x; inputs = { throttle: 'LY', turn: 'LX' };
-  } else if (mode === 'arcade_right') {
-    const x = turn(rx), y = fwd(ry);
-    left = y + x; right = y - x; inputs = { throttle: 'RY', turn: 'RX' };
-  } else if (mode === 'arcade_split') {
-    const x = turn(rx), y = fwd(ly);
-    left = y + x; right = y - x; inputs = { throttle: 'LY', turn: 'RX' };
-  } else {
-    left = fwd(ly); right = fwd(ry); inputs = { left: 'LY', right: 'RY' };
-  }
-  return { mode, inputs, left: mockMotor(left), right: mockMotor(right) };
+  const lt = (typeof gp.lt === 'number') ? gp.lt : 0;
+  const rt = (typeof gp.rt === 'number') ? gp.rt : 0;
+  const dpad = (typeof gp.dpad === 'number') ? gp.dpad : 0;
+  const pair = (f, r) => arduinoMap(Math.max(-1023, Math.min(1023, f - r)), -1023, 1023, -512, 511);
+  const one = v => arduinoMap(Math.max(0, Math.min(1023, v)), 0, 1023, 0, 511);
+  if (axis === 'LY') return ly;
+  if (axis === 'RY') return ry;
+  if (axis === 'LX') return lx;
+  if (axis === 'RX') return rx;
+  if (axis === 'RT_MINUS_LT') return pair(rt, lt);
+  if (axis === 'LT_MINUS_RT') return pair(lt, rt);
+  if (axis === 'RT_ONLY') return one(rt);
+  if (axis === 'LT_ONLY') return one(lt);
+  if (axis === 'DPAD_Y') return (dpad & 0x01 ? 511 : 0) + (dpad & 0x02 ? -512 : 0);
+  if (axis === 'DPAD_X') return (dpad & 0x08 ? 511 : 0) + (dpad & 0x04 ? -512 : 0);
+  return 0;
 }
-
-function setMockMotor(prefix, cmd) {
-  const dir = document.getElementById(`mock-${prefix}-dir`);
-  const pwm = document.getElementById(`mock-${prefix}-pwm`);
-  const bar = document.getElementById(`mock-${prefix}-bar`);
-  if (!dir || !pwm || !bar) return;
-  dir.textContent = cmd.direction;
-  pwm.textContent = String(cmd.pwm);
-  bar.style.width = `${(cmd.pwm / 255 * 100).toFixed(1)}%`;
-  bar.classList.toggle('reverse', cmd.direction === 'reverse');
+function sourceActive(src, gp) {
+  if (!gp || !src || src === 'NONE') return false;
+  if (src === 'LT') return (gp.lt || 0) > 0;
+  if (src === 'RT') return (gp.rt || 0) > 0;
+  if (src.startsWith('DPAD_')) return expandDriveAxisSources(src.replace('DPAD_', 'DPAD_')).length ? false : false;
+  const idx = ['A','B','X','Y','L1','R1','L2','R2','SELECT','START','L3','R3','HOME'].indexOf(src);
+  return idx >= 0 && (((gp.buttons || 0) >> idx) & 1);
+}
+function applyMockModifiers(throttle, steering, d, gp) {
+  if (sourceActive(d.brake_source, gp)) return [0, 0];
+  if (sourceActive(d.precision_source, gp)) {
+    const scale = Math.max(0, Math.min(100, Number(d.precision_scale_pct || 50))) / 100;
+    throttle = Math.round(throttle * scale); steering = Math.round(steering * scale);
+  }
+  if (sourceActive(d.invert_steering_source, gp)) steering = -steering;
+  return [throttle, steering];
+}
+function mockDriveOutput(drive, gp) {
+  const d = normalizeDriveSetup(drive || {}, state.drive_mode);
+  if (!gp || d.method === 'none') return { mode: `${d.layout}/${d.method}`, inputs: { note: d.method === 'none' ? 'manual M1/M2 outputs' : 'waiting for controller' }, left: { direction: 'stop', pwm: 0 }, right: { direction: 'stop', pwm: 0 } };
+  let left = 0, right = 0, inputs = {};
+  if (d.layout === 'differential' && d.method === 'tank') {
+    left = readDriveAxisMock(d.left_axis, gp); right = readDriveAxisMock(d.right_axis, gp);
+    [left, right] = [applyMockModifiers(left, 0, d, gp)[0], applyMockModifiers(right, 0, d, gp)[0]];
+    inputs = { left: d.left_axis, right: d.right_axis };
+  } else {
+    let throttle = readDriveAxisMock(d.throttle_axis, gp);
+    let steering = readDriveAxisMock(d.steering_axis, gp);
+    [throttle, steering] = applyMockModifiers(throttle, steering, d, gp);
+    if (d.layout === 'servo_steering') {
+      left = d.drive_motor_output === 'M1' ? throttle : 0;
+      right = d.drive_motor_output === 'M2' ? throttle : 0;
+      inputs = { throttle: d.throttle_axis, steering_servo: `${d.steering_output} from ${d.steering_axis}` };
+    } else {
+      left = throttle + steering; right = throttle - steering;
+      inputs = { throttle: d.throttle_axis, steering: d.steering_axis };
+    }
+  }
+  return { mode: `${d.layout}/${d.method}`, inputs, left: mockMotor(left), right: mockMotor(right) };
+}
+function driveModeSummary() {
+  const d = normalizeDriveSetup(state.drive || {}, state.drive_mode);
+  if (d.method === 'none') return 'Driving mix is disabled; configure M1/M2 individually below.';
+  if (d.layout === 'servo_steering') return `${d.throttle_axis} controls ${d.drive_motor_output}; ${d.steering_axis} controls steering servo ${d.steering_output}.`;
+  if (d.method === 'tank') return `${d.left_axis} controls M1/left; ${d.right_axis} controls M2/right.`;
+  return `${d.throttle_axis} controls speed; ${d.steering_axis} mixes steering into M1/M2.`;
 }
 
 function renderMockRobot(out) {
   if (!out) return;
-  setMockMotor('left', out.left);
-  setMockMotor('right', out.right);
   const detail = document.getElementById('mock-detail');
-  if (detail) detail.textContent = `${out.mode}: ${Object.entries(out.inputs).map(([k,v]) => `${k}=${v}`).join(', ')}`;
+  if (detail) detail.textContent = `${out.mode}: ${JSON.stringify(out.inputs || {})}`;
+  const rows = [['left', out.left || { direction: 'stop', pwm: 0 }], ['right', out.right || { direction: 'stop', pwm: 0 }]];
+  for (const [side, motor] of rows) {
+    const dir = document.getElementById(`mock-${side}-dir`);
+    const bar = document.getElementById(`mock-${side}-bar`);
+    const pwm = document.getElementById(`mock-${side}-pwm`);
+    if (dir) dir.textContent = motor.direction;
+    if (bar) bar.style.width = `${Math.max(0, Math.min(255, motor.pwm)) / 255 * 100}%`;
+    if (pwm) pwm.textContent = String(motor.pwm);
+  }
 }
 
-function driveModeSummary(mode) {
-  const m = DRIVE_MODES.find(x => x.id === mode) || DRIVE_MODES[0];
-  return m.summary;
+function driveSelect(value, options, onChange) {
+  const sel = el('select');
+  for (const [id, label] of options) {
+    const opt = el('option', { value: id }, label);
+    if (id === value) opt.selected = true;
+    sel.appendChild(opt);
+  }
+  sel.addEventListener('change', e => onChange(e.target.value));
+  return sel;
+}
+function axisSelect(value, allowed, onChange) {
+  return driveSelect(value, DRIVE_AXES.filter(([id]) => allowed.includes(id)), onChange);
+}
+function modifierSourceSelect(value, onChange) {
+  const opts = DRIVE_MODIFIER_SOURCES.map(id => [id, sourceLabel(id)]);
+  return driveSelect(value || 'NONE', opts, onChange);
+}
+const DRIVE_MODIFIER_HELP = `
+Precision mode source: optional button/source that enables slow driving while held. Use none to disable.
+
+Precision scale %: multiplier for throttle and steering while precision mode is active. 50% means half speed and half steering; 100% means no reduction; 0% effectively stops drive while held.
+
+Brake source: optional button/source that forces throttle and steering to zero while held. This commands neutral/stop; ESC active braking still depends on the ESC.
+
+Invert steering source: optional button/source that flips steering left/right while held. Forward/reverse throttle is unchanged. Useful when the robot is inverted or orientation feels reversed.
+
+Runtime order: read drive axes, brake zeros the command, precision scales it, invert flips steering, then the result mixes to outputs. Modifier sources are reserved from other output roles to avoid conflicting controls.`.trim();
+
+function infoBubble(text) {
+  return el('span', { class: 'info-wrap', tabindex: '0', 'aria-label': text }, [
+    el('span', { class: 'info-icon' }, 'i'),
+    el('span', { class: 'info-bubble' }, text),
+  ]);
 }
 
 function renderDriveModeCard() {
+  state.drive = normalizeDriveSetup(state.drive || {}, state.drive_mode);
+  const d = state.drive;
   const card = el('article', { class: 'output drive-mode' });
-  card.appendChild(el('header', {}, [
-    el('h3', {}, 'Driving Style'),
-    el('span', { class: 'id' }, 'live'),
-  ]));
-  const sel = el('select', { 'data-name': 'drive_mode' });
-  for (const m of DRIVE_MODES) {
-    const opt = el('option', { value: m.id }, m.label);
-    if (m.id === state.drive_mode) opt.selected = true;
-    sel.appendChild(opt);
+  card.appendChild(el('header', {}, [el('h3', {}, 'Driving Setup'), el('span', { class: 'id' }, 'live')]));
+  const layoutSel = driveSelect(d.layout, DRIVE_LAYOUTS, v => { d.layout = v; d.method = (DRIVE_METHODS[v] || DRIVE_METHODS.differential)[0][0]; if (v === 'servo_steering') d.method = 'servo_steering'; renderOutputs(); });
+  const methodSel = driveSelect(d.method, DRIVE_METHODS[d.layout] || DRIVE_METHODS.differential, v => { d.method = v; renderOutputs(); });
+  const rows = [
+    el('div', {}, [el('label', { class: 'field' }, 'Drive layout'), layoutSel, el('p', { class: 'hint' }, 'Choose whether M1/M2 skid-steer the robot or one motor drives while S1/S2 steers.')]),
+    el('div', {}, [el('label', { class: 'field' }, 'Drive method'), methodSel, el('p', { class: 'summary' }, driveModeSummary())]),
+  ];
+  if (d.method === 'none') {
+    rows.push(el('div', {}, [el('p', { class: 'summary' }, 'M1/M2 drive mixing is off. Use the Motor 1 and Motor 2 cards for manual controls.') ]));
+  } else if (d.layout === 'differential' && d.method === 'tank') {
+    rows.push(el('div', {}, [el('label', { class: 'field' }, 'Left motor source'), axisSelect(d.left_axis, THROTTLE_AXES, v => { d.left_axis = v; renderOutputs(); })]));
+    rows.push(el('div', {}, [el('label', { class: 'field' }, 'Right motor source'), axisSelect(d.right_axis, THROTTLE_AXES, v => { d.right_axis = v; renderOutputs(); })]));
+  } else {
+    if (d.layout === 'servo_steering') {
+      rows.push(el('div', {}, [el('label', { class: 'field' }, 'Drive motor'), driveSelect(d.drive_motor_output, [['M1','M1'],['M2','M2']], v => { d.drive_motor_output = v; renderOutputs(); })]));
+      rows.push(el('div', {}, [el('label', { class: 'field' }, 'Steering servo'), driveSelect(d.steering_output, [['S1','S1'],['S2','S2']], v => { d.steering_output = v; renderOutputs(); })]));
+    }
+    rows.push(el('div', {}, [el('label', { class: 'field' }, 'Throttle source'), axisSelect(d.throttle_axis, THROTTLE_AXES, v => { d.throttle_axis = v; renderOutputs(); })]));
+    rows.push(el('div', {}, [el('label', { class: 'field' }, 'Steering source'), axisSelect(d.steering_axis, STEERING_AXES, v => { d.steering_axis = v; renderOutputs(); })]));
   }
-  sel.addEventListener('change', e => {
-    state.drive_mode = e.target.value;
-    renderOutputs();
-  });
-  card.appendChild(el('div', { class: 'grid-2' }, [
-    el('div', {}, [
-      el('label', { class: 'field' }, 'Drive mode'),
-      sel,
-      el('p', { class: 'hint' }, 'Saved to NVS and used by the runtime drive mixer after Save.'),
-    ]),
-    el('div', {}, [
-      el('label', { class: 'field' }, 'Runtime mapping'),
-      el('p', { class: 'summary' }, driveModeSummary(state.drive_mode)),
+  card.appendChild(el('div', { class: 'grid-2' }, rows));
+  card.appendChild(el('details', {}, [
+    el('summary', {}, ['Advanced: drive modifiers', infoBubble(DRIVE_MODIFIER_HELP)]),
+    el('div', { class: 'grid-2' }, [
+      el('div', {}, [el('label', { class: 'field' }, 'Precision mode source'), modifierSourceSelect(d.precision_source, v => { d.precision_source = v; renderOutputs(); })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Precision scale %'), (() => { const inp = el('input', { type: 'number', min: '0', max: '100', value: d.precision_scale_pct }); inp.addEventListener('input', e => d.precision_scale_pct = Number(e.target.value)); return inp; })()]),
+      el('div', {}, [el('label', { class: 'field' }, 'Brake source'), modifierSourceSelect(d.brake_source, v => { d.brake_source = v; renderOutputs(); })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Invert steering source'), modifierSourceSelect(d.invert_steering_source, v => { d.invert_steering_source = v; renderOutputs(); })]),
     ]),
   ]));
-  card.appendChild(el('div', { class: 'summary' }, [
-    el('strong', {}, 'Mock robot output'),
-    el('span', { id: 'mock-detail', style: 'margin-left:6px' }, 'waiting for controller'),
-  ]));
+  card.appendChild(el('div', { class: 'summary' }, [el('strong', {}, 'Mock robot output'), el('span', { id: 'mock-detail', style: 'margin-left:6px' }, 'waiting for controller')]));
   card.appendChild(el('div', { class: 'mock-bot' }, [
-    el('div', { class: 'mock-row' }, [
-      el('span', {}, 'Left'), el('span', { id: 'mock-left-dir', class: 'mock-dir' }, 'stop'),
-      el('div', { class: 'mock-track' }, el('div', { id: 'mock-left-bar', class: 'mock-fill' })),
-      el('span', { id: 'mock-left-pwm', class: 'meta' }, '0'),
-    ]),
-    el('div', { class: 'mock-row' }, [
-      el('span', {}, 'Right'), el('span', { id: 'mock-right-dir', class: 'mock-dir' }, 'stop'),
-      el('div', { class: 'mock-track' }, el('div', { id: 'mock-right-bar', class: 'mock-fill' })),
-      el('span', { id: 'mock-right-pwm', class: 'meta' }, '0'),
-    ]),
+    el('div', { class: 'mock-row' }, [el('span', {}, 'Left/M1'), el('span', { id: 'mock-left-dir', class: 'mock-dir' }, 'stop'), el('div', { class: 'mock-track' }, el('div', { id: 'mock-left-bar', class: 'mock-fill' })), el('span', { id: 'mock-left-pwm', class: 'meta' }, '0')]),
+    el('div', { class: 'mock-row' }, [el('span', {}, 'Right/M2'), el('span', { id: 'mock-right-dir', class: 'mock-dir' }, 'stop'), el('div', { class: 'mock-track' }, el('div', { id: 'mock-right-bar', class: 'mock-fill' })), el('span', { id: 'mock-right-pwm', class: 'meta' }, '0')]),
   ]));
   const banner = renderReservedSourcesBanner();
   if (banner) card.appendChild(banner);
@@ -893,23 +1016,18 @@ function renderDigitalOutputControls(o, cfg) {
 }
 
 function renderRuntimeDriveAssignment(o) {
-  const sources = runtimeDriveSources(state.drive_mode);
-  const mode = DRIVE_MODES.find(m => m.id === state.drive_mode) || DRIVE_MODES[0];
-  let role = 'drive motor';
-  let assigned = sources.join(' + ');
-  if (state.drive_mode === 'tank_split') {
-    role = o.id === 'M1' ? 'left/tank motor' : 'right/tank motor';
-    assigned = o.id === 'M1' ? 'LY' : 'RY';
-  } else if (state.drive_mode === 'arcade_left') {
-    assigned = 'LY throttle + LX turn';
-  } else if (state.drive_mode === 'arcade_right') {
-    assigned = 'RY throttle + RX turn';
-  } else if (state.drive_mode === 'arcade_split') {
-    assigned = 'LY throttle + RX turn';
+  const d = normalizeDriveSetup(state.drive || {}, state.drive_mode);
+  let assigned = 'not runtime-controlled by drive setup';
+  if (d.layout === 'differential') {
+    if (o.id === 'M1') assigned = d.method === 'tank' ? d.left_axis : `${d.throttle_axis} + ${d.steering_axis} mix`;
+    else if (o.id === 'M2') assigned = d.method === 'tank' ? d.right_axis : `${d.throttle_axis} - ${d.steering_axis} mix`;
+  } else if (d.layout === 'servo_steering') {
+    if (o.id === d.drive_motor_output) assigned = `${d.throttle_axis} propulsion motor`;
+    else if (o.id === d.steering_output) assigned = `${d.steering_axis} steering servo`;
   }
   return el('div', { class: 'summary' }, [
-    el('strong', {}, 'Drive-mode controlled: '),
-    `M1/M2 are controlled by Driving Style, not per-motor input dropdowns. ${o.display_name} follows ${role} from ${mode.label} (${assigned}).`,
+    el('strong', {}, 'Drive-setup controlled: '),
+    `${o.display_name} follows ${assigned}.`,
   ]);
 }
 
@@ -971,9 +1089,10 @@ function ensureRoleDefaults(cfg) {
     deadman_source: cfg.deadman_source || 'NONE',
   };
   if (!cfg.pwm) cfg.pwm = {
-    frequency_hz: cfg.pwm_frequency_hz ?? 1000,
-    duty_pct: cfg.pwm_duty_pct ?? 50,
+    frequency_hz: cfg.pwm_frequency_hz ?? ((cfg.purpose === 'drive') ? 20000 : 1000),
+    duty_pct: cfg.pwm_duty_pct ?? ((cfg.purpose === 'drive') ? 100 : 50),
   };
+  if (!cfg.motor_mode) cfg.motor_mode = 'proportional';
   if (!cfg.esc_arm) cfg.esc_arm = {
     mode: cfg.esc_arm_mode || 'manual',
     source: cfg.esc_arm_source || 'NONE',
@@ -1121,6 +1240,32 @@ function renderDigitalInputControls(o, cfg) {
   ]);
 }
 
+
+function motorModeSelect(value, onChange) {
+  return driveSelect(value || 'proportional', [
+    ['proportional', 'Proportional speed'],
+    ['momentary', 'Momentary on while pressed'],
+    ['latching', 'Toggle / latching on press'],
+    ['disabled', 'Disabled'],
+  ], onChange);
+}
+function renderManualMotorControls(o, cfg, nameInput, dirWrap, primary) {
+  const pwm = cfg.pwm || (cfg.pwm = { frequency_hz: 20000, duty_pct: 100 });
+  if (!cfg.motor_mode) cfg.motor_mode = 'proportional';
+  const card = el('div', { class: 'grid-2', style: 'margin-top:10px' }, [
+    el('div', {}, [el('label', { class: 'field' }, 'Channel name'), nameInput]),
+    el('div', {}, [el('label', { class: 'field' }, 'Manual behavior'), motorModeSelect(cfg.motor_mode, v => { cfg.motor_mode = v; renderOutputs(); })]),
+    el('div', {}, [el('label', { class: 'field' }, 'Control source'), primary]),
+    el('div', {}, [el('label', { class: 'field' }, 'Direction'), dirWrap]),
+    el('div', {}, [el('label', { class: 'field' }, 'PWM frequency (Hz)'), numberInput(pwm.frequency_hz || 20000, 1000, 40000, 100, v => { pwm.frequency_hz = v; })]),
+    el('div', {}, [el('label', { class: 'field' }, 'On power (%)'), numberInput(pwm.duty_pct ?? 100, 0, 100, 1, v => { pwm.duty_pct = v; })]),
+  ]);
+  return el('div', {}, [
+    card,
+    el('p', { class: 'hint' }, cfg.motor_mode === 'latching' ? 'Latch clears on disconnect, timeout, reboot, or when drive mixing is re-enabled.' : 'Manual mode is only active while Drive Method is None.'),
+  ]);
+}
+
 function renderOutput(o) {
   // Defensive: if /api/config returned a key we don't have seeded
   // (or `Reset Outputs to Defaults` raced a save), seed minimal defaults
@@ -1220,30 +1365,37 @@ function renderOutput(o) {
     el('span', { class: 'id' }, o.id),
   ]));
   if (o.detail) card.appendChild(el('p', { class: 'hint' }, o.detail));
-  card.appendChild(el('div', { class: 'grid-2' }, [
-    el('div', {}, [
-      el('label', { class: 'field' }, 'Channel name'),
-      nameInput,
-      el('p', { class: 'hint' }, 'Used throughout the UI, including the power selector table.'),
-    ]),
-    el('div', {}, [
-      el('label', { class: 'field' }, 'Purpose'),
-      purposeSel,
-    ]),
-  ]));
-  card.appendChild(el('div', { class: 'grid-2', style: 'margin-top:10px' }, [
-    el('div', {}, [
-      el('label', { class: 'field' }, 'Protocol'),
-      protocolSel,
-      (cfg.protocol === 'oneshot42' || cfg.protocol === 'multishot') ? el('p', { class: 'hint' }, 'This protocol is listed for planning but is not working yet.') : null,
-    ]),
-    el('div', {}, [
-      el('label', { class: 'field' }, 'Semantics'),
-      el('p', { class: 'summary' }, cfg.semantics || 'none'),
-    ]),
-  ]));
+  if (!o.runtimeControlled) {
+    card.appendChild(el('div', { class: 'grid-2' }, [
+      el('div', {}, [
+        el('label', { class: 'field' }, 'Channel name'),
+        nameInput,
+      ]),
+      el('div', {}, [
+        el('label', { class: 'field' }, 'Purpose'),
+        purposeSel,
+      ]),
+    ]));
+    card.appendChild(el('div', { class: 'grid-2', style: 'margin-top:10px' }, [
+      el('div', {}, [
+        el('label', { class: 'field' }, 'Protocol'),
+        protocolSel,
+        (cfg.protocol === 'oneshot42' || cfg.protocol === 'multishot') ? el('p', { class: 'hint' }, 'This protocol is listed for planning but is not working yet.') : null,
+      ]),
+    ]));
+  }
   if (o.runtimeControlled) {
-    card.appendChild(renderRuntimeDriveAssignment(o));
+    const drive = normalizeDriveSetup(state.drive || {}, state.drive_mode);
+    const pwm = cfg.pwm || (cfg.pwm = { frequency_hz: 20000, duty_pct: 100 });
+    if (drive.method === 'none') {
+      card.appendChild(renderManualMotorControls(o, cfg, nameInput, dirWrap, primary));
+    } else {
+      card.appendChild(el('div', { class: 'grid-2', style: 'margin-top:10px' }, [
+        el('div', {}, [el('label', { class: 'field' }, 'Channel name'), nameInput]),
+        el('div', {}, [el('label', { class: 'field' }, 'PWM frequency (Hz)'), numberInput(pwm.frequency_hz || 20000, 1000, 40000, 100, v => { pwm.frequency_hz = v; })]),
+      ]));
+      card.appendChild(renderRuntimeDriveAssignment(o));
+    }
     return card;
   }
 
@@ -1340,10 +1492,6 @@ function renderOutputs() {
   const root = document.getElementById('outputs');
   const profile = activeBoardProfile();
   root.innerHTML = '';
-  root.appendChild(el('div', { class: 'summary' }, [
-    el('strong', {}, profile.label + ': '),
-    profile.note,
-  ]));
   root.appendChild(renderDriveModeCard());
   for (const o of profile.outputs) root.appendChild(renderOutput(o));
   for (const io of profile.io) root.appendChild(renderBoardIoCard(io));
@@ -1436,7 +1584,7 @@ function liveTick() {
   drawStick(document.getElementById('rs'), rx, ry);
   document.getElementById('lt-bar').style.width = (lt / 1023 * 100).toFixed(1) + '%';
   document.getElementById('rt-bar').style.width = (rt / 1023 * 100).toFixed(1) + '%';
-  state.mockDrive = mockDriveOutput(state.drive_mode, state.gp);
+  state.mockDrive = mockDriveOutput(state.drive, state.gp);
   renderMockRobot(state.mockDrive);
   renderButtonChips(gp);
 }
@@ -1508,7 +1656,7 @@ async function apiPostJSON(path, body) {
 
 // ---- Save / Reset wiring -----------------------------------------------
 function editableOutputPatch(outputs) {
-  const patch = { drive_mode: state.drive_mode };
+  const patch = { drive_mode: state.drive_mode, drive: normalizeDriveSetup(state.drive || {}, state.drive_mode) };
   for (const [id, cfg] of Object.entries(outputs)) {
     ensureDigitalDefaults(cfg);
     if (cfg.purpose === 'digital_output') applyDigitalPreset(cfg);
@@ -1519,6 +1667,7 @@ function editableOutputPatch(outputs) {
       deadzone: cfg.deadzone,
       primary: cfg.primary,
       secondary: cfg.secondary,
+      motor_mode: cfg.motor_mode,
       purpose: cfg.purpose,
       protocol: cfg.protocol,
       semantics: cfg.semantics,
@@ -1611,7 +1760,8 @@ function patchFromUploadedConfig(data) {
   if (data.outputs && typeof data.outputs === 'object') {
     if (data.outputs.Weapon !== undefined) throw new Error('obsolete Weapon output is not supported; configure weapon as S1/S2 role');
     const patch = {};
-    if (DRIVE_MODES.some(m => m.id === data.drive_mode)) patch.drive_mode = data.drive_mode;
+    if (data.drive_mode && DRIVE_MODE_LEGACY[data.drive_mode]) patch.drive_mode = data.drive_mode;
+    if (data.drive && typeof data.drive === 'object') patch.drive = normalizeDriveSetup(data.drive, patch.drive_mode || state.drive_mode);
     for (const id of ['M1','M2','S1','S2']) {
       if (data.outputs[id] && typeof data.outputs[id] === 'object') patch[id] = data.outputs[id];
     }
@@ -1623,7 +1773,8 @@ function patchFromUploadedConfig(data) {
 }
 
 function applyUploadedPatchToForm(patch) {
-  if (DRIVE_MODES.some(m => m.id === patch.drive_mode)) state.drive_mode = patch.drive_mode;
+  if (patch.drive_mode && DRIVE_MODE_LEGACY[patch.drive_mode]) state.drive_mode = patch.drive_mode;
+  if (patch.drive && typeof patch.drive === 'object') state.drive = normalizeDriveSetup(patch.drive, state.drive_mode);
   for (const id of ['M1','M2','S1','S2']) {
     if (patch[id] && typeof patch[id] === 'object' && state.outputs[id]) state.outputs[id] = patch[id];
   }
@@ -1687,6 +1838,7 @@ document.getElementById('btn-config-upload').addEventListener('click', async () 
 document.getElementById('btn-reset').addEventListener('click', () => {
   if (!confirm('Reset all outputs to defaults? (this just reverts the form — click Save to persist)')) return;
   state.drive_mode = 'tank_split';
+  state.drive = defaultDriveSetup();
   state.outputs = {
     M1:     { display_name: 'Motor 1', direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'LY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
     M2:     { display_name: 'Motor 2', direction: 'normal', servo_mode: 'bi',  deadzone: 10, primary: 'RY', secondary: 'NONE', purpose: 'drive', protocol: 'none', semantics: 'none', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
@@ -1862,7 +2014,8 @@ async function refreshStatus() {
 async function loadConfig() {
   try {
     const j = await apiGet('/api/config');
-    if (DRIVE_MODES.some(m => m.id === j.drive_mode)) state.drive_mode = j.drive_mode;
+    if (j.drive_mode && DRIVE_MODE_LEGACY[j.drive_mode]) state.drive_mode = j.drive_mode;
+    state.drive = normalizeDriveSetup(j.drive || {}, state.drive_mode);
     if (typeof j.max_paired === 'number' && j.max_paired >= 1 && j.max_paired <= 4) {
       state.max_paired = j.max_paired;
       const inp = document.getElementById('max-paired-input');

@@ -28,6 +28,10 @@ public:
     uint16_t getAuxPulseUs(oc_output_id_t id) const;
     uint16_t getAuxDuty(oc_output_id_t id) const;
     const char* getEscArmPhaseName(oc_output_id_t id) const;
+    int16_t getDriveThrottle() const;
+    int16_t getDriveSteering() const;
+    int16_t getDriveLeftCommand() const;
+    int16_t getDriveRightCommand() const;
 
 
 private:
@@ -43,6 +47,14 @@ private:
     int16_t readConfigSource(oc_source_id_t src, const ControllerState& cs) const;
     PulseProtocol protocolFromConfig(const oc_output_cfg_t* cfg) const;
     PulseEscSemantics escSemanticsFromConfig(const oc_output_cfg_t* cfg) const;
+    int16_t readDriveAxis(oc_drive_axis_t axis, const ControllerState& cs) const;
+    bool driveModifierActive(oc_source_id_t src, const ControllerState& cs) const;
+    bool manualMotorSourceActive(const oc_output_cfg_t* cfg, const ControllerState& cs) const;
+    int16_t manualMotorCommand(oc_output_id_t id, const oc_output_cfg_t* cfg, const ControllerState& cs, bool connected, bool allowed);
+    int16_t applyDriveModifiersToThrottle(int16_t throttle, const oc_drive_setup_t* setup, const ControllerState& cs) const;
+    int16_t applyDriveModifiersToSteering(int16_t steering, const oc_drive_setup_t* setup, const ControllerState& cs) const;
+    void updateSteeringServo(oc_output_id_t id, int16_t steering, const ControllerState& cs, bool connected);
+    bool outputReservedForDriveSteering(oc_output_id_t id) const;
     bool updateEscArming(oc_output_id_t id, PulseOutput& pulse, const oc_output_cfg_t* cfg, const ControllerState& cs, const PulseProtocol& protocol);
 
     enum EscArmPhase : uint8_t {
@@ -96,6 +108,14 @@ private:
     volatile bool _s1DigitalPhysicalHigh = false;
     volatile bool _s2DigitalLogical = false;
     volatile bool _s2DigitalPhysicalHigh = false;
+    volatile int16_t _driveThrottle = 0;
+    volatile int16_t _driveSteering = 0;
+    volatile int16_t _driveLeftCommand = 0;
+    volatile int16_t _driveRightCommand = 0;
+    bool _m1Latched = false;
+    bool _m2Latched = false;
+    bool _m1PrevManualActive = false;
+    bool _m2PrevManualActive = false;
 
     EscArmState _s1EscArm;
     EscArmState _s2EscArm;
