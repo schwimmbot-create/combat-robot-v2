@@ -17,14 +17,17 @@ def test_four_channel_ui_has_no_dedicated_weapon_output():
 def test_s1_s2_role_ui_exposes_weapon_controls_not_weapon_card():
     html = HTML.read_text()
     for token in (
-        "function renderWeaponRoleControls",
-        "Weapon role on",
-        "Weapon is a role on S1/S2",
+        "function renderEscSafetyControls",
+        "ESC safety controls on",
+        "Use Safety-critical weapon role",
         "weapon_mode",
         "arming_source",
         "deadman_source",
         "ramp_ms",
         "Safety-critical weapon role",
+        "rc_servo_ppm",
+        "Advanced: pulse calibration",
+        "applyPulseDefaults",
     ):
         assert token in html
 
@@ -33,7 +36,7 @@ def test_aux_role_ui_exposes_pulse_digital_input_and_pwm_sections():
     html = HTML.read_text()
     for token in (
         "function renderPulseControls",
-        "Pulse calibration",
+        "Advanced: pulse calibration",
         "Min pulse (µs)",
         "Center pulse (µs)",
         "Max pulse (µs)",
@@ -58,6 +61,24 @@ def test_upload_rejects_obsolete_weapon_configs():
 
 def test_embedded_header_has_role_ui():
     gen = GEN.read_text()
-    assert "Weapon role on" in gen
-    assert "Pulse calibration" in gen
+    assert "ESC safety controls on" in gen
+    assert "Advanced: pulse calibration" in gen
     assert "PWM accessory" in gen
+
+
+def test_no_weapon_esc_purpose_option():
+    html = HTML.read_text()
+    assert "['weapon_esc'" not in html
+    assert "Weapon ESC" not in html
+    assert "weapon_esc" not in html
+
+
+def test_protocol_changes_reset_pulse_defaults_and_servo_ppm_available():
+    html = HTML.read_text()
+    assert "rc_servo_ppm" in html
+    assert "RC Servo PPM 50 Hz" in html
+    assert "applyPulseDefaults(state.outputs[o.id], e.target.value)" in html
+    assert "oneshot125:   { min_us: 125" in html
+    assert "rc_servo_pwm: { min_us: 1000" in html
+    assert "<details" not in html  # generated via DOM helper, not literal markup
+    assert "Advanced: pulse calibration" in html

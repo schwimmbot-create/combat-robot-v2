@@ -101,23 +101,23 @@ typedef enum {
     OC_PURPOSE_DRIVE          = 1,
     OC_PURPOSE_SERVO          = 2,
     OC_PURPOSE_ESC            = 3,
-    OC_PURPOSE_WEAPON_ESC     = 4,
-    OC_PURPOSE_DIGITAL_OUTPUT = 5,
-    OC_PURPOSE_DIGITAL_INPUT  = 6,
-    OC_PURPOSE_PWM_ACCESSORY  = 7,
-    OC_PURPOSE__COUNT         = 8,
+    OC_PURPOSE_DIGITAL_OUTPUT = 4,
+    OC_PURPOSE_DIGITAL_INPUT  = 5,
+    OC_PURPOSE_PWM_ACCESSORY  = 6,
+    OC_PURPOSE__COUNT         = 7,
 } oc_purpose_t;
 
 typedef enum {
     OC_PROTO_NONE          = 0,
     OC_PROTO_RC_SERVO_PWM  = 1,
-    OC_PROTO_RC_ESC_PWM    = 2,
-    OC_PROTO_ONESHOT125    = 3,
-    OC_PROTO_ONESHOT42     = 4, // visible in UI as not-working-yet
-    OC_PROTO_MULTISHOT     = 5, // visible in UI as not-working-yet
-    OC_PROTO_GPIO          = 6,
-    OC_PROTO_PWM_DUTY      = 7,
-    OC_PROTO__COUNT        = 8,
+    OC_PROTO_RC_SERVO_PPM  = 2,
+    OC_PROTO_RC_ESC_PWM    = 3,
+    OC_PROTO_ONESHOT125    = 4,
+    OC_PROTO_ONESHOT42     = 5, // visible in UI as not-working-yet
+    OC_PROTO_MULTISHOT     = 6, // visible in UI as not-working-yet
+    OC_PROTO_GPIO          = 7,
+    OC_PROTO_PWM_DUTY      = 8,
+    OC_PROTO__COUNT        = 9,
 } oc_protocol_t;
 
 typedef enum {
@@ -290,7 +290,7 @@ int output_config_sources_to_json(char *out_buf, size_t out_buf_len);
 // Apply a partial JSON patch to the in-RAM + NVS state. Accepted
 // patch shape:
 //   { "M1": {"direction":"reversed","deadzone":15},
-//     "S1": {"purpose":"weapon_esc","primary":"RT"} }
+//     "S1": {"purpose":"esc","protocol":"oneshot125","weapon_safety":true,"primary":"RT"} }
 // The obsolete top-level "Weapon" key is rejected; other unknown top-level keys are ignored.
 // Invalid values for a known key
 // are rejected without modifying other fields. Returns ESP_OK on full

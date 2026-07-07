@@ -10,9 +10,9 @@ def test_output_config_v2_enums_exist():
     for token in (
         "OC_PURPOSE_DRIVE",
         "OC_PURPOSE_SERVO",
-        "OC_PURPOSE_WEAPON_ESC",
         "OC_PURPOSE_DIGITAL_INPUT",
         "OC_PROTO_RC_SERVO_PWM",
+        "OC_PROTO_RC_SERVO_PPM",
         "OC_PROTO_RC_ESC_PWM",
         "OC_PROTO_ONESHOT125",
         "OC_PROTO_ONESHOT42",
@@ -67,7 +67,7 @@ def test_output_config_v2_json_exposes_new_fields():
 def test_output_config_rejects_not_working_protocols_and_weapon_hold_last():
     src = OC_C.read_text()
     assert "protocol == OC_PROTO_ONESHOT42 || protocol == OC_PROTO_MULTISHOT" in src
-    assert "purpose == OC_PURPOSE_WEAPON_ESC && c->failsafe == OC_FAILSAFE_HOLD_LAST" in src
+    assert "c->weapon_safety && c->failsafe == OC_FAILSAFE_HOLD_LAST" in src
     assert "purpose_protocol_is_valid" in src
 
 

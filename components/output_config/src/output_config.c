@@ -72,7 +72,6 @@ static const char *const kPurposeNames[OC_PURPOSE__COUNT] = {
     "drive",
     "servo",
     "esc",
-    "weapon_esc",
     "digital_output",
     "digital_input",
     "pwm_accessory",
@@ -81,6 +80,7 @@ static const char *const kPurposeNames[OC_PURPOSE__COUNT] = {
 static const char *const kProtocolNames[OC_PROTO__COUNT] = {
     "none",
     "rc_servo_pwm",
+    "rc_servo_ppm",
     "rc_esc_pwm",
     "oneshot125",
     "oneshot42",
@@ -261,7 +261,7 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
             (c->purpose != OC_PURPOSE_DRIVE || c->protocol != OC_PROTO_NONE)) return false;
         if (c->pwm_duty_pct > 100) return false;
         if (c->protocol == OC_PROTO_ONESHOT42 || c->protocol == OC_PROTO_MULTISHOT) return false;
-        if (c->purpose == OC_PURPOSE_WEAPON_ESC && c->failsafe == OC_FAILSAFE_HOLD_LAST) return false;
+        if (c->weapon_safety && c->failsafe == OC_FAILSAFE_HOLD_LAST) return false;
         if (c->min_pulse_us || c->center_pulse_us || c->max_pulse_us) {
             if (!(c->min_pulse_us < c->center_pulse_us && c->center_pulse_us < c->max_pulse_us)) return false;
         }
@@ -779,9 +779,8 @@ static bool purpose_protocol_is_valid(oc_purpose_t purpose, oc_protocol_t protoc
     switch (purpose) {
         case OC_PURPOSE_DISABLED: return protocol == OC_PROTO_NONE;
         case OC_PURPOSE_DRIVE: return protocol == OC_PROTO_NONE;
-        case OC_PURPOSE_SERVO: return protocol == OC_PROTO_RC_SERVO_PWM;
+        case OC_PURPOSE_SERVO: return protocol == OC_PROTO_RC_SERVO_PWM || protocol == OC_PROTO_RC_SERVO_PPM;
         case OC_PURPOSE_ESC:
-        case OC_PURPOSE_WEAPON_ESC:
             return protocol == OC_PROTO_RC_ESC_PWM || protocol == OC_PROTO_ONESHOT125;
         case OC_PURPOSE_DIGITAL_OUTPUT:
         case OC_PURPOSE_DIGITAL_INPUT: return protocol == OC_PROTO_GPIO;
@@ -803,7 +802,7 @@ static oc_power_override_t output_config_effective_power(const oc_output_cfg_t *
 }
 
 static bool output_config_default_allowed_for_state(const oc_output_cfg_t *cfg, uint8_t battery_state) {
-    if (cfg->purpose == OC_PURPOSE_WEAPON_ESC && battery_state == 3) {
+    if (cfg->weapon_safety && battery_state == 3) {
         return false;
     }
     return true;
@@ -944,7 +943,7 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             } else if (strcmp(key, "failsafe") == 0) {
                 oc_failsafe_t failsafe;
                 if (!failsafe_from_str(value, &failsafe)) return false;
-                if (s_cfg[id].purpose == OC_PURPOSE_WEAPON_ESC && failsafe == OC_FAILSAFE_HOLD_LAST) return false;
+                if (s_cfg[id].weapon_safety && failsafe == OC_FAILSAFE_HOLD_LAST) return false;
                 if (s_cfg[id].failsafe != failsafe) { s_cfg[id].failsafe = failsafe; dirty = true; }
             } else if (strcmp(key, "weapon_mode") == 0) {
                 oc_weapon_safety_mode_t mode;

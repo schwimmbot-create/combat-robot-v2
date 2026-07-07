@@ -370,7 +370,7 @@ PulseProtocol TaskManager::protocolFromConfig(const oc_output_cfg_t* cfg) const 
     if (!cfg) return protocol;
     if (cfg->protocol == OC_PROTO_ONESHOT125) protocol = PULSE_PROTOCOL_ONESHOT125;
     else if (cfg->protocol == OC_PROTO_RC_ESC_PWM) protocol = PULSE_PROTOCOL_RC_ESC_PWM;
-    else if (cfg->protocol == OC_PROTO_RC_SERVO_PWM) protocol = PULSE_PROTOCOL_RC_SERVO_PWM;
+    else if (cfg->protocol == OC_PROTO_RC_SERVO_PWM || cfg->protocol == OC_PROTO_RC_SERVO_PPM) protocol = PULSE_PROTOCOL_RC_SERVO_PWM;
     if (cfg->frame_hz) protocol.frame_hz = cfg->frame_hz;
     if (cfg->min_pulse_us && cfg->center_pulse_us && cfg->max_pulse_us) {
         protocol.min_us = cfg->min_pulse_us;
@@ -387,7 +387,7 @@ PulseEscSemantics TaskManager::escSemanticsFromConfig(const oc_output_cfg_t* cfg
 }
 
 bool TaskManager::weaponRoleArmed(const oc_output_cfg_t* cfg, const ControllerState& cs) const {
-    if (!cfg || cfg->purpose != OC_PURPOSE_WEAPON_ESC) return true;
+    if (!cfg || !cfg->weapon_safety) return true;
     switch (cfg->weapon_mode) {
         case OC_WEAPON_BENCH_OVERRIDE:
             return true;
@@ -408,7 +408,7 @@ void TaskManager::updateAuxOutput(oc_output_id_t id, uint8_t pin, PulseOutput& p
         updateDigitalOutput(id, pin, cs, connected);
         return;
     }
-    if (cfg->purpose == OC_PURPOSE_SERVO || cfg->purpose == OC_PURPOSE_ESC || cfg->purpose == OC_PURPOSE_WEAPON_ESC) {
+    if (cfg->purpose == OC_PURPOSE_SERVO || cfg->purpose == OC_PURPOSE_ESC) {
         updatePulseOutput(id, pulse, cs, connected);
         return;
     }

@@ -75,12 +75,12 @@ Default mapping (configurable via the Outputs tab in the web UI):
 |---|---|---|
 | M1 (drive motor 1) | LY (left stick Y) | normal |
 | M2 (drive motor 2) | LY (left stick Y) | normal |
-| S1/S2 aux role | user configured (for example weapon_esc on S1 or S2 with RT) | normal / polarity per role |
+| S1/S2 aux role | user configured (for example ESC / motor controller on S1 or S2 with RT and Safety-critical weapon role enabled) | normal / polarity per role |
 
 With the controller paired:
 
 1. Move the left stick → drive wheels should respond.
-2. If S1 or S2 is configured as `weapon_esc` with RT as its source, pull the right trigger → that aux ESC should spin up.
+2. If S1 or S2 is configured as `esc` with RT as its source and Safety-critical weapon role enabled, pull the right trigger → that aux ESC should spin up.
 3. Verify the configuration by opening the Outputs tab on `http://192.168.4.1/` — the dropdowns should reflect the above mapping.
 
 To remap M1 to a different source (e.g. RX for tank steering):

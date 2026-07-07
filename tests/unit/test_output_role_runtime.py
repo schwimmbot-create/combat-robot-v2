@@ -29,7 +29,7 @@ def test_s1_s2_use_pulse_output_for_role_routing():
     assert "updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse" in src
     assert "updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse" in src
     assert "void TaskManager::updatePulseOutput" in src
-    assert "cfg->purpose == OC_PURPOSE_WEAPON_ESC" in src
+    assert "!cfg->weapon_safety" in src
     assert "pulse.writeEsc(forward, reverse, semantics)" in src
 
 

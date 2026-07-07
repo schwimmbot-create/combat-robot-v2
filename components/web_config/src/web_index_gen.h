@@ -3,8 +3,8 @@
 
 #pragma once
 
-// Generated 2026-07-06T21:07:42 from docs/config-ui-mockup.html
-// Source size: 85878 bytes
+// Generated 2026-07-06T21:34:34 from docs/config-ui-mockup.html
+// Source size: 87011 bytes
 static const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <!doctype html>
 <html lang="en">
@@ -484,7 +484,6 @@ const PURPOSE_OPTIONS = [
   ['drive', 'Drive motor'],
   ['servo', 'Servo'],
   ['esc', 'ESC / motor controller'],
-  ['weapon_esc', 'Weapon ESC'],
   ['digital_output', 'Digital output'],
   ['digital_input', 'Digital input — configured only'],
   ['pwm_accessory', 'PWM accessory'],
@@ -493,6 +492,7 @@ const PURPOSE_OPTIONS = [
 const PROTOCOL_OPTIONS = [
   ['none', 'None'],
   ['rc_servo_pwm', 'RC Servo PWM 50 Hz'],
+  ['rc_servo_ppm', 'RC Servo PPM 50 Hz'],
   ['rc_esc_pwm', 'RC ESC PWM 50 Hz'],
   ['oneshot125', 'OneShot125'],
   ['oneshot42', 'OneShot42 — not working yet', true],
@@ -906,16 +906,45 @@ function renderRuntimeDriveAssignment(o) {
 }
 
 
+const PULSE_DEFAULTS = {
+  rc_servo_pwm: { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50, neutral_deadzone: 5 },
+  rc_servo_ppm: { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50, neutral_deadzone: 5 },
+  rc_esc_pwm:   { min_us: 1000, center_us: 1500, max_us: 2000, frame_hz: 50, neutral_deadzone: 5 },
+  oneshot125:   { min_us: 125,  center_us: 188,  max_us: 250,  frame_hz: 2000, neutral_deadzone: 2 },
+};
+function pulseDefaultsFor(protocol) {
+  return PULSE_DEFAULTS[protocol] || PULSE_DEFAULTS.rc_servo_pwm;
+}
+function applyPulseDefaults(cfg, protocol = cfg.protocol) {
+  const d = pulseDefaultsFor(protocol);
+  cfg.pulse = { ...d };
+  cfg.min_pulse_us = d.min_us;
+  cfg.center_pulse_us = d.center_us;
+  cfg.max_pulse_us = d.max_us;
+  cfg.frame_hz = d.frame_hz;
+  cfg.neutral_deadzone = d.neutral_deadzone;
+}
 function ensureRoleDefaults(cfg) {
-  if (!cfg.pulse) cfg.pulse = {
-    min_us: cfg.min_pulse_us ?? (cfg.purpose === 'weapon_esc' ? 125 : 1000),
-    center_us: cfg.center_pulse_us ?? (cfg.purpose === 'weapon_esc' ? 188 : 1500),
-    max_us: cfg.max_pulse_us ?? (cfg.purpose === 'weapon_esc' ? 250 : 2000),
-    frame_hz: cfg.frame_hz ?? (cfg.purpose === 'weapon_esc' ? 2000 : 50),
-    neutral_deadzone: cfg.neutral_deadzone ?? 5,
-  };
+  if (cfg.purpose === 'esc') {
+    // Backward cleanup for stale browser/API state: weapon is not a purpose;
+    // it is an optional safety role on ESC / motor controller.
+    cfg.purpose = 'esc';
+    if (!cfg.safety) cfg.safety = {};
+    cfg.safety.weapon = true;
+    cfg.weapon_safety = true;
+  }
+  if (!cfg.pulse) {
+    const d = pulseDefaultsFor(cfg.protocol);
+    cfg.pulse = {
+      min_us: cfg.min_pulse_us ?? d.min_us,
+      center_us: cfg.center_pulse_us ?? d.center_us,
+      max_us: cfg.max_pulse_us ?? d.max_us,
+      frame_hz: cfg.frame_hz ?? d.frame_hz,
+      neutral_deadzone: cfg.neutral_deadzone ?? d.neutral_deadzone,
+    };
+  }
   if (!cfg.safety) cfg.safety = {
-    weapon: !!cfg.weapon_safety || cfg.purpose === 'weapon_esc',
+    weapon: !!cfg.weapon_safety,
     failsafe: cfg.failsafe || 'safe_state',
     weapon_mode: cfg.weapon_mode || 'arming_and_deadman',
     arming_source: cfg.arming_source || 'NONE',
@@ -925,8 +954,7 @@ function ensureRoleDefaults(cfg) {
     frequency_hz: cfg.pwm_frequency_hz ?? 1000,
     duty_pct: cfg.pwm_duty_pct ?? 50,
   };
-  if (cfg.purpose === 'weapon_esc') {
-    cfg.safety.weapon = true;
+  if (cfg.safety.weapon) {
     if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
     if (!cfg.power.LOW || cfg.power.LOW === 'default') cfg.power.LOW = 'disable';
   }
@@ -945,9 +973,9 @@ function numberInput(value, min, max, step, onChange) {
 
 function renderPulseControls(o, cfg) {
   ensureRoleDefaults(cfg);
-  const box = el('div', { class: 'summary', style: 'margin-top:10px' }, [
-    el('strong', {}, 'Pulse calibration'),
-    el('p', { class: 'hint' }, 'Validate min < center < max. OneShot125 weapon preset defaults to 125/188/250 µs at 2000 Hz.'),
+  const details = el('details', { class: 'summary', style: 'margin-top:10px' }, [
+    el('summary', {}, 'Advanced: pulse calibration'),
+    el('p', { class: 'hint' }, 'Most users should leave these defaults alone. Changing Protocol resets these values to safe defaults for that signal type.'),
   ]);
   const grid = el('div', { class: 'grid-2', style: 'margin-top:8px' });
   const fields = [
@@ -963,11 +991,11 @@ function renderPulseControls(o, cfg) {
       numberInput(cfg.pulse[key], min, max, step, v => { cfg.pulse[key] = v; }),
     ]));
   }
-  box.appendChild(grid);
-  return box;
+  details.appendChild(grid);
+  return details;
 }
 
-function renderWeaponRoleControls(o, cfg) {
+function renderEscSafetyControls(o, cfg) {
   ensureRoleDefaults(cfg);
   const modeSel = el('select', { 'data-name': 'weapon_mode' });
   for (const [value, label] of [
@@ -989,15 +1017,15 @@ function renderWeaponRoleControls(o, cfg) {
   safety.addEventListener('change', e => { cfg.safety.weapon = !!e.target.checked; });
   const ramp = numberInput(cfg.ramp_ms ?? 0, 0, 5000, 10, v => { cfg.ramp_ms = v; });
   return el('div', { class: 'summary', style: 'margin-top:10px; border-color: rgba(245,158,11,.45)' }, [
-    el('strong', {}, `⚠ Weapon role on ${o.id}`),
-    el('p', { class: 'hint' }, 'Weapon is a role on S1/S2. There is no dedicated Weapon output.'),
+    el('strong', {}, `ESC safety controls on ${o.id}`),
+    el('p', { class: 'hint' }, 'Use Safety-critical weapon role for an ESC-driven weapon. There is no dedicated Weapon output.'),
     el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
       el('div', {}, [el('label', { class: 'field' }, 'Weapon mode'), modeSel]),
       el('div', {}, [el('label', { class: 'field' }, 'Ramp / soft-start (ms)'), ramp]),
       el('div', {}, [el('label', { class: 'field' }, 'Arming source'), arm]),
       el('div', {}, [el('label', { class: 'field' }, 'Deadman source'), deadman]),
       el('label', { class: 'toggle' }, [safety, el('span', {}, 'Safety-critical weapon role')]),
-      el('p', { class: 'hint' }, 'LOW battery defaults to Disable for weapon_esc. Hold-last failsafe is rejected for weapon roles.'),
+      el('p', { class: 'hint' }, 'When Safety-critical weapon role is enabled, LOW battery defaults to Disable and hold-last failsafe is rejected.'),
     ]),
   ]);
 }
@@ -1089,9 +1117,8 @@ function renderOutput(o) {
   purposeSel.addEventListener('change', e => {
     const v = (o.id === 'M1' || o.id === 'M2') ? 'drive' : e.target.value;
     state.outputs[o.id].purpose = v;
-    if (v === 'servo') { state.outputs[o.id].protocol = 'rc_servo_pwm'; state.outputs[o.id].semantics = 'position_servo'; }
-    else if (v === 'weapon_esc') { state.outputs[o.id].protocol = 'oneshot125'; state.outputs[o.id].semantics = 'esc_bidirectional'; state.outputs[o.id].power.LOW = 'disable'; }
-    else if (v === 'esc') { state.outputs[o.id].protocol = 'rc_esc_pwm'; state.outputs[o.id].semantics = 'esc_forward_only'; }
+    if (v === 'servo') { state.outputs[o.id].protocol = 'rc_servo_pwm'; state.outputs[o.id].semantics = 'position_servo'; state.outputs[o.id].safety.weapon = false; applyPulseDefaults(state.outputs[o.id]); }
+    else if (v === 'esc') { state.outputs[o.id].protocol = 'rc_esc_pwm'; state.outputs[o.id].semantics = 'esc_forward_only'; applyPulseDefaults(state.outputs[o.id]); }
     else if (v === 'digital_input' || v === 'digital_output') { state.outputs[o.id].protocol = 'gpio'; state.outputs[o.id].semantics = v; }
     else if (v === 'pwm_accessory') { state.outputs[o.id].protocol = 'pwm_duty'; state.outputs[o.id].semantics = 'pwm_accessory'; }
     else if (v === 'disabled') { state.outputs[o.id].protocol = 'none'; state.outputs[o.id].semantics = 'none'; }
@@ -1101,8 +1128,8 @@ function renderOutput(o) {
   const protocolSel = el('select', { 'data-name': 'protocol' });
   const validProtocol = (p) => {
     if (cfg.purpose === 'drive' || cfg.purpose === 'disabled') return p === 'none';
-    if (cfg.purpose === 'servo') return p === 'rc_servo_pwm';
-    if (cfg.purpose === 'esc' || cfg.purpose === 'weapon_esc') return ['rc_esc_pwm','oneshot125','oneshot42','multishot'].includes(p);
+    if (cfg.purpose === 'servo') return ['rc_servo_pwm','rc_servo_ppm'].includes(p);
+    if (cfg.purpose === 'esc') return ['rc_esc_pwm','oneshot125','oneshot42','multishot'].includes(p);
     if (cfg.purpose === 'digital_input' || cfg.purpose === 'digital_output') return p === 'gpio';
     if (cfg.purpose === 'pwm_accessory') return p === 'pwm_duty';
     return false;
@@ -1114,7 +1141,7 @@ function renderOutput(o) {
     if (disabled) opt.disabled = true;
     protocolSel.appendChild(opt);
   }
-  protocolSel.addEventListener('change', e => { state.outputs[o.id].protocol = e.target.value; });
+  protocolSel.addEventListener('change', e => { state.outputs[o.id].protocol = e.target.value; applyPulseDefaults(state.outputs[o.id], e.target.value); renderOutputs(); });
 
   card.appendChild(el('header', {}, [
     el('h3', {}, outputDisplayName(o.id)),
@@ -1199,11 +1226,11 @@ function renderOutput(o) {
   if (cfg.purpose === 'digital_input') {
     card.appendChild(renderDigitalInputControls(o, cfg));
   }
-  if (cfg.purpose === 'servo' || cfg.purpose === 'esc' || cfg.purpose === 'weapon_esc') {
+  if (cfg.purpose === 'servo' || cfg.purpose === 'esc') {
     card.appendChild(renderPulseControls(o, cfg));
   }
-  if (cfg.purpose === 'weapon_esc') {
-    card.appendChild(renderWeaponRoleControls(o, cfg));
+  if (cfg.purpose === 'esc') {
+    card.appendChild(renderEscSafetyControls(o, cfg));
   }
   if (cfg.purpose === 'pwm_accessory') {
     card.appendChild(renderPwmAccessoryControls(o, cfg));
@@ -1288,7 +1315,7 @@ function renderPowerBehavior() {
   ]));
   table.appendChild(body);
   root.appendChild(table);
-  root.appendChild(el('p', { class: 'hint' }, 'Example: set Motor 1 (M1) LOW = Allow while Servo 1 (S1) LOW = Disable. If S1 or S2 is configured as Weapon ESC, LOW defaults should be Disable.'));
+  root.appendChild(el('p', { class: 'hint' }, 'Example: set Motor 1 (M1) LOW = Allow while Servo 1 (S1) LOW = Disable. If S1 or S2 is configured as an ESC with Safety-critical weapon role, LOW defaults should be Disable.'));
 }
 
 // ---- Live controller visualization -------------------------------------

@@ -14,7 +14,7 @@ def test_output_config_exposes_channel_allowed_policy():
     assert "output_config_channel_allowed" in header
     assert "bool output_config_channel_allowed" in src
     assert "case OC_POWER_DISABLE" in src
-    assert "cfg->purpose == OC_PURPOSE_WEAPON_ESC && battery_state == 3" in src
+    assert "cfg->weapon_safety && battery_state == 3" in src
 
 
 def test_drive_can_gate_left_and_right_motors_independently():

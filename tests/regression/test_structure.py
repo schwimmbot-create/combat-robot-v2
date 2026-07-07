@@ -67,7 +67,7 @@ INTENTIONALLY_MODIFIED_FILES = {
         "instead of pin numbers (v1.3 used the pin as the channel); channels "
         "are per-instance so M1 and M2 do not alias.",
     "components/myrobot/src/PulseOutput.cpp":
-        "Generic S1/S2 pulse-generation runtime for servo, ESC, and weapon_esc "
+        "Generic S1/S2 pulse-generation runtime for servo, ESC, and safety-critical weapon "
         "roles; replaces the legacy fixed Drum output path.",
     "components/myrobot/src/LED.cpp":
         "Reverted from LEDC channel control to plain digitalWrite() so the "

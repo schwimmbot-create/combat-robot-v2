@@ -15,9 +15,9 @@ Each channel can carry purpose/protocol/semantics, controller source mapping, di
 
 | Use Case | M1 | M2 | S1 | S2 | Drive Mode | Key Tradeoff |
 |---|---|---|---|---|---|---|
-| **1. Beetleweight combat bot (tank)** | drive / left tank | drive / right tank | disabled / accessory | weapon_esc / RT | `tank_split` | Weapon consumes one aux channel |
-| **2. Beetleweight combat bot (arcade)** | drive / left side | drive / right side | disabled / accessory | weapon_esc / RT | `arcade_split` | Same weapon role, different drive mixer |
-| **3. Tracked flipper + self-right** | drive / left tank | drive / right tank | weapon_esc flipper / Y | digital_output self-right / L3 | `tank_split` | Both aux channels consumed |
+| **1. Beetleweight combat bot (tank)** | drive / left tank | drive / right tank | disabled / accessory | esc + weapon_safety / RT | `tank_split` | Weapon consumes one aux channel |
+| **2. Beetleweight combat bot (arcade)** | drive / left side | drive / right side | disabled / accessory | esc + weapon_safety / RT | `arcade_split` | Same weapon role, different drive mixer |
+| **3. Tracked flipper + self-right** | drive / left tank | drive / right tank | esc + weapon_safety flipper / Y | digital_output self-right / L3 | `tank_split` | Both aux channels consumed |
 | **4. Small arm/gripper** | drive-only / unavailable for arm | drive-only / unavailable for arm | servo joint | servo/gripper | `disabled` or parked | Board v2 only has two aux servo channels |
 | **5. FPV camera rover** | drive | drive | pan servo | tilt servo or camera power | `arcade_split` | No spare channel if both pan and tilt are used |
 | **6. Sumo + line follower** | drive / left | drive / right | digital_input edge sensor | digital_input edge sensor | `tank_split` | No room for an udge/spike output unless one sensor is removed |
@@ -33,7 +33,7 @@ Each channel can carry purpose/protocol/semantics, controller source mapping, di
 
 - **M1**: `purpose=drive`, primary `LY`, direction per wiring.
 - **M2**: `purpose=drive`, primary `RY`, direction usually reversed for mirrored drivetrain.
-- **S2**: `purpose=weapon_esc`, protocol `oneshot125` or `rc_esc_pwm`, semantics `esc_forward_only` or `esc_bidirectional`, primary `RT`.
+- **S2**: `purpose=esc + weapon_safety`, protocol `oneshot125` or `rc_esc_pwm`, semantics `esc_forward_only` or `esc_bidirectional`, primary `RT`.
 - **S1**: spare, disabled, or accessory.
 - **Safety**: weapon role uses `weapon_mode=deadman_only`, `deadman_source=L1`, LOW battery defaults to disable.
 - **UI expectation**: no Weapon card; S2 card can be labeled “Weapon” and shows weapon-role controls.
@@ -47,7 +47,7 @@ Each channel can carry purpose/protocol/semantics, controller source mapping, di
 ### 3. Tracked Robot with Flipper and Self-Righting
 
 - **M1/M2**: tank drive.
-- **S1**: `purpose=weapon_esc`, primary `Y`, `weapon_mode=arming_and_deadman`, `arming_source=B`, `deadman_source=L1`, low ramp for fast flipper response.
+- **S1**: `purpose=esc + weapon_safety`, primary `Y`, `weapon_mode=arming_and_deadman`, `arming_source=B`, `deadman_source=L1`, low ramp for fast flipper response.
 - **S2**: `purpose=digital_output`, primary `L3`, active-high MOSFET/solenoid output, safe default off.
 - **Tradeoff**: all four channels are used; there is no extra output for LEDs/camera without changing the setup.
 

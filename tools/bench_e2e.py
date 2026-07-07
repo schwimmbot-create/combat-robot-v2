@@ -364,7 +364,7 @@ def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
     print("PASS API /api/bench/hid/status")
 
     try:
-        api.post_json("/api/config", {"Weapon": {"purpose": "weapon_esc", "protocol": "oneshot125"}})
+        api.post_json("/api/config", {"Weapon": {"purpose": "esc", "protocol": "oneshot125", "weapon_safety": True}})
         raise BenchError("obsolete Weapon config patch unexpectedly succeeded")
     except BenchError as exc:
         if "HTTP Error 400" not in str(exc) and "invalid patch" not in str(exc):
