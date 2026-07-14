@@ -41,17 +41,17 @@ const char VERSION[] = "Version 1.3";
 enum ButtonPress {
     BUTTON_NONE = 0,
     BUTTON_SHORT,
+    BUTTON_DOUBLE,
     BUTTON_LONG,
-    // Hold SW1 for >= 5 seconds. Used to clear the controller whitelist
-    // and enter pairing mode from the physical button. Always allowed,
-    // even if a controller is currently connected — the clear path
-    // disconnects first via ble_gamepad_clear_paired_macs().
+    // Hold SW1 for the configured hold duration. Default is 5 seconds.
+    // Used to clear the controller whitelist and enter pairing mode from the physical button.
     BUTTON_HOLD_5S
 };
 #define BUTTON_LOGIC_LEVEL LOW //Logic Level when button is pressed
 #define DEBOUNCE_TIME 10 //milliseconds
 #define LONG_PRESS_TIME 1000 //milliseconds
 #define HOLD_5S_TIME 5000 //milliseconds
+#define DOUBLE_PRESS_TIME 350 //milliseconds
 #define BUTTON_READ_WAIT 50 //read every ___ milliseconds
 
 //Battery Settings

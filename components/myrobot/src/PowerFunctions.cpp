@@ -14,6 +14,12 @@ static volatile uint16_t s_lastBatteryMillivolts = 0;
 static volatile uint8_t s_lastBatteryPercent = 0;
 static volatile uint8_t s_lastBatteryState = BATTERY_GOOD;
 
+#ifdef BENCH_HID_PUBLIC
+static volatile bool s_benchBatteryOverride = false;
+static volatile uint8_t s_benchBatteryState = BATTERY_GOOD;
+static volatile uint8_t s_benchBatteryPercent = 100;
+#endif
+
 PowerFunctions::PowerFunctions()
   : shutdownVoltage_mV(0),
     monitorTaskHandle(nullptr),
@@ -68,6 +74,9 @@ void PowerFunctions::begin() {
  * @return BATTERY_GOOD, BATTERY_WARN, or BATTERY_LOW
  */
 int PowerFunctions::getBatteryState() const {
+#ifdef BENCH_HID_PUBLIC
+    if (s_benchBatteryOverride) return s_benchBatteryState;
+#endif
     return batteryState;
 }
 
@@ -76,16 +85,45 @@ uint16_t PowerFunctions::getBatteryMillivolts() const {
 }
 
 uint16_t PowerFunctions::getLastBatteryMillivolts() {
+#ifdef BENCH_HID_PUBLIC
+    if (s_benchBatteryOverride) {
+        return battery_cutoff_millivolts(battery_config_get_cell_count(), s_benchBatteryPercent);
+    }
+#endif
     return s_lastBatteryMillivolts;
 }
 
 uint8_t PowerFunctions::getLastBatteryPercent() {
+#ifdef BENCH_HID_PUBLIC
+    if (s_benchBatteryOverride) return s_benchBatteryPercent;
+#endif
     return s_lastBatteryPercent;
 }
 
 uint8_t PowerFunctions::getLastBatteryState() {
+#ifdef BENCH_HID_PUBLIC
+    if (s_benchBatteryOverride) return s_benchBatteryState;
+#endif
     return s_lastBatteryState;
 }
+
+#ifdef BENCH_HID_PUBLIC
+void PowerFunctions::benchSetBatteryOverride(uint8_t state, uint8_t percent) {
+    if (state > BATTERY_LOW) state = BATTERY_GOOD;
+    if (percent > 100) percent = 100;
+    s_benchBatteryState = state;
+    s_benchBatteryPercent = percent;
+    s_benchBatteryOverride = true;
+}
+
+void PowerFunctions::benchClearBatteryOverride() {
+    s_benchBatteryOverride = false;
+}
+
+bool PowerFunctions::benchBatteryOverrideEnabled() {
+    return s_benchBatteryOverride;
+}
+#endif
 
 uint16_t PowerFunctions::battery_warn_millivolts(uint8_t cell_count, uint8_t warn_percent) {
     return battery_cutoff_millivolts(cell_count, warn_percent);

@@ -13,6 +13,9 @@ def test_bench_status_parser_includes_digital_outputs():
     assert "s2_pulse_us" in src
     assert "s2_arm" in src
     assert "outputs=\\{S1:" in src
+    assert "motors=\\{M1:" in src
+    assert "m1_speed" in src
+    assert "m2_dir" in src
     assert "pulse_us:" in src
     assert "arm:" in src
     assert "S2:" in src
@@ -48,6 +51,13 @@ def test_bench_exercises_button_inversion_and_thresholds():
         "s.s2_arm == \"high\" and s.s2_pulse_us == 250",
         "S2 ESC throttle accepted after arming",
         "PASS S2 ESC hold-to-arm sequence via USB dongle",
+        "verify_s1_servo_pulse_range",
+        "S1 servo LX min -> min pulse",
+        "verify_power_behavior_runtime",
+        "power WARN reduces drive to about half",
+        "power LOW disables drive",
+        "verify_disconnect_failsafe",
+        "disconnect failsafe stops drive motors",
         "restore_s2_servo",
     ):
         assert token in src

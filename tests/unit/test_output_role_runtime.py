@@ -30,7 +30,7 @@ def test_s1_s2_use_pulse_output_for_role_routing():
     assert "updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse" in src
     assert "void TaskManager::updatePulseOutput" in src
     assert "!cfg->weapon_safety" in src
-    assert "pulse.writeEsc(forward, reverse, semantics)" in src
+    assert "pulse.writeEsc((uint16_t)max(0, (int)ramped * 2)" in src
 
 
 def test_weapon_role_safety_is_attached_to_s1_s2_runtime():

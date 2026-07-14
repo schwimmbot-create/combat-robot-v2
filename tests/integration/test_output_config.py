@@ -193,7 +193,8 @@ class TestOutputConfigImplementation:
         assert "driveSetup->method == OC_DRIVE_METHOD_ARCADE" in tm
         assert "readDriveAxis(driveSetup->throttle_axis" in tm
         assert "readDriveAxis(driveSetup->steering_axis" in tm
-        assert "drive.combined_direction(steering, throttle" in tm
+        assert "left = self->applyPowerScale(OC_OUT_M1, left);" in tm
+        assert "right = self->applyPowerScale(OC_OUT_M2, right);" in tm
         assert "drive.two_stick_drive(left, right" in tm
         assert "drive.single_motor_drive" in tm
         assert "updateSteeringServo" in tm
@@ -412,7 +413,8 @@ class TestSw1LongPressClearsAndPairs:
         # Regression: BUTTON_LONG fires at 1s. The 5s hold must still be
         # able to fire later during the same physical press, so BUTTON_HOLD_5S
         # cannot be guarded by the same one-shot eventSent flag.
-        assert "HOLD_5S_TIME" in text
+        assert "setHoldTimeMs" in text
+        assert "pdMS_TO_TICKS(holdTimeMs)" in text
         assert "BUTTON_HOLD_5S" in text
         assert "longEventSent" in hdr and "hold5sEventSent" in hdr, (
             "BUTTON_LONG and BUTTON_HOLD_5S need independent one-shot guards"
@@ -437,9 +439,8 @@ class TestSw1LongPressClearsAndPairs:
         assert m, "buttonVal switch block not found"
         body = m.group(0)
         assert "case BUTTON_HOLD_5S" in body, "BUTTON_HOLD_5S not handled"
-        assert "ble_gamepad_clear_paired_macs" in body, (
-            "5s hold must clear the whitelist so a fresh controller can pair"
-        )
+        assert "OC_SW1_ACTION_CLEAR_PAIR" in text
+        assert "ble_gamepad_clear_paired_macs" in text
 
     def test_clear_paired_macs_enters_pairing(self):
         # The existing helper must end with set_pairing_state(ACCEPT) so
@@ -997,6 +998,21 @@ class TestOutputConfigPatchParser:
         assert i_max > i_drive, "max_paired must sit after drive_mode"
         assert i_outputs > i_max, "max_paired must sit before outputs"
 
+    def test_to_json_serializes_top_level_safety_and_sw1_fields(self, src_text):
+        block = re.search(r"int output_config_to_json[\s\S]+?int output_config_sources_to_json", src_text)
+        assert block, "output_config_to_json missing"
+        body = block.group(0)
+        for token in (
+            '\\"disconnect_failsafe\\"', '\\"sw1\\"', '\\"short_action\\"',
+            '\\"double_action\\"', '\\"hold_action\\"', '\\"hold_ms\\"',
+        ):
+            assert token in body
+        assert 's_disconnect_failsafe_hold_last ? "hold_last" : "safe_stop"' in body
+        assert "output_config_sw1_action_name(s_sw1_config.short_action)" in body
+        assert "output_config_sw1_action_name(s_sw1_config.double_action)" in body
+        assert "output_config_sw1_action_name(s_sw1_config.hold_action)" in body
+        assert "s_sw1_config.hold_ms" in body
+
     def test_patch_parser_validates_max_paired_bounds(self, src_text):
         # Belongs in patch-parser class, but we add it here for cohesion
         # with the other JSON-shape checks. The parser must reject values
@@ -1309,13 +1325,16 @@ class TestConfigUiMockup:
         assert "j.max_paired" in html   # /api/config hydration
 
     def test_output_ui_renders_live_mock_robot_preview(self, html):
-        assert "Mock robot output" in html
+        assert "Live Drive Output" in html
+        assert "Live Output State" in html
         assert "function mockDriveOutput(drive, gp)" in html
         assert "function renderMockRobot(out)" in html
         assert "mock-left-dir" in html
         assert "mock-right-dir" in html
+        assert "mock-steer-dir" in html
         assert "mock-left-bar" in html
         assert "mock-right-bar" in html
+        assert "live-output-strip" in html
         assert "state.mockDrive = mockDriveOutput(state.drive, state.gp);" in html
 
     def test_direction_toggle_input_precedes_label_for_checked_css(self, html):

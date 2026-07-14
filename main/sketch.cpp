@@ -52,6 +52,15 @@ ControllerState controllerState;   // shared with myrobot/TaskManager
 
 TaskManager taskManager;
 
+// Native USB-CDC host-control override. A host sends `usb control` frames
+// over the same USB serial connection used for logs. Frames expire quickly
+// unless refreshed, so unplugging/stalling the host returns the board to the
+// normal BLE disconnect failsafe instead of holding a command indefinitely.
+static bool g_usb_control_active = false;
+static ControllerState g_usb_controller{};
+static uint32_t g_usb_last_frame_ms = 0;
+static constexpr uint32_t USB_CONTROL_TIMEOUT_MS = 250;
+
 // --- Pairing mode button ----------------------------------------------
 //
 // The MODE_BUTTON_PIN (GPIO5 on C3) is already used by Buttons.cpp for
@@ -156,6 +165,39 @@ extern "C" bool main_get_digital_output_physical_high(int output_id) {
     return taskManager.getDigitalOutputPhysicalHigh((oc_output_id_t)output_id);
 }
 
+static const char* runtime_purpose_name(oc_purpose_t p) {
+    switch (p) {
+        case OC_PURPOSE_DRIVE: return "drive"; case OC_PURPOSE_SERVO: return "servo";
+        case OC_PURPOSE_ESC: return "esc"; case OC_PURPOSE_DIGITAL_OUTPUT: return "digital_output";
+        case OC_PURPOSE_DIGITAL_INPUT: return "digital_input"; case OC_PURPOSE_PWM_ACCESSORY: return "pwm_accessory";
+        case OC_PURPOSE_RGB_LIGHTING: return "rgb_lighting"; default: return "disabled";
+    }
+}
+
+extern "C" int main_build_runtime_output_json(char *buf, size_t len) {
+    if (!buf || len < 128) return -1;
+    DriveMotorIntent m1 = taskManager.getMotorIntent(OC_OUT_M1);
+    DriveMotorIntent m2 = taskManager.getMotorIntent(OC_OUT_M2);
+    const oc_output_cfg_t* c1 = output_config_get(OC_OUT_M1);
+    const oc_output_cfg_t* c2 = output_config_get(OC_OUT_M2);
+    const oc_output_cfg_t* s1 = output_config_get(OC_OUT_S1);
+    const oc_output_cfg_t* s2 = output_config_get(OC_OUT_S2);
+    const oc_drive_setup_t* drive = output_config_get_drive_setup();
+    int n = snprintf(buf, len,
+        "{\"outputs\":{"
+        "\"M1\":{\"purpose\":\"%s\",\"speed\":%u,\"direction\":%u,\"fwd_duty\":%u,\"rev_duty\":%u,\"frequency_hz\":%u,\"allowed\":%s,\"blocked_reason\":\"%s\"},"
+        "\"M2\":{\"purpose\":\"%s\",\"speed\":%u,\"direction\":%u,\"fwd_duty\":%u,\"rev_duty\":%u,\"frequency_hz\":%u,\"allowed\":%s,\"blocked_reason\":\"%s\"},"
+        "\"S1\":{\"purpose\":\"%s\",\"pulse_us\":%u,\"duty\":%u,\"logical\":%s,\"physical_high\":%s,\"esc_arm_phase\":\"%s\",\"allowed\":%s,\"blocked_reason\":\"%s\"},"
+        "\"S2\":{\"purpose\":\"%s\",\"pulse_us\":%u,\"duty\":%u,\"logical\":%s,\"physical_high\":%s,\"esc_arm_phase\":\"%s\",\"allowed\":%s,\"blocked_reason\":\"%s\"}},"
+        "\"drive\":{\"layout\":\"%s\",\"method\":\"%s\",\"throttle\":%d,\"steering\":%d,\"left_command\":%d,\"right_command\":%d}}",
+        runtime_purpose_name(c1->purpose),m1.speed,m1.direction,m1.fwd_duty,m1.rev_duty,m1.frequency_hz,strcmp(taskManager.getOutputBlockedReason(OC_OUT_M1),"none")==0?"true":"false",taskManager.getOutputBlockedReason(OC_OUT_M1),
+        runtime_purpose_name(c2->purpose),m2.speed,m2.direction,m2.fwd_duty,m2.rev_duty,m2.frequency_hz,strcmp(taskManager.getOutputBlockedReason(OC_OUT_M2),"none")==0?"true":"false",taskManager.getOutputBlockedReason(OC_OUT_M2),
+        runtime_purpose_name(s1->purpose),taskManager.getAuxPulseUs(OC_OUT_S1),taskManager.getAuxDuty(OC_OUT_S1),taskManager.getDigitalOutputLogical(OC_OUT_S1)?"true":"false",taskManager.getDigitalOutputPhysicalHigh(OC_OUT_S1)?"true":"false",taskManager.getEscArmPhaseName(OC_OUT_S1),strcmp(taskManager.getOutputBlockedReason(OC_OUT_S1),"none")==0?"true":"false",taskManager.getOutputBlockedReason(OC_OUT_S1),
+        runtime_purpose_name(s2->purpose),taskManager.getAuxPulseUs(OC_OUT_S2),taskManager.getAuxDuty(OC_OUT_S2),taskManager.getDigitalOutputLogical(OC_OUT_S2)?"true":"false",taskManager.getDigitalOutputPhysicalHigh(OC_OUT_S2)?"true":"false",taskManager.getEscArmPhaseName(OC_OUT_S2),strcmp(taskManager.getOutputBlockedReason(OC_OUT_S2),"none")==0?"true":"false",taskManager.getOutputBlockedReason(OC_OUT_S2),
+        output_config_drive_layout_name(drive->layout),output_config_drive_method_name(drive->method),taskManager.getDriveThrottle(),taskManager.getDriveSteering(),taskManager.getDriveLeftCommand(),taskManager.getDriveRightCommand());
+    return n > 0 && (size_t)n < len ? n : -1;
+}
+
 // --- Connection state callback ----------------------------------------
 //
 // ble_gamepad fires on_ble_connection_change on every connect/disconnect.
@@ -182,6 +224,15 @@ static const char *pairing_state_name(PairingState state) {
     }
 }
 
+static const char *motor_direction_name(byte direction) {
+    switch (direction) {
+        case FORWARD: return "forward";
+        case REVERSE: return "reverse";
+        case STOP: return "stop";
+        default: return "unknown";
+    }
+}
+
 static void print_mac(const ble_mac_t &mac) {
     Serial.printf("%02x:%02x:%02x:%02x:%02x:%02x",
                   mac.addr[0], mac.addr[1], mac.addr[2],
@@ -191,6 +242,7 @@ static void print_mac(const ble_mac_t &mac) {
 static void cli_print_help(void) {
     Serial.println("CLI OK commands: help | status | pair start | pair cancel | pair clear | disconnect");
     Serial.println("CLI OK bench: bench status | bench enable | bench disable | bench hid <hex>");
+    Serial.println("CLI OK USB: usb enable | usb disable | usb control <lx> <ly> <rx> <ry> <lt> <rt> <buttons> <dpad>");
     Serial.println("CLI OK hex accepts spaces, ':' or '-' separators; max 64 bytes");
 }
 
@@ -229,6 +281,13 @@ static void cli_print_status(void) {
                   taskManager.getDriveSteering(),
                   taskManager.getDriveLeftCommand(),
                   taskManager.getDriveRightCommand());
+    DriveMotorIntent m1 = taskManager.getMotorIntent(OC_OUT_M1);
+    DriveMotorIntent m2 = taskManager.getMotorIntent(OC_OUT_M2);
+    Serial.printf(" motors={M1:{speed:%u,dir:%s,fwd_duty:%u,rev_duty:%u,freq:%u},M2:{speed:%u,dir:%s,fwd_duty:%u,rev_duty:%u,freq:%u}}",
+                  (unsigned)m1.speed, motor_direction_name(m1.direction),
+                  (unsigned)m1.fwd_duty, (unsigned)m1.rev_duty, (unsigned)m1.frequency_hz,
+                  (unsigned)m2.speed, motor_direction_name(m2.direction),
+                  (unsigned)m2.fwd_duty, (unsigned)m2.rev_duty, (unsigned)m2.frequency_hz);
     Serial.print(" paired=[");
     ble_mac_t macs[BLE_MAX_PAIRED_CONTROLLERS];
     uint8_t count = BLE_MAX_PAIRED_CONTROLLERS;
@@ -289,6 +348,27 @@ static void cli_execute(char *line) {
     } else if (strcmp(line, "disconnect") == 0) {
         esp_err_t err = ble_gamepad_disconnect();
         Serial.printf("CLI %s disconnect err=0x%x\r\n", err == ESP_OK ? "OK" : "ERR", (unsigned)err);
+    } else if (strcmp(line, "usb enable") == 0) {
+        g_usb_control_active = true;
+        g_usb_controller = ControllerState{};
+        g_usb_last_frame_ms = millis();
+        Serial.println("CLI OK usb enabled timeout_ms=250");
+    } else if (strcmp(line, "usb disable") == 0) {
+        g_usb_control_active = false;
+        g_usb_controller = ControllerState{};
+        Serial.println("CLI OK usb disabled");
+    } else if (strncmp(line, "usb control ", 12) == 0) {
+        int lx, ly, rx, ry, lt, rt, buttons, dpad;
+        if (sscanf(line + 12, "%d %d %d %d %d %d %d %d", &lx, &ly, &rx, &ry, &lt, &rt, &buttons, &dpad) != 8 ||
+            lx < -512 || lx > 511 || ly < -512 || ly > 511 || rx < -512 || rx > 511 || ry < -512 || ry > 511 ||
+            lt < 0 || lt > 1023 || rt < 0 || rt > 1023 || buttons < 0 || buttons > 65535 || dpad < 0 || dpad > 8) {
+            Serial.println("CLI ERR usb control range_or_format");
+            return;
+        }
+        g_usb_controller = {lx, ly, rx, ry, rt, lt, (uint16_t)buttons, (uint16_t)dpad};
+        g_usb_control_active = true;
+        g_usb_last_frame_ms = millis();
+        Serial.println("CLI OK usb control accepted");
     } else if (strcmp(line, "bench status") == 0) {
         Serial.printf("CLI OK bench build=1 enabled=%d\r\n", ble_gamepad_bench_is_enabled() ? 1 : 0);
     } else if (strcmp(line, "bench enable") == 0) {
@@ -448,7 +528,15 @@ void loop() {
     // produces the same ControllerState structure.
     ControllerState gs = ble_gamepad_get_state();
 
-    if (ble_gamepad_is_connected()) {
+    if (g_usb_control_active && millis() - g_usb_last_frame_ms <= USB_CONTROL_TIMEOUT_MS) {
+        controllerState = g_usb_controller;
+        taskManager.update(true, controllerState);
+    } else if (g_usb_control_active) {
+        g_usb_control_active = false;
+        controllerState = ControllerState{};
+        taskManager.update(false, controllerState);
+        Serial.println("CLI SAFE usb timeout");
+    } else if (ble_gamepad_is_connected()) {
         controllerState.leftStickX    = gs.leftStickX;
         controllerState.leftStickY    = gs.leftStickY;
         controllerState.rightStickX   = gs.rightStickX;

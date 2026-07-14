@@ -10,7 +10,8 @@
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 
 CONFIG_ESP32_XTAL_FREQ_AUTO=y
-CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+# Partition layout is supplied by platformio.ini -> partitions.csv. Do not
+# select ESP-IDF's single-app table: OTA requires the custom otadata + A/B slots.
 
 # ---------------------------------------------------------------------------
 # Bluetooth: NimBLE ONLY (no dual-mode, no classic BT)

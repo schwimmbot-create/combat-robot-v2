@@ -78,6 +78,7 @@
     background: var(--card-2); border: 1px solid var(--border); border-radius: 8px;
     appearance: none; -webkit-appearance: none;
   }
+  input[type=color] { width: 100%; height: 42px; padding: 4px; background: var(--card-2); border: 1px solid var(--border); border-radius: 8px; }
   select:focus, input:focus { outline: 2px solid var(--accent); outline-offset: 0; }
   button.oled {
     width: 100%; padding: 12px 14px; font-size: 15px; font-weight: 700;
@@ -115,8 +116,9 @@
     border: 1px solid var(--border); border-radius: var(--radius);
     background: var(--card); padding: var(--pad); margin-bottom: 10px;
   }
-  .output header { all: unset; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
-  .output h3 { margin: 0; font-size: 16px; }
+  .output header { all: unset; display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; text-align: left; }
+  .output h3 { margin: 0; font-size: 16px; text-align: left; }
+  .output-title { justify-content: flex-start; text-align: left; }
   .output .id { font-family: ui-monospace, "SF Mono", Menlo, monospace;
     font-size: 11px; color: var(--muted); padding: 2px 6px;
     border: 1px solid var(--border); border-radius: 4px; }
@@ -204,6 +206,40 @@
   .mock-track { height: 14px; border-radius: 999px; overflow: hidden; background: #0b0d12; border: 1px solid var(--border); }
   .mock-fill { height: 100%; width: 0%; background: var(--good); transition: width 80ms linear, background 80ms linear; }
   .mock-fill.reverse { background: var(--bad); }
+  .status-strip { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 10px; }
+  .status-chip { border: 1px solid var(--border); border-radius: 999px; padding: 7px 10px; background: rgba(255,255,255,0.035); font: 700 12px/1.25 ui-monospace, "SF Mono", Menlo, monospace; display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 32px; }
+  .status-strip .status-chip { border-radius: 14px; padding: 9px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; justify-content: stretch; gap: 10px; min-height: 38px; }
+  .status-chip .shape { font-family: inherit; }
+  .status-chip .channel { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .status-chip .channel-id { color: var(--fg); }
+  .status-chip .channel-name { color: var(--muted); font: 600 11px/1.2 system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .status-chip .state { text-align: right; white-space: nowrap; }
+  .status-chip.good .shape { color: var(--good); }
+  .status-chip.warn .shape { color: var(--warn); }
+  .status-chip.bad .shape { color: var(--bad); }
+  .status-chip.muted .shape { color: var(--muted); }
+  .output-state { font-size: 11px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 7px; white-space: nowrap; background: rgba(255,255,255,0.03); }
+  .output-state.good { color: var(--good); border-color: rgba(74,222,128,.35); }
+  .output-state.warn { color: var(--warn); border-color: rgba(251,191,36,.35); }
+  .output-state.bad { color: var(--bad); border-color: rgba(248,113,113,.35); }
+  .output-state.muted { color: var(--muted); }
+  .output-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .battery-gauge { margin: 10px 0; border: 1px solid var(--border); border-radius: var(--radius); background: rgba(255,255,255,0.035); padding: 10px; }
+  .battery-gauge-head { display:flex; justify-content:space-between; gap:10px; font-size:13px; font-weight:700; }
+  .battery-track { height: 12px; border-radius: 999px; background: #0b0d12; border: 1px solid var(--border); overflow: hidden; margin-top: 8px; }
+  .battery-fill { height: 100%; width: 0%; background: var(--muted); transition: width 160ms linear, background 160ms linear; }
+  .battery-fill.good { background: var(--good); }
+  .battery-fill.warn { background: var(--warn); }
+  .battery-fill.bad { background: var(--bad); }
+  .power-summary-badges { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+  .danger-zone { border-color: rgba(248,113,113,.5); background: rgba(248,113,113,.06); }
+  .planning-banner { border: 1px dashed rgba(251,191,36,.6); background: rgba(251,191,36,.08); color: var(--warn); border-radius: 8px; padding: 8px 10px; margin: 8px 0; font-size: 12px; font-weight: 700; }
+  .pulse-preview { display: grid; gap: 6px; margin-top: 8px; }
+  .pulse-line { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; align-items: center; font: 700 11px/1.2 ui-monospace, "SF Mono", Menlo, monospace; }
+  .pulse-line span { border: 1px solid var(--border); border-radius: 7px; padding: 6px; text-align: center; background: rgba(255,255,255,0.035); }
+  .pulse-warning { color: var(--bad); font-size: 12px; margin-top: 6px; }
+  .rgb-preview { display:flex; align-items:center; gap:10px; margin-top:8px; }
+  .rgb-swatch { width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); box-shadow: 0 0 12px rgba(255,255,255,.18); flex: 0 0 auto; }
 
 .info-wrap { position: relative; display: inline-flex; align-items: center; margin-left: 8px; vertical-align: middle; }
 .info-icon { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; background: #1f6feb; color: #fff; font-size: 12px; font-weight: 700; font-style: normal; cursor: help; }
@@ -247,16 +283,17 @@
 
     <div class="card">
       <h2>Pairing</h2>
-      <p class="meta">Status: <span id="pair-state">—</span></p>
+      <p class="meta">Status: <span id="pair-state">Loading…</span></p>
       <div style="display:flex; gap:8px; flex-wrap:wrap;">
         <button id="btn-pair" class="oled" style="flex:1; margin-top:0">Enter Pairing Mode</button>
         <button id="btn-cancel-pair" class="ghost" disabled>Cancel</button>
         <p class="meta" style="margin:6px 0 0; font-size:12px;">hold SW1 5s to clear &amp; pair</p>
       </div>
-      <p class="meta" style="margin:14px 0 6px;">Paired Controllers</p>
-      <div id="mac-list" class="mac-list">—</div>
-      <button id="btn-unpair" class="ghost danger" style="width:100%; margin-top:8px;">Clear All Paired Controllers</button>
+    </div>
 
+    <div class="card">
+      <h2>Paired Controllers</h2>
+      <div id="mac-list" class="mac-list">Loading…</div>
       <div style="margin-top:14px;">
         <label class="field" for="max-paired-input">Max paired controllers</label>
         <input id="max-paired-input" type="number" min="1" max="4" step="1"
@@ -273,6 +310,25 @@
 
   <!-- ===== Outputs tab ===== -->
   <section class="panel" data-panel="outputs">
+    <div class="card">
+      <h2>Live Output State</h2>
+      <p class="meta">Robot output intent from the current setup and live controller/status data.</p>
+      <div id="live-output-strip" class="status-strip">
+        <span class="status-chip muted"><span class="shape">●</span><span class="channel"><span class="channel-id">M1</span><span class="channel-name">Motor 1</span></span><span class="state">Loading…</span></span>
+        <span class="status-chip muted"><span class="shape">●</span><span class="channel"><span class="channel-id">M2</span><span class="channel-name">Motor 2</span></span><span class="state">Loading…</span></span>
+        <span class="status-chip muted"><span class="shape">●</span><span class="channel"><span class="channel-id">S1</span><span class="channel-name">Servo 1</span></span><span class="state">Loading…</span></span>
+        <span class="status-chip muted"><span class="shape">●</span><span class="channel"><span class="channel-id">S2</span><span class="channel-name">Servo 2</span></span><span class="state">Loading…</span></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Live Drive Output</h2>
+      <p class="meta" id="mock-detail">Waiting for controller…</p>
+      <div class="mock-bot">
+        <div class="mock-row"><span id="mock-left-label">Left/M1</span><span id="mock-left-dir" class="mock-dir">stop</span><div class="mock-track"><div id="mock-left-bar" class="mock-fill"></div></div><span id="mock-left-pwm" class="meta">0</span></div>
+        <div class="mock-row"><span id="mock-right-label">Right/M2</span><span id="mock-right-dir" class="mock-dir">stop</span><div class="mock-track"><div id="mock-right-bar" class="mock-fill"></div></div><span id="mock-right-pwm" class="meta">0</span></div>
+        <div class="mock-row"><span id="mock-steer-label">Steering</span><span id="mock-steer-dir" class="mock-dir">center</span><div class="mock-track"><div id="mock-steer-bar" class="mock-fill"></div></div><span id="mock-steer-pwm" class="meta">1500µs</span></div>
+      </div>
+    </div>
     <div class="card">
       <h2>Motor &amp; Servo Outputs <span class="info-wrap" tabindex="0" aria-label="This page configures physical outputs. M1 and M2 are high-current brushed motor outputs controlled by Driving Setup unless Drive Method is None. S1 and S2 are low-current signal outputs for servos, ESC signal inputs, digital I/O, or PWM accessories."><span class="info-icon">i</span><span class="info-bubble">This page configures physical outputs.
 
@@ -291,22 +347,25 @@ Drive behavior is configured in Driving Setup.</span></span></h2>
       <h2>WiFi</h2>
       <p class="meta">To change WiFi credentials: connect your phone to the robot's AP (<code>Combat-Robot-XXXX</code> / password <code>fightbot</code>), then visit any URL — the captive portal auto-redirects here.</p>
       <div class="kv">
-        <span class="k">Mode</span><span class="v" id="wifi-mode">—</span>
-        <span class="k">IP</span><span class="v" id="wifi-ip">—</span>
-        <span class="k">SSID</span><span class="v" id="wifi-ssid">—</span>
+        <span class="k">Mode</span><span class="v" id="wifi-mode">Loading…</span>
+        <span class="k">IP</span><span class="v" id="wifi-ip">Loading…</span>
+        <span class="k">SSID</span><span class="v" id="wifi-ssid">Loading…</span>
       </div>
-      <button id="btn-reset" class="ghost danger" style="width:100%; margin-top:10px;">Reset Outputs to Defaults</button>
     </div>
 
     <div class="card">
       <h2>Battery Settings</h2>
       <p class="meta">Live pack voltage is sampled on the robot. Set the LiPo cell count and the estimated percent remaining where the robot should enter low-voltage cutoff.</p>
+      <div class="battery-gauge" aria-label="Battery gauge">
+        <div class="battery-gauge-head"><span id="battery-gauge-label">Battery Loading…</span><span id="battery-gauge-state">● Loading…</span></div>
+        <div class="battery-track"><div id="battery-gauge-fill" class="battery-fill"></div></div>
+      </div>
       <div class="kv">
-        <span class="k">Voltage</span><span class="v" id="battery-voltage">—</span>
-        <span class="k">Remaining</span><span class="v" id="battery-percent">—</span>
-        <span class="k">State</span><span class="v" id="battery-state">—</span>
-        <span class="k">Warn threshold</span><span class="v" id="battery-warn-mv">—</span>
-        <span class="k">Cutoff</span><span class="v" id="battery-cutoff-mv">—</span>
+        <span class="k">Voltage</span><span class="v" id="battery-voltage">Loading…</span>
+        <span class="k">Remaining</span><span class="v" id="battery-percent">Loading…</span>
+        <span class="k">State</span><span class="v" id="battery-state">Loading…</span>
+        <span class="k">Warn threshold</span><span class="v" id="battery-warn-mv">Loading…</span>
+        <span class="k">Cutoff</span><span class="v" id="battery-cutoff-mv">Loading…</span>
       </div>
       <div class="grid-2" style="margin-top:10px;">
         <label class="field">Cell count
@@ -326,8 +385,19 @@ Drive behavior is configured in Driving Setup.</span></span></h2>
 
     <div class="card">
       <h2>Power Behavior</h2>
-      <p class="meta">Choose what enabled channels do in GOOD, WARN, and LOW battery states. Defaults are GOOD = Allow, WARN = Reduce to 50%, LOW = Disable. Changed values are highlighted. Safety stop and system/config remain locked always active.</p>
+      <p class="meta">Choose what enabled channels do in GOOD, WARN, and LOW battery states. Changed values are highlighted.</p>
+      <div class="power-summary-badges" aria-label="Power behavior defaults">
+        <span class="status-chip good"><span class="shape">●</span><span>GOOD</span><span>Allow</span></span>
+        <span class="status-chip warn"><span class="shape">▲</span><span>WARN</span><span>Reduce 50%</span></span>
+        <span class="status-chip bad"><span class="shape">✕</span><span>LOW</span><span>Disable</span></span>
+      </div>
       <div id="power-behavior"></div>
+    </div>
+
+    <div class="card">
+      <h2>Board I/O</h2>
+      <p class="meta">Mode button and RGB/RGBW planning controls are shown with their runtime status.</p>
+      <div id="settings-board-io"></div>
     </div>
 
     <div class="card">
@@ -340,9 +410,19 @@ Drive behavior is configured in Driving Setup.</span></span></h2>
                  style="background: var(--card-2); padding: 10px; border-radius: 8px; border: 1px solid var(--border); width: 100%; color: var(--fg); margin-top:4px;">
         </label>
       </div>
-      <button id="btn-config-upload" class="oled" style="margin-top:8px;">Upload &amp; Apply Configuration</button>
+      <button id="btn-config-upload" class="oled" style="margin-top:8px;">Preview Configuration</button>
       <span id="config-backup-status" class="meta" style="margin-left:8px;"></span>
-      <p class="hint">This does not flash firmware or copy WiFi credentials. Use Firmware Update separately if the target board is not already running compatible firmware.</p>
+      <div id="config-import-preview" class="hint" role="status" aria-live="polite" style="display:none; margin-top:10px;"></div>
+      <p class="hint">Import always shows a preview before applying. This does not flash firmware or copy WiFi credentials. Use Firmware Update separately if the target board is not already running compatible firmware.</p>
+    </div>
+
+    <div class="card">
+      <h2>Generic Board Presets</h2>
+      <p class="meta">Load a safe starting template into the form, review the channel assignment, then use Save to persist it.</p>
+      <label class="field" for="config-preset-select">Board setup</label>
+      <select id="config-preset-select"></select>
+      <div id="config-preset-summary" class="hint" role="status" aria-live="polite" style="margin-top:8px;"></div>
+      <button id="btn-config-preset" class="ghost" style="margin-top:8px;">Load Preset into Form</button>
     </div>
 
     <div class="card">
@@ -367,6 +447,20 @@ Drive behavior is configured in Driving Setup.</span></span></h2>
         <button type="submit" class="oled">Upload &amp; Update</button>
       </form>
     </div>
+
+    <div class="card danger-zone">
+      <h2>Danger Zone</h2>
+      <p class="meta">Actions here clear, overwrite, or reset robot setup. They ask for confirmation before changing anything.</p>
+      <label class="field" for="disconnect-failsafe-select">Disconnect Failsafe Override</label>
+      <select id="disconnect-failsafe-select">
+        <option value="safe_stop">Safe stop on disconnect / timeout</option>
+        <option value="hold_last">DANGER: hold last controller value after disconnect</option>
+      </select>
+      <p class="hint">Use hold-last only for controlled bench/setup cases. It lets the last sent drive/aux command persist after the controller disconnects instead of forcing neutral.</p>
+      <button id="btn-disconnect-failsafe-save" class="ghost danger" style="width:100%; margin-top:8px;">Save Disconnect Failsafe Override</button>
+      <button id="btn-reset" class="ghost danger" style="width:100%; margin-top:10px;">Reset Outputs to Defaults</button>
+      <button id="btn-unpair" class="ghost danger" style="width:100%; margin-top:8px;">Clear All Paired Controllers</button>
+    </div>
   </section>
 
   <!-- ===== About tab ===== -->
@@ -374,9 +468,9 @@ Drive behavior is configured in Driving Setup.</span></span></h2>
     <div class="card">
       <h2>Robot Status</h2>
       <div class="kv">
-        <span class="k">Firmware</span><span class="v" id="fw-version">—</span>
-        <span class="k">Board</span><span class="v" id="fw-board">—</span>
-        <span class="k">Battery</span><span class="v" id="fw-battery">—</span>
+        <span class="k">Firmware</span><span class="v" id="fw-version">Loading…</span>
+        <span class="k">Board</span><span class="v" id="fw-board">Loading…</span>
+        <span class="k">Battery</span><span class="v" id="fw-battery">Loading…</span>
       </div>
       <button class="oled" id="btn-battery-settings-link" style="width:100%; margin-top:10px;">Battery Settings</button>
     </div>
@@ -499,7 +593,7 @@ const DRIVE_MODE_LEGACY = {
   arcade_split: { layout: 'differential', method: 'arcade', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'RX' },
 };
 function defaultDriveSetup() {
-  return { layout: 'differential', method: 'tank', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'LX', drive_motor_output: 'M1', steering_output: 'S1', precision_source: 'NONE', precision_scale_pct: 50, brake_source: 'NONE', invert_steering_source: 'NONE' };
+  return { layout: 'differential', method: 'tank', left_axis: 'LY', right_axis: 'RY', throttle_axis: 'LY', steering_axis: 'LX', drive_motor_output: 'M1', steering_output: 'S1', precision_source: 'NONE', precision_scale_pct: 50, precision_latching: false, left_speed_pct: 100, right_speed_pct: 100, brake_source: 'NONE', invert_steering_source: 'NONE' };
 }
 function normalizeDriveSetup(drive = {}, legacyMode = state?.drive_mode || 'tank_split') {
   const base = { ...defaultDriveSetup(), ...(DRIVE_MODE_LEGACY[legacyMode] || {}) };
@@ -518,6 +612,9 @@ function normalizeDriveSetup(drive = {}, legacyMode = state?.drive_mode || 'tank
   if (!DRIVE_MODIFIER_SOURCES.includes(next.brake_source)) next.brake_source = 'NONE';
   if (!DRIVE_MODIFIER_SOURCES.includes(next.invert_steering_source)) next.invert_steering_source = 'NONE';
   next.precision_scale_pct = Math.max(0, Math.min(100, Number(next.precision_scale_pct ?? 50)));
+  next.precision_latching = !!next.precision_latching;
+  next.left_speed_pct = Math.max(0, Math.min(100, Number(next.left_speed_pct ?? 100)));
+  next.right_speed_pct = Math.max(0, Math.min(100, Number(next.right_speed_pct ?? 100)));
   return next;
 }
 function expandDriveAxisSources(axis) {
@@ -554,10 +651,12 @@ const state = {
     S2:     { display_name: 'Servo 2', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' } },
     H1:     { display_name: 'Header H1', direction: 'normal', servo_mode: 'bi', deadzone: 10, primary: 'NONE', secondary: 'NONE', purpose: 'servo', protocol: 'rc_servo_pwm', semantics: 'position_servo', active_high: true, default_state: false, digital_mode: 'direct', digital_preset: 'direct', digital_on_threshold: 1, digital_off_threshold: 0, digital_custom_pct: 50, power: { GOOD: 'default', WARN: 'default', LOW: 'default' }, config_only: true },
   },
-  sw1: { short_action: 'pairing', long_action: 'clear_pair', long_hold_ms: 5000, double_action: 'none' },
+  sw1: { short_action: 'pairing', hold_action: 'clear_pair', hold_ms: 5000, double_action: 'none' },
+  disconnect_failsafe: 'safe_stop',
   rgb: { led_count: 1, type: 'RGBW', brightness_pct: 40, idle_pattern: 'solid', idle_color: '#0040ff', paired_pattern: 'solid', paired_color: '#00ff40', pairing_pattern: 'pulse', pairing_color: '#ff9f00', low_battery_pattern: 'chaser', low_battery_color: '#ff0000', rainbow_speed: 50, chaser_tail: 4, user_status_enabled: true },
   gp: null,
   mockDrive: null,
+  lastStatus: null,
   bleConnected: false,
   pairingActive: false,
   pairedMacs: [],
@@ -570,6 +669,7 @@ const state = {
 const PURPOSE_OPTIONS = [
   ['servo', 'Servo'],
   ['esc', 'ESC / motor controller'],
+  ['rgb_lighting', 'RGB / RGBW lighting'],
   ['digital_output', 'Digital output'],
   ['digital_input', 'Digital input — configured only'],
   ['pwm_accessory', 'PWM accessory'],
@@ -593,13 +693,27 @@ const PROTOCOL_OPTIONS = [
   ['multishot', 'MultiShot'],
   ['gpio', 'GPIO'],
   ['pwm_duty', 'Generic PWM duty'],
+  ['rgb', 'RGB addressable LED'],
+  ['rgbw', 'RGBW addressable LED'],
 ];
+
+const OUTPUT_RGB_PATTERNS = [
+  ['solid', 'Solid color'],
+  ['blink', 'Blink selected color'],
+  ['breathe', 'Breathe / pulse selected color'],
+  ['rainbow', 'Rainbow cycle'],
+  ['chase', 'Chaser using selected color'],
+  ['battery', 'Battery status colors'],
+  ['controller', 'Controller status colors'],
+];
+const OUTPUT_RGB_PATTERNS_NEED_COLOR = new Set(['solid', 'blink', 'breathe', 'chase']);
 function outputDisplayName(id) {
   const cfg = state.outputs[id] || {};
   const profile = activeBoardProfile();
   const board = (profile.outputs || []).find(o => o.id === id) || { display_name: id };
-  const name = cfg.display_name || board.display_name || id;
-  return name === id ? id : `${name} (${id})`;
+  const raw = cfg.display_name || board.display_name || id;
+  const name = String(raw).replace(/\s*\/\s*P\d+\s*$/, '');
+  return name === id ? id : `${id} — ${name}`;
 }
 
 function el(tag, attrs = {}, children = []) {
@@ -818,19 +932,124 @@ function driveModeSummary() {
   return `${d.throttle_axis} controls speed; ${d.steering_axis} mixes steering into M1/M2.`;
 }
 
+function liveMotorFromMock(id) {
+  const out = state.mockDrive || mockDriveOutput(state.drive, state.gp);
+  if (id === 'M1') return out?.left || { direction: 'stop', pwm: 0 };
+  if (id === 'M2') return out?.right || { direction: 'stop', pwm: 0 };
+  return { direction: 'stop', pwm: 0 };
+}
+function outputStatus(id) {
+  const cfg = state.outputs[id] || {};
+  const runtime = state.lastStatus?.runtime?.outputs?.[id];
+  const statusOut = runtime || state.lastStatus?.outputs?.[id] || {};
+  if (runtime) {
+    const reason = runtime.blocked_reason || 'none';
+    if (reason !== 'none') {
+      const labels = { low_battery:'BLOCKED · LOW BATTERY', disconnect:'BLOCKED · DISCONNECTED', failsafe:'BLOCKED · FAILSAFE', arming:'WAITING · ARMING', deadman:'BLOCKED · DEADMAN', disabled:'DISABLED', no_source:'BLOCKED · NO SOURCE' };
+      return { cls: reason === 'disabled' || reason === 'no_source' ? 'muted' : (reason === 'arming' ? 'warn' : 'bad'), shape: reason === 'arming' ? '▲' : '✕', text: labels[reason] || `BLOCKED · ${reason.replaceAll('_',' ').toUpperCase()}`, detail: reason };
+    }
+    if (id === 'M1' || id === 'M2') {
+      const dir = Number(runtime.direction) === 1 ? 'FORWARD' : (Number(runtime.direction) === 2 ? 'REVERSE' : 'STOPPED');
+      const pct = Math.round(Math.max(0, Math.min(255, Number(runtime.speed)||0)) / 255 * 100);
+      return { cls: dir === 'REVERSE' ? 'bad' : (dir === 'FORWARD' ? 'good' : 'muted'), shape: dir === 'REVERSE' ? '▲' : '●', text: dir === 'STOPPED' ? 'STOPPED' : `${dir} ${pct}%`, detail: `${pct}%` };
+    }
+    if (runtime.pulse_us) return { cls:'good', shape:'●', text:`${runtime.pulse_us}µs${runtime.esc_arm_phase && runtime.esc_arm_phase !== 'inactive' ? ' · '+runtime.esc_arm_phase.toUpperCase() : ''}`, detail:`${runtime.pulse_us}µs` };
+    if (typeof runtime.logical === 'boolean') return { cls:runtime.logical?'good':'muted', shape:'●', text:runtime.logical?`ON ${runtime.physical_high?'HIGH':'LOW'}`:`OFF ${runtime.physical_high?'HIGH':'LOW'}`, detail:runtime.logical?'ON':'OFF' };
+    return { cls:'muted', shape:'●', text:'READY', detail:'ready' };
+  }
+  if (id === 'M1' || id === 'M2') {
+    const motor = liveMotorFromMock(id);
+    const pct = Math.round(Math.max(0, Math.min(255, motor.pwm || 0)) / 255 * 100);
+    const dir = motor.direction || 'stop';
+    if (!state.gp && pct === 0) return { cls: 'muted', shape: '●', text: 'STOPPED', detail: 'waiting' };
+    if (dir === 'stop' || pct === 0) return { cls: 'muted', shape: '●', text: 'STOPPED', detail: '0%' };
+    return { cls: dir === 'reverse' ? 'bad' : 'good', shape: dir === 'reverse' ? '▲' : '●', text: `${dir.toUpperCase()} ${pct}%`, detail: `${pct}%` };
+  }
+  if (id === 'S1' || id === 'S2') {
+    const d = normalizeDriveSetup(state.drive || {}, state.drive_mode);
+    if (d.layout === 'servo_steering' && d.method !== 'none' && id === d.steering_output && state.gp) {
+      const steer = readDriveAxisMock(d.steering_axis, state.gp);
+      const pulse = Math.round(1500 + (Math.max(-512, Math.min(511, steer)) / 512) * 500);
+      const side = steer < -20 ? 'LEFT' : (steer > 20 ? 'RIGHT' : 'CENTER');
+      return { cls: side === 'CENTER' ? 'muted' : 'good', shape: '●', text: `${pulse}µs ${side}`, detail: `${pulse}µs` };
+    }
+    if (typeof statusOut.logical === 'boolean' || typeof statusOut.physical_high === 'boolean') {
+      const logical = !!statusOut.logical;
+      const physical = !!statusOut.physical_high;
+      return { cls: logical ? 'good' : 'muted', shape: logical ? '●' : '●', text: logical ? `ON ${physical ? 'HIGH' : 'LOW'}` : `OFF ${physical ? 'HIGH' : 'LOW'}`, detail: logical ? 'ON' : 'OFF' };
+    }
+    if (cfg.purpose === 'rgb_lighting') {
+      const pattern = cfg.rgb?.pattern || cfg.rgb_pattern || 'solid';
+      return { cls: 'good', shape: '●', text: `${(cfg.protocol || 'rgb').toUpperCase()} ${pattern}`, detail: pattern };
+    }
+    if (cfg.purpose === 'disabled') return { cls: 'muted', shape: '●', text: 'DISABLED', detail: 'disabled' };
+    return { cls: 'muted', shape: '●', text: cfg.protocol ? cfg.protocol.replaceAll('_', ' ') : 'READY', detail: 'ready' };
+  }
+  if (cfg.config_only) return { cls: 'warn', shape: '▲', text: 'CONFIG ONLY', detail: 'config only' };
+  return { cls: 'muted', shape: '●', text: 'READY', detail: 'ready' };
+}
+function outputStateChip(id) {
+  const st = outputStatus(id);
+  return el('span', { class: `output-state ${st.cls}`, 'data-output-state': id }, `${st.shape} ${st.text}`);
+}
+function renderLiveOutputStrip() {
+  const root = document.getElementById('live-output-strip');
+  if (!root) return;
+  root.innerHTML = '';
+  for (const id of ['M1','M2','S1','S2']) {
+    const st = outputStatus(id);
+    const cfg = state.outputs[id] || {};
+    const name = cfg.display_name || outputDisplayName(id);
+    root.appendChild(el('span', { class: `status-chip ${st.cls}`, 'data-live-output': id }, [
+      el('span', { class: 'shape' }, st.shape),
+      el('span', { class: 'channel' }, [
+        el('span', { class: 'channel-id' }, id),
+        el('span', { class: 'channel-name' }, name),
+      ]),
+      el('span', { class: 'state' }, st.text),
+    ]));
+  }
+}
+function updateOutputHeaderStates() {
+  for (const id of activeBoardProfile().outputs.map(o => o.id)) {
+    const slot = document.querySelector(`[data-output-state-slot="${id}"]`);
+    if (!slot) continue;
+    slot.innerHTML = '';
+    slot.appendChild(outputStateChip(id));
+  }
+}
 function renderMockRobot(out) {
   if (!out) return;
+  const d = normalizeDriveSetup(state.drive || {}, state.drive_mode);
   const detail = document.getElementById('mock-detail');
   if (detail) detail.textContent = `${out.mode}: ${JSON.stringify(out.inputs || {})}`;
+  const leftLabel = document.getElementById('mock-left-label');
+  const rightLabel = document.getElementById('mock-right-label');
+  const steerLabel = document.getElementById('mock-steer-label');
+  if (leftLabel) leftLabel.textContent = d.layout === 'servo_steering' ? `${d.drive_motor_output} drive` : 'Left/M1';
+  if (rightLabel) rightLabel.textContent = d.layout === 'servo_steering' ? 'Other motor' : 'Right/M2';
+  if (steerLabel) steerLabel.textContent = d.layout === 'servo_steering' ? `${d.steering_output} steer` : 'Steering';
   const rows = [['left', out.left || { direction: 'stop', pwm: 0 }], ['right', out.right || { direction: 'stop', pwm: 0 }]];
   for (const [side, motor] of rows) {
     const dir = document.getElementById(`mock-${side}-dir`);
     const bar = document.getElementById(`mock-${side}-bar`);
     const pwm = document.getElementById(`mock-${side}-pwm`);
     if (dir) dir.textContent = motor.direction;
-    if (bar) bar.style.width = `${Math.max(0, Math.min(255, motor.pwm)) / 255 * 100}%`;
+    if (bar) { bar.style.width = `${Math.max(0, Math.min(255, motor.pwm)) / 255 * 100}%`; bar.classList.toggle('reverse', motor.direction === 'reverse'); }
     if (pwm) pwm.textContent = String(motor.pwm);
   }
+  const steer = d.layout === 'servo_steering' && state.gp ? readDriveAxisMock(d.steering_axis, state.gp) : 0;
+  const steerPct = Math.abs(steer) / 512 * 100;
+  const steerDir = steer < -20 ? 'left' : (steer > 20 ? 'right' : 'center');
+  const steerPulse = Math.round(1500 + (Math.max(-512, Math.min(511, steer)) / 512) * 500);
+  const steerDirEl = document.getElementById('mock-steer-dir');
+  const steerBar = document.getElementById('mock-steer-bar');
+  const steerPwm = document.getElementById('mock-steer-pwm');
+  if (steerDirEl) steerDirEl.textContent = steerDir;
+  if (steerBar) { steerBar.style.width = `${Math.max(0, Math.min(100, steerPct))}%`; steerBar.classList.toggle('reverse', steer < 0); }
+  if (steerPwm) steerPwm.textContent = d.layout === 'servo_steering' ? `${steerPulse}µs` : String(Math.round(steer));
+  renderLiveOutputStrip();
+  updateOutputHeaderStates();
 }
 
 function driveSelect(value, options, onChange) {
@@ -851,7 +1070,7 @@ function modifierSourceSelect(value, onChange) {
   return driveSelect(value || 'NONE', opts, onChange);
 }
 const DRIVE_MODIFIER_HELP = `
-Precision mode source: optional button/source that enables slow driving while held. Use none to disable.
+Precision mode source: optional button/source that enables slow driving. By default it is active only while held; enable latching to toggle precision mode with each press.
 
 Precision scale %: multiplier for throttle and steering while precision mode is active. 50% means half speed and half steering; 100% means no reduction; 0% effectively stops drive while held.
 
@@ -897,15 +1116,14 @@ function renderDriveModeCard() {
     el('summary', {}, ['Advanced: drive modifiers', infoBubble(DRIVE_MODIFIER_HELP)]),
     el('div', { class: 'grid-2' }, [
       el('div', {}, [el('label', { class: 'field' }, 'Precision mode source'), modifierSourceSelect(d.precision_source, v => { d.precision_source = v; renderOutputs(); })]),
+      el('label', { class: 'check' }, [(() => { const inp = el('input', { type: 'checkbox' }); inp.checked = !!d.precision_latching; inp.addEventListener('change', e => { d.precision_latching = e.target.checked; }); return inp; })(), el('span', {}, 'Latch precision control (press to toggle)')]),
       el('div', {}, [el('label', { class: 'field' }, 'Precision scale %'), (() => { const inp = el('input', { type: 'number', min: '0', max: '100', value: d.precision_scale_pct }); inp.addEventListener('input', e => d.precision_scale_pct = Number(e.target.value)); return inp; })()]),
+      el('div', {}, [el('label', { class: 'field' }, 'Left drive speed %'), numberInput(d.left_speed_pct ?? 100, 0, 100, 1, v => { d.left_speed_pct = v; })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Right drive speed %'), numberInput(d.right_speed_pct ?? 100, 0, 100, 1, v => { d.right_speed_pct = v; })]),
+      el('p', { class: 'hint' }, 'Straight-line trim: leave both at 100%, then lower only the side that runs faster.'),
       el('div', {}, [el('label', { class: 'field' }, 'Brake source'), modifierSourceSelect(d.brake_source, v => { d.brake_source = v; renderOutputs(); })]),
       el('div', {}, [el('label', { class: 'field' }, 'Invert steering source'), modifierSourceSelect(d.invert_steering_source, v => { d.invert_steering_source = v; renderOutputs(); })]),
     ]),
-  ]));
-  card.appendChild(el('div', { class: 'summary' }, [el('strong', {}, 'Mock robot output'), el('span', { id: 'mock-detail', style: 'margin-left:6px' }, 'waiting for controller')]));
-  card.appendChild(el('div', { class: 'mock-bot' }, [
-    el('div', { class: 'mock-row' }, [el('span', {}, 'Left/M1'), el('span', { id: 'mock-left-dir', class: 'mock-dir' }, 'stop'), el('div', { class: 'mock-track' }, el('div', { id: 'mock-left-bar', class: 'mock-fill' })), el('span', { id: 'mock-left-pwm', class: 'meta' }, '0')]),
-    el('div', { class: 'mock-row' }, [el('span', {}, 'Right/M2'), el('span', { id: 'mock-right-dir', class: 'mock-dir' }, 'stop'), el('div', { class: 'mock-track' }, el('div', { id: 'mock-right-bar', class: 'mock-fill' })), el('span', { id: 'mock-right-pwm', class: 'meta' }, '0')]),
   ]));
   const banner = renderReservedSourcesBanner();
   if (banner) card.appendChild(banner);
@@ -1128,7 +1346,20 @@ function ensureRoleDefaults(cfg) {
     frequency_hz: cfg.pwm_frequency_hz ?? ((cfg.purpose === 'drive') ? 20000 : 1000),
     duty_pct: cfg.pwm_duty_pct ?? ((cfg.purpose === 'drive') ? 100 : 50),
   };
+  if (!cfg.rgb) cfg.rgb = {
+    pattern: cfg.rgb_pattern || 'solid',
+    r: cfg.rgb_r ?? 255,
+    g: cfg.rgb_g ?? 107,
+    b: cfg.rgb_b ?? 53,
+    w: cfg.rgb_w ?? 0,
+    brightness_pct: cfg.rgb_brightness_pct ?? 40,
+    led_count: cfg.rgb_led_count ?? 1,
+  };
   if (!cfg.motor_mode) cfg.motor_mode = 'proportional';
+  cfg.acceleration_ms = Math.max(0, Math.min(10000, Number(cfg.acceleration_ms ?? cfg.ramp_ms ?? 0)));
+  cfg.deceleration_ms = Math.max(0, Math.min(10000, Number(cfg.deceleration_ms ?? 0)));
+  cfg.ramp_curve = cfg.ramp_curve === 's_curve' ? 's_curve' : 'linear';
+  cfg.ramp_smoothing_pct = Math.max(0, Math.min(100, Number(cfg.ramp_smoothing_pct ?? 50)));
   if (!cfg.esc_arm) cfg.esc_arm = {
     mode: cfg.esc_arm_mode || 'manual',
     source: cfg.esc_arm_source || 'NONE',
@@ -1145,6 +1376,19 @@ function ensureRoleDefaults(cfg) {
   }
 }
 
+const MOTION_PRESETS = {
+  instant: { acceleration_ms: 0, deceleration_ms: 0, label: 'Instant' },
+  sport:   { acceleration_ms: 150, deceleration_ms: 100, label: 'Sport' },
+  medium:  { acceleration_ms: 500, deceleration_ms: 350, label: 'Medium' },
+  slow:    { acceleration_ms: 1200, deceleration_ms: 800, label: 'Slow', ramp_curve: 'linear' },
+  s_curve: { acceleration_ms: 700, deceleration_ms: 500, label: 'S-Curve', ramp_curve: 's_curve' },
+};
+function motionPresetFor(cfg) {
+  if (cfg.ramp_curve === 's_curve') return 's_curve';
+  if (cfg.motion_preset === 'custom') return 'custom';
+  return Object.entries(MOTION_PRESETS).find(([, p]) => p.acceleration_ms === cfg.acceleration_ms && p.deceleration_ms === cfg.deceleration_ms)?.[0] || 'custom';
+}
+
 function numberInput(value, min, max, step, onChange) {
   const input = el('input', { type: 'number', min: String(min), max: String(max), step: String(step), value: String(value ?? min) });
   input.addEventListener('change', e => {
@@ -1156,11 +1400,66 @@ function numberInput(value, min, max, step, onChange) {
   return input;
 }
 
+function pulseCalibrationIssue(pulse) {
+  if (!(Number(pulse.min_us) < Number(pulse.center_us) && Number(pulse.center_us) < Number(pulse.max_us))) {
+    return 'Pulse order must be min < center < max.';
+  }
+  return '';
+}
+function renderPulsePreview(cfg) {
+  const p = cfg.pulse || pulseDefaultsFor(cfg.protocol);
+  const issue = pulseCalibrationIssue(p);
+  return el('div', { class: 'pulse-preview' }, [
+    el('div', { class: 'pulse-line' }, [
+      el('span', {}, `min ${p.min_us}µs`),
+      el('span', {}, `center ${p.center_us}µs`),
+      el('span', {}, `max ${p.max_us}µs`),
+    ]),
+    el('p', { class: issue ? 'pulse-warning' : 'hint' }, issue || `Frame ${p.frame_hz} Hz · neutral deadzone ${p.neutral_deadzone}%`),
+  ]);
+}
+function renderFailsafeSummary(id, cfg) {
+  const weapon = !!cfg?.safety?.weapon;
+  const disconnect = weapon ? 'Safe state 🔒 forced' : 'Safe state / configured default';
+  const low = weapon ? 'Disable 🔒 forced' : POWER_ACTION_LABELS[powerResolvedAction(id, cfg, 'LOW')];
+  return el('div', { class: 'summary power-safety' }, [
+    el('strong', {}, 'Failsafe: '),
+    `disconnect = ${disconnect}; LOW battery = ${low}.`,
+  ]);
+}
+function renderMotionProfile(o, cfg) {
+  ensureRoleDefaults(cfg);
+  const details = el('details', { class: 'summary', style: 'margin-top:10px' });
+  details.appendChild(el('summary', {}, 'Advanced: acceleration and deceleration'));
+  const select = el('select');
+  for (const [value, label] of [['instant','Instant'],['sport','Sport'],['medium','Medium'],['slow','Slow'],['s_curve','S-Curve'],['custom','Custom']]) {
+    const opt = el('option', { value }, label); if (motionPresetFor(cfg) === value) opt.selected = true; select.appendChild(opt);
+  }
+  const controls = el('div', { class: 'grid-2', style: 'margin-top:8px' });
+  const rebuild = () => {
+    controls.replaceChildren(el('div', {}, [el('label', { class: 'field' }, 'Motion preset'), select]));
+    if (motionPresetFor(cfg) === 's_curve') {
+      const smoothing = el('select');
+      for (const [value,label] of [[25,'Light'],[50,'Balanced'],[75,'Strong']]) { const opt=el('option',{value:String(value)},label); if (cfg.ramp_smoothing_pct===value) opt.selected=true; smoothing.appendChild(opt); }
+      smoothing.addEventListener('change', e => { cfg.ramp_smoothing_pct=Number(e.target.value); });
+      controls.appendChild(el('div', {}, [el('label', { class: 'field' }, 'Smoothing'), smoothing]));
+    }
+    if (motionPresetFor(cfg) === 'custom') {
+      controls.appendChild(el('div', {}, [el('label', { class: 'field' }, 'Acceleration time (ms)'), numberInput(cfg.acceleration_ms, 0, 10000, 10, v => { cfg.acceleration_ms = v; })]));
+      controls.appendChild(el('div', {}, [el('label', { class: 'field' }, 'Deceleration time (ms)'), numberInput(cfg.deceleration_ms, 0, 10000, 10, v => { cfg.deceleration_ms = v; })]));
+    }
+  };
+  select.addEventListener('change', e => { const p = MOTION_PRESETS[e.target.value]; if (p) { delete cfg.motion_preset; cfg.acceleration_ms = p.acceleration_ms; cfg.deceleration_ms = p.deceleration_ms; cfg.ramp_curve = p.ramp_curve || 'linear'; } else { cfg.motion_preset = 'custom'; cfg.ramp_curve = 'linear'; } rebuild(); });
+  details.appendChild(el('p', { class: 'hint' }, 'Acceleration controls ramp-up; deceleration controls commanded slowing. Disconnect and safety stops remain immediate.'));
+  details.appendChild(controls); rebuild(); return details;
+}
+
 function renderPulseControls(o, cfg) {
   ensureRoleDefaults(cfg);
   const details = el('details', { class: 'summary', style: 'margin-top:10px' }, [
     el('summary', {}, 'Advanced: pulse calibration'),
     el('p', { class: 'hint' }, 'Most users should leave these defaults alone. Changing Protocol resets these values to safe defaults for that signal type.'),
+    renderPulsePreview(cfg),
   ]);
   const grid = el('div', { class: 'grid-2', style: 'margin-top:8px' });
   const fields = [
@@ -1173,7 +1472,7 @@ function renderPulseControls(o, cfg) {
   for (const [label, key, min, max, step] of fields) {
     grid.appendChild(el('div', {}, [
       el('label', { class: 'field' }, label),
-      numberInput(cfg.pulse[key], min, max, step, v => { cfg.pulse[key] = v; }),
+      numberInput(cfg.pulse[key], min, max, step, v => { cfg.pulse[key] = v; renderOutputs(); }),
     ]));
   }
   details.appendChild(grid);
@@ -1242,13 +1541,11 @@ function renderEscSafetyControls(o, cfg) {
   const safety = el('input', { type: 'checkbox' });
   safety.checked = !!cfg.safety.weapon;
   safety.addEventListener('change', e => { cfg.safety.weapon = !!e.target.checked; });
-  const ramp = numberInput(cfg.ramp_ms ?? 0, 0, 5000, 10, v => { cfg.ramp_ms = v; });
   return el('div', { class: 'summary', style: 'margin-top:10px; border-color: rgba(245,158,11,.45)' }, [
     el('strong', {}, `ESC safety controls on ${o.id}`),
     el('p', { class: 'hint' }, 'Use Safety-critical weapon role for an ESC-driven weapon. There is no dedicated Weapon output.'),
     el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
       el('div', {}, [el('label', { class: 'field' }, 'Weapon mode'), modeSel]),
-      el('div', {}, [el('label', { class: 'field' }, 'Ramp / soft-start (ms)'), ramp]),
       el('div', {}, [el('label', { class: 'field' }, 'Arming source'), arm]),
       el('div', {}, [el('label', { class: 'field' }, 'Deadman source'), deadman]),
       el('label', { class: 'toggle' }, [safety, el('span', {}, 'Safety-critical weapon role')]),
@@ -1265,6 +1562,55 @@ function renderPwmAccessoryControls(o, cfg) {
       el('div', {}, [el('label', { class: 'field' }, 'Frequency (Hz)'), numberInput(cfg.pwm.frequency_hz, 0, 20000, 1, v => { cfg.pwm.frequency_hz = v; })]),
       el('div', {}, [el('label', { class: 'field' }, 'Duty (%)'), numberInput(cfg.pwm.duty_pct, 0, 100, 1, v => { cfg.pwm.duty_pct = v; })]),
     ]),
+  ]);
+}
+
+function rgbToHex(rgb) {
+  const clamp = v => Math.max(0, Math.min(255, Number(v) || 0));
+  return '#' + [clamp(rgb.r), clamp(rgb.g), clamp(rgb.b)].map(v => v.toString(16).padStart(2, '0')).join('');
+}
+function hexToRgb(hex) {
+  const m = String(hex || '').match(/^#?([0-9a-f]{6})$/i);
+  if (!m) return { r: 255, g: 107, b: 53 };
+  const n = parseInt(m[1], 16);
+  return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+}
+function rgbChannelInput(rgb, key, label) {
+  const input = numberInput(rgb[key] ?? 0, 0, 255, 1, v => { rgb[key] = v; renderOutputs(); });
+  input.setAttribute('data-rgb-channel', key);
+  return el('div', {}, [el('label', { class: 'field' }, label), input]);
+}
+function renderRgbLightingControls(o, cfg) {
+  ensureRoleDefaults(cfg);
+  const rgb = cfg.rgb;
+  const patternSel = driveSelect(rgb.pattern || 'solid', OUTPUT_RGB_PATTERNS, v => { rgb.pattern = v; renderOutputs(); });
+  const color = el('input', { type: 'color', value: rgbToHex(rgb), 'aria-label': 'Pattern color wheel' });
+  color.addEventListener('input', e => { Object.assign(rgb, hexToRgb(e.target.value)); renderOutputs(); });
+  const white = numberInput(rgb.w ?? 0, 0, 255, 1, v => { rgb.w = v; renderOutputs(); });
+  const bright = numberInput(rgb.brightness_pct ?? 40, 0, 100, 1, v => { rgb.brightness_pct = v; renderOutputs(); });
+  const ledCount = numberInput(rgb.led_count ?? 1, 1, 300, 1, v => { rgb.led_count = v; renderOutputs(); });
+  const needsColor = OUTPUT_RGB_PATTERNS_NEED_COLOR.has(rgb.pattern || 'solid');
+  const previewColor = `rgba(${rgb.r ?? 0}, ${rgb.g ?? 0}, ${rgb.b ?? 0}, ${(rgb.brightness_pct ?? 40) / 100})`;
+  const rows = [
+    el('div', {}, [el('label', { class: 'field' }, 'Pattern'), patternSel]),
+    el('div', {}, [el('label', { class: 'field' }, 'LED count'), ledCount, el('p', { class: 'hint' }, 'Number of addressable LEDs in this S1/S2 string (1–300).')]),
+    el('div', {}, [el('label', { class: 'field' }, 'Brightness (%)'), bright]),
+  ];
+  if (needsColor) {
+    rows.push(el('div', {}, [el('label', { class: 'field' }, 'Pattern color wheel'), color]));
+    rows.push(rgbChannelInput(rgb, 'r', 'Red (0–255)'));
+    rows.push(rgbChannelInput(rgb, 'g', 'Green (0–255)'));
+    rows.push(rgbChannelInput(rgb, 'b', 'Blue (0–255)'));
+    if (cfg.protocol === 'rgbw') rows.push(el('div', {}, [el('label', { class: 'field' }, 'White channel (0–255)'), white]));
+  }
+  return el('div', { class: 'summary', style: 'margin-top:10px' }, [
+    el('strong', {}, 'RGB / RGBW lighting'),
+    el('p', { class: 'hint' }, 'Configures this S1/S2 signal output as an addressable lighting channel. Patterns that use a selected color show the color picker.'),
+    el('div', { class: 'grid-2', style: 'margin-top:8px' }, rows),
+    needsColor ? el('div', { class: 'rgb-preview' }, [
+      el('span', { class: 'rgb-swatch', style: `background:${previewColor}` }, ''),
+      el('span', { class: 'hint' }, `RGB(${rgb.r ?? 0}, ${rgb.g ?? 0}, ${rgb.b ?? 0})${cfg.protocol === 'rgbw' ? ` W(${rgb.w ?? 0})` : ''}`),
+    ]) : el('p', { class: 'hint' }, 'This pattern uses generated/status colors, so no color wheel is needed.'),
   ]);
 }
 
@@ -1288,6 +1634,10 @@ function motorModeSelect(value, onChange) {
 function renderManualMotorControls(o, cfg, nameInput, dirWrap, primary) {
   const pwm = cfg.pwm || (cfg.pwm = { frequency_hz: 20000, duty_pct: 100 });
   if (!cfg.motor_mode) cfg.motor_mode = 'proportional';
+  cfg.acceleration_ms = Math.max(0, Math.min(10000, Number(cfg.acceleration_ms ?? cfg.ramp_ms ?? 0)));
+  cfg.deceleration_ms = Math.max(0, Math.min(10000, Number(cfg.deceleration_ms ?? 0)));
+  cfg.ramp_curve = cfg.ramp_curve === 's_curve' ? 's_curve' : 'linear';
+  cfg.ramp_smoothing_pct = Math.max(0, Math.min(100, Number(cfg.ramp_smoothing_pct ?? 50)));
   if ((cfg.motor_mode === 'momentary' || cfg.motor_mode === 'latching') && !isManualMotorDigitalSource(cfg.primary)) cfg.primary = 'NONE';
   const source = (cfg.motor_mode === 'momentary' || cfg.motor_mode === 'latching') ? manualMotorSourceSelect(cfg.primary, o.id) : primary;
   source.addEventListener('change', e => { state.outputs[o.id].primary = e.target.value; applyDigitalPreset(state.outputs[o.id]); renderOutputs(); });
@@ -1335,7 +1685,8 @@ function renderOutput(o) {
     }
   });
 
-  const isServo = o.kind === 'servo';
+  const isRgbLighting = cfg.purpose === 'rgb_lighting';
+  const isServo = o.kind === 'servo' && cfg.purpose === 'servo';
   const isDigitalOutput = cfg.purpose === 'digital_output';
   ensureDigitalDefaults(cfg);
   const servoSel = el('select', { 'data-name': 'servo_mode' },
@@ -1378,6 +1729,7 @@ function renderOutput(o) {
     else if (v === 'esc') { state.outputs[o.id].protocol = 'rc_esc_pwm'; state.outputs[o.id].semantics = 'esc_forward_only'; applyPulseDefaults(state.outputs[o.id]); }
     else if (v === 'digital_input' || v === 'digital_output') { state.outputs[o.id].protocol = 'gpio'; state.outputs[o.id].semantics = v; }
     else if (v === 'pwm_accessory') { state.outputs[o.id].protocol = 'pwm_duty'; state.outputs[o.id].semantics = 'pwm_accessory'; }
+    else if (v === 'rgb_lighting') { state.outputs[o.id].protocol = 'rgbw'; state.outputs[o.id].semantics = 'rgb_lighting'; ensureRoleDefaults(state.outputs[o.id]); }
     else if (v === 'disabled') { state.outputs[o.id].protocol = 'none'; state.outputs[o.id].semantics = 'none'; }
     renderOutputs();
   });
@@ -1389,6 +1741,7 @@ function renderOutput(o) {
     if (cfg.purpose === 'esc') return ['rc_esc_pwm','rc_esc_pwm_100','rc_esc_pwm_250','rc_esc_pwm_333','rc_esc_pwm_490','oneshot','oneshot125','oneshot42','multishot'].includes(p);
     if (cfg.purpose === 'digital_input' || cfg.purpose === 'digital_output') return p === 'gpio';
     if (cfg.purpose === 'pwm_accessory') return p === 'pwm_duty';
+    if (cfg.purpose === 'rgb_lighting') return p === 'rgb' || p === 'rgbw';
     return false;
   };
   for (const [value, label, disabled] of PROTOCOL_OPTIONS) {
@@ -1398,14 +1751,14 @@ function renderOutput(o) {
     if (disabled) opt.disabled = true;
     protocolSel.appendChild(opt);
   }
-  protocolSel.addEventListener('change', e => { state.outputs[o.id].protocol = e.target.value; applyPulseDefaults(state.outputs[o.id], e.target.value); renderOutputs(); });
+  protocolSel.addEventListener('change', e => { state.outputs[o.id].protocol = e.target.value; if (state.outputs[o.id].purpose === 'servo' || state.outputs[o.id].purpose === 'esc') applyPulseDefaults(state.outputs[o.id], e.target.value); renderOutputs(); });
 
   card.appendChild(el('header', {}, [
-    el('h3', {}, outputDisplayName(o.id)),
+    el('div', { class: 'output-title' }, [el('h3', {}, outputDisplayName(o.id)), el('span', { 'data-output-state-slot': o.id }, outputStateChip(o.id))]),
     el('span', { class: 'id' }, o.id),
   ]));
   if (o.detail) card.appendChild(el('p', { class: 'hint' }, o.detail));
-  if (o.configOnly || cfg.config_only) card.appendChild(el('p', { class: 'hint' }, 'Planning/config-only until this header pin is verified and wired in firmware; options mirror S1/S2 capabilities.'));
+  if (o.configOnly || cfg.config_only) card.appendChild(el('div', { class: 'planning-banner' }, 'Header H1 — config/planning only. Not active at runtime yet.'));
   if (!o.runtimeControlled) {
     card.appendChild(el('div', { class: 'grid-2' }, [
       el('div', {}, [
@@ -1421,7 +1774,6 @@ function renderOutput(o) {
       el('div', {}, [
         el('label', { class: 'field' }, 'Protocol'),
         protocolSel,
-        (cfg.protocol === 'oneshot42' || cfg.protocol === 'multishot') ? el('p', { class: 'hint' }, 'This protocol is listed for planning but is not working yet.') : null,
       ]),
     ]));
   }
@@ -1434,9 +1786,54 @@ function renderOutput(o) {
       card.appendChild(el('div', { class: 'grid-2', style: 'margin-top:10px' }, [
         el('div', {}, [el('label', { class: 'field' }, 'Channel name'), nameInput]),
         el('div', {}, [el('label', { class: 'field' }, 'PWM frequency (Hz)'), numberInput(pwm.frequency_hz || 20000, 1000, 40000, 100, v => { pwm.frequency_hz = v; })]),
+        el('label', { class: 'check' }, [(() => { const inp = el('input', { type: 'checkbox' }); inp.checked = cfg.direction === 'reversed'; inp.addEventListener('change', e => { cfg.direction = e.target.checked ? 'reversed' : 'normal'; }); return inp; })(), el('span', {}, `Invert ${o.id} motor direction`)]),
       ]));
       card.appendChild(renderRuntimeDriveAssignment(o));
     }
+    card.appendChild(renderFailsafeSummary(o.id, cfg));
+    return card;
+  }
+
+  if (isRgbLighting) {
+    card.appendChild(renderRgbLightingControls(o, cfg));
+    card.appendChild(renderFailsafeSummary(o.id, cfg));
+    return card;
+  }
+
+  if (cfg.purpose === 'disabled') {
+    card.appendChild(el('div', { class: 'summary', style: 'margin-top:10px' }, [
+      el('strong', {}, 'Disabled output'),
+      el('p', { class: 'hint' }, 'This channel is unused. No controller source, direction, deadzone, or secondary input is applied.'),
+    ]));
+    card.appendChild(renderFailsafeSummary(o.id, cfg));
+    return card;
+  }
+
+  if (cfg.purpose === 'digital_input') {
+    card.appendChild(renderDigitalInputControls(o, cfg));
+    card.appendChild(renderFailsafeSummary(o.id, cfg));
+    return card;
+  }
+
+  if (isDigitalOutput) {
+    card.appendChild(el('div', { class: 'grid-2', style: 'margin-top:10px' }, [
+      el('div', {}, [
+        el('label', { class: 'field' }, 'Control source'),
+        primary,
+      ]),
+      el('div', {}, [
+        el('label', { class: 'field' }, 'Source behavior'),
+        el('p', { class: 'summary' }, isButtonLikeSource(cfg.primary) ? 'Direct button/D-pad control' : (isTriggerSource(cfg.primary) ? 'Trigger threshold' : (isStickSource(cfg.primary) ? 'Stick threshold' : 'Unassigned'))),
+      ]),
+    ]));
+    card.appendChild(renderDigitalOutputControls(o, cfg));
+    card.appendChild(renderFailsafeSummary(o.id, cfg));
+    return card;
+  }
+
+  if (cfg.purpose === 'pwm_accessory') {
+    card.appendChild(renderPwmAccessoryControls(o, cfg));
+    card.appendChild(renderFailsafeSummary(o.id, cfg));
     return card;
   }
 
@@ -1475,8 +1872,7 @@ function renderOutput(o) {
     ]));
   } else if (isServo) {
     grid2.appendChild(el('div', {}, [
-      el('label', { class: 'field' }, 'Secondary input'),
-      secondary,
+      el('p', { class: 'hint' }, 'Servo uses only the primary input. Secondary/reverse input is only shown for ESC / motor controller outputs.'),
     ]));
   } else {
     grid2.appendChild(el('div', {}, [
@@ -1491,6 +1887,9 @@ function renderOutput(o) {
   if (cfg.purpose === 'digital_input') {
     card.appendChild(renderDigitalInputControls(o, cfg));
   }
+  if (cfg.purpose === 'drive' || cfg.purpose === 'servo' || cfg.purpose === 'esc') {
+    card.appendChild(renderMotionProfile(o, cfg));
+  }
   if (cfg.purpose === 'servo' || cfg.purpose === 'esc') {
     card.appendChild(renderPulseControls(o, cfg));
   }
@@ -1501,12 +1900,16 @@ function renderOutput(o) {
   if (cfg.purpose === 'pwm_accessory') {
     card.appendChild(renderPwmAccessoryControls(o, cfg));
   }
+  if (cfg.purpose === 'rgb_lighting') {
+    card.appendChild(renderRgbLightingControls(o, cfg));
+  }
   if (!isServo) {
     card.appendChild(el('div', { class: 'summary' }, [
       el('strong', {}, 'Mapping: '),
       motorMappingSummary(state.outputs[o.id]),
     ]));
   }
+  card.appendChild(renderFailsafeSummary(o.id, cfg));
   return card;
 }
 
@@ -1528,18 +1931,27 @@ const SW1_ACTIONS = [
 function sw1ActionSelect(value, onChange) {
   return driveSelect(value || 'none', SW1_ACTIONS, onChange);
 }
+function normalizeSw1Config(cfg = {}) {
+  return {
+    short_action: cfg.short_action || 'pairing',
+    double_action: cfg.double_action || 'none',
+    hold_action: cfg.hold_action || cfg.long_action || 'clear_pair',
+    hold_ms: Number(cfg.hold_ms ?? cfg.long_hold_ms ?? 5000),
+  };
+}
 function renderSw1Controls() {
-  const cfg = state.sw1 || (state.sw1 = { short_action: 'pairing', long_action: 'clear_pair', long_hold_ms: 5000, double_action: 'none' });
-  const hold = numberInput(cfg.long_hold_ms || 5000, 1000, 10000, 500, v => { cfg.long_hold_ms = v; });
+  const cfg = state.sw1 = normalizeSw1Config(state.sw1);
+  const hold = numberInput(cfg.hold_ms || 5000, 1000, 10000, 500, v => { cfg.hold_ms = v; });
   return el('div', { class: 'summary', style: 'margin-top:10px' }, [
     el('strong', {}, 'SW1 timing/actions'),
+    el('p', { class: 'hint' }, 'Firmware-backed physical mode button actions. Short press waits briefly so a second press can become a double press.'),
     el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
       el('div', {}, [el('label', { class: 'field' }, 'Short press'), sw1ActionSelect(cfg.short_action, v => { cfg.short_action = v; })]),
       el('div', {}, [el('label', { class: 'field' }, 'Double press'), sw1ActionSelect(cfg.double_action, v => { cfg.double_action = v; })]),
-      el('div', {}, [el('label', { class: 'field' }, 'Hold action'), sw1ActionSelect(cfg.long_action, v => { cfg.long_action = v; })]),
+      el('div', {}, [el('label', { class: 'field' }, 'Hold action'), sw1ActionSelect(cfg.hold_action, v => { cfg.hold_action = v; })]),
       el('div', {}, [el('label', { class: 'field' }, 'Hold time (ms)'), hold]),
     ]),
-    el('p', { class: 'hint' }, 'Firmware currently uses the safe default: hold SW1 for 5 seconds to clear controllers and start pairing. Other actions are proposed options for the physical mode button workflow.'),
+    el('p', { class: 'hint' }, 'Default: short press starts pairing; hold for 5000 ms clears controllers and starts pairing.'),
   ]);
 }
 
@@ -1571,6 +1983,7 @@ function renderRgbControls() {
   const cfg = state.rgb || (state.rgb = { led_count: 1, type: 'RGBW', brightness_pct: 40 });
   return el('div', { class: 'summary', style: 'margin-top:10px' }, [
     el('strong', {}, 'RGB / RGBW lighting plan'),
+    el('div', { class: 'planning-banner' }, 'RGB/RGBW — planning only until firmware pattern runtime is active.'),
     el('div', { class: 'grid-2', style: 'margin-top:8px' }, [
       el('div', {}, [el('label', { class: 'field' }, 'LED count'), numberInput(cfg.led_count || 1, 1, 64, 1, v => { cfg.led_count = v; }), el('p', { class: 'hint' }, '1 = onboard LED only. Increase when using the daisy-chain header.')]),
       el('div', {}, [el('label', { class: 'field' }, 'LED type'), driveSelect(cfg.type || 'RGBW', RGB_TYPES, v => { cfg.type = v; })]),
@@ -1607,14 +2020,22 @@ function renderBoardIoCard(io) {
   return card;
 }
 
+function renderSettingsBoardIo() {
+  const root = document.getElementById('settings-board-io');
+  if (!root) return;
+  const profile = activeBoardProfile();
+  root.innerHTML = '';
+  for (const io of profile.io) root.appendChild(renderBoardIoCard(io));
+}
 function renderOutputs() {
   const root = document.getElementById('outputs');
   const profile = activeBoardProfile();
   root.innerHTML = '';
   root.appendChild(renderDriveModeCard());
   for (const o of profile.outputs) root.appendChild(renderOutput(o));
-  for (const io of profile.io) root.appendChild(renderBoardIoCard(io));
+  renderSettingsBoardIo();
   renderPowerBehavior();
+  renderLiveOutputStrip();
 }
 
 const BATTERY_STATES = [
@@ -1676,13 +2097,25 @@ function renderPowerRow(id, cfg, stateName, label, cls, rerender) {
     powerSelect(id, stateName, rerender),
   ]);
 }
+const powerOpenCards = new Set();
+function rememberPowerOpenState() {
+  document.querySelectorAll('details[data-power-card]').forEach(d => {
+    if (d.open) powerOpenCards.add(d.dataset.powerCard);
+    else powerOpenCards.delete(d.dataset.powerCard);
+  });
+}
 function renderPowerCard(id) {
   const cfg = state.outputs[id];
   if (!powerIsEnabled(id, cfg)) return null;
   if (!cfg.power) cfg.power = { GOOD: 'default', WARN: 'default', LOW: 'default' };
   const details = el('details', { class: `power-card${id === 'H1' ? ' config-only' : ''}`, 'data-power-card': id });
+  if (powerOpenCards.has(id)) details.open = true;
+  details.addEventListener('toggle', () => {
+    if (details.open) powerOpenCards.add(id);
+    else powerOpenCards.delete(id);
+  });
   const overrideCount = BATTERY_STATES.filter(([stateName]) => (cfg.power?.[stateName] || 'default') !== 'default').length;
-  const rerender = () => renderPowerBehavior();
+  const rerender = () => { rememberPowerOpenState(); renderPowerBehavior(); };
   details.appendChild(el('summary', {}, [
     el('div', {}, [
       el('div', { class: 'power-title' }, outputDisplayName(id)),
@@ -1700,12 +2133,13 @@ function renderPowerCard(id) {
   return details;
 }
 function renderPowerBehavior() {
+  rememberPowerOpenState();
   const root = document.getElementById('power-behavior');
   if (!root) return;
   root.innerHTML = '';
   root.appendChild(el('p', { class: 'meta' }, `Only enabled output channels appear here. Defaults are GOOD = Allow, WARN = Reduce to 50%, LOW = Disable. If you change a value from its default, the select box is highlighted.`));
   root.appendChild(el('div', { class: 'summary power-safety' }, [
-    el('strong', {}, '🔒 Safety Stop is always active. '),
+    el('strong', {}, '● Safety Stop is always active. '),
     'Disconnect stop, failsafe, and system safety behavior cannot be disabled from this section.',
   ]));
   const ids = activeBoardProfile().outputs.map(o => o.id).filter(id => powerIsEnabled(id, state.outputs[id]));
@@ -1877,7 +2311,7 @@ async function apiPostJSON(path, body) {
 
 // ---- Save / Reset wiring -----------------------------------------------
 function editableOutputPatch(outputs) {
-  const patch = { drive_mode: state.drive_mode, drive: normalizeDriveSetup(state.drive || {}, state.drive_mode) };
+  const patch = { drive_mode: state.drive_mode, drive: normalizeDriveSetup(state.drive || {}, state.drive_mode), sw1: normalizeSw1Config(state.sw1), disconnect_failsafe: state.disconnect_failsafe || 'safe_stop' };
   const firmwareOutputIds = new Set(['M1','M2','S1','S2']);
   for (const [id, cfg] of Object.entries(outputs)) {
     if (!firmwareOutputIds.has(id)) continue;
@@ -1911,9 +2345,19 @@ function editableOutputPatch(outputs) {
       weapon_mode: cfg.safety?.weapon_mode,
       arming_source: cfg.safety?.arming_source,
       deadman_source: cfg.safety?.deadman_source,
-      ramp_ms: cfg.ramp_ms,
+      acceleration_ms: cfg.acceleration_ms,
+      deceleration_ms: cfg.deceleration_ms,
+      ramp_curve: cfg.ramp_curve,
+      ramp_smoothing_pct: cfg.ramp_smoothing_pct,
       pwm_frequency_hz: cfg.pwm?.frequency_hz,
       pwm_duty_pct: cfg.pwm?.duty_pct,
+      rgb_pattern: cfg.rgb?.pattern,
+      rgb_r: cfg.rgb?.r,
+      rgb_g: cfg.rgb?.g,
+      rgb_b: cfg.rgb?.b,
+      rgb_w: cfg.rgb?.w,
+      rgb_brightness_pct: cfg.rgb?.brightness_pct,
+      rgb_led_count: cfg.rgb?.led_count,
       esc_arm_mode: cfg.esc_arm?.mode,
       esc_arm_source: cfg.esc_arm?.source,
       esc_arm_hold_ms: cfg.esc_arm?.hold_ms,
@@ -1948,7 +2392,7 @@ function configBackupPayload() {
       firmware_version: document.getElementById('fw-version')?.textContent || null,
     },
     outputs_patch: editableOutputPatch(state.outputs),
-    local_ui_only: { H1: state.outputs.H1, sw1: state.sw1, rgb: state.rgb },
+    local_ui_only: { H1: state.outputs.H1, rgb: state.rgb },
     battery: {
       cell_count: state.battery.cell_count,
       cutoff_percent: state.battery.cutoff_percent,
@@ -1978,6 +2422,9 @@ function configBackupFilename() {
 
 function patchFromUploadedConfig(data) {
   if (!data || typeof data !== 'object') throw new Error('file is not a JSON object');
+  if (data.schema !== undefined && data.schema !== CONFIG_SCHEMA) {
+    throw new Error(`incompatible schema: ${String(data.schema)}`);
+  }
   if (data.outputs_patch && typeof data.outputs_patch === 'object') {
     if (data.outputs_patch.Weapon !== undefined) throw new Error('obsolete Weapon output is not supported; configure weapon as S1/S2 role');
     const patch = { ...data.outputs_patch };
@@ -2004,6 +2451,8 @@ function patchFromUploadedConfig(data) {
 function applyUploadedPatchToForm(patch) {
   if (patch.drive_mode && DRIVE_MODE_LEGACY[patch.drive_mode]) state.drive_mode = patch.drive_mode;
   if (patch.drive && typeof patch.drive === 'object') state.drive = normalizeDriveSetup(patch.drive, state.drive_mode);
+  if (patch.sw1 && typeof patch.sw1 === 'object') state.sw1 = normalizeSw1Config(patch.sw1);
+  if (patch.disconnect_failsafe === 'hold_last' || patch.disconnect_failsafe === 'safe_stop') state.disconnect_failsafe = patch.disconnect_failsafe;
   for (const id of activeBoardProfile().outputs.map(o => o.id)) {
     if (patch[id] && typeof patch[id] === 'object' && state.outputs[id]) state.outputs[id] = patch[id];
   }
@@ -2053,13 +2502,77 @@ document.getElementById('btn-config-download').addEventListener('click', () => {
   toast('Configuration downloaded');
 });
 
+const CONFIG_SCHEMA = 'combat-robot-controller-v2.config.v1';
+const GENERIC_BOARD_PRESETS = {
+  tank_drive: { label: 'Tank drive', summary: 'M1 = left stick, M2 = right stick; S1/S2 disabled.', drive_mode: 'tank_split', drive: { layout:'differential', method:'tank', left_axis:'LY', right_axis:'RY' } },
+  arcade_drive: { label: 'Arcade drive', summary: 'M1/M2 mixed from left-stick throttle and steering; S1/S2 disabled.', drive_mode: 'arcade', drive: { layout:'differential', method:'arcade', throttle_axis:'LY', steering_axis:'LX' } },
+  servo_steer: { label: 'Servo-steer car', summary: 'M1 = traction motor, S1 = steering servo; unused outputs disabled.', drive_mode: 'servo_steering', drive: { layout:'servo_steering', method:'servo_steering', throttle_axis:'LY', steering_axis:'LX', drive_motor_output:'M1', steering_output:'S1' } },
+  safety_esc: { label: 'Arcade drive + ESC (weapon safety)', summary: 'M1/M2 arcade drive; S1 = OneShot125 ESC with weapon safety; S2 disabled.', drive_mode: 'arcade', drive: { layout:'differential', method:'arcade', throttle_axis:'LY', steering_axis:'LX' }, aux:'weapon' },
+  solenoid_accessory: { label: 'Solenoid / accessory', summary: 'Drive mixer disabled; M1 = momentary A-button accessory; other outputs disabled.', drive_mode: 'none', drive: { layout:'differential', method:'none' }, manual:'solenoid' },
+  led_strip: { label: 'LED status strip', summary: 'Drive mixer disabled; S1 = RGB status strip; motor outputs and S2 disabled.', drive_mode: 'none', drive: { layout:'differential', method:'none' }, aux:'led' },
+  bench_safe: { label: 'Bench-safe (all outputs disabled)', summary: 'No mixer and all four outputs disabled. Safe starting point for USB/API setup.', drive_mode: 'none', drive: { layout:'differential', method:'none' } },
+};
+
+function disabledPresetOutput(id) {
+  const motor = id === 'M1' || id === 'M2';
+  return { ...JSON.parse(JSON.stringify(state.outputs[id] || {})), display_name: id, purpose: motor ? 'drive' : 'disabled', protocol:'none', semantics:'none', primary:'NONE', secondary:'NONE', motor_mode:'disabled', weapon_safety:false };
+}
+function presetPatch(name) {
+  const preset = GENERIC_BOARD_PRESETS[name];
+  if (!preset) throw new Error('unknown preset');
+  const patch = { drive_mode:preset.drive_mode, drive:normalizeDriveSetup(preset.drive, preset.drive_mode), disconnect_failsafe:'safe_stop' };
+  for (const id of ['M1','M2','S1','S2']) patch[id] = disabledPresetOutput(id);
+  if (name === 'tank_drive' || name === 'arcade_drive' || name === 'safety_esc') {
+    patch.M1 = { ...patch.M1, display_name:'Left drive', purpose:'drive', primary:name === 'tank_drive' ? 'LY' : 'NONE', motor_mode:'proportional' };
+    patch.M2 = { ...patch.M2, display_name:'Right drive', purpose:'drive', primary:name === 'tank_drive' ? 'RY' : 'NONE', motor_mode:'proportional' };
+  } else if (name === 'servo_steer') {
+    patch.M1 = { ...patch.M1, display_name:'Drive motor', purpose:'drive', motor_mode:'proportional' };
+    patch.S1 = { ...patch.S1, display_name:'Steering servo', purpose:'servo', protocol:'rc_servo_pwm', semantics:'position_servo', primary:'LX', servo_mode:'bi' };
+  } else if (name === 'solenoid_accessory') {
+    patch.M1 = { ...patch.M1, display_name:'Solenoid', purpose:'drive', motor_mode:'momentary', primary:'A' };
+  }
+  if (preset.aux === 'weapon') patch.S1 = { ...patch.S1, display_name:'Safety ESC', purpose:'esc', protocol:'oneshot125', semantics:'esc_forward_only', primary:'RT', weapon_safety:true, failsafe:'neutral', weapon_mode:'hold_to_arm', arming_source:'L1', deadman_source:'R1' };
+  if (preset.aux === 'led') patch.S1 = { ...patch.S1, display_name:'Status LEDs', purpose:'rgb_lighting', protocol:'rgb', semantics:'none', rgb_pattern:'battery', rgb_r:0, rgb_g:64, rgb_b:255, rgb_w:0, rgb_brightness_pct:40, rgb_led_count:8 };
+  return patch;
+}
+function configImportSummary(data, patch) {
+  const outputIds = ['M1','M2','S1','S2'].filter(id => patch[id]);
+  const extras = [];
+  if (patch.drive || patch.drive_mode) extras.push('drive setup');
+  if (patch.sw1) extras.push('SW1');
+  if (patch.disconnect_failsafe) extras.push(`failsafe=${patch.disconnect_failsafe}`);
+  if (data.battery) extras.push('battery');
+  if (data.max_paired !== undefined) extras.push(`max paired=${data.max_paired}`);
+  return `Outputs: ${outputIds.join(', ') || 'none'}${extras.length ? ' · ' + extras.join(' · ') : ''}`;
+}
+
+const presetSelect = document.getElementById('config-preset-select');
+for (const [id, preset] of Object.entries(GENERIC_BOARD_PRESETS)) presetSelect.appendChild(el('option', { value:id }, preset.label));
+function renderPresetSummary() { document.getElementById('config-preset-summary').textContent = GENERIC_BOARD_PRESETS[presetSelect.value].summary; }
+presetSelect.addEventListener('change', renderPresetSummary);
+renderPresetSummary();
+document.getElementById('btn-config-preset').addEventListener('click', () => {
+  const preset = GENERIC_BOARD_PRESETS[presetSelect.value];
+  applyUploadedPatchToForm(presetPatch(presetSelect.value));
+  toast(`${preset.label} loaded — review and Save to persist`);
+});
+
 document.getElementById('btn-config-upload').addEventListener('click', async () => {
   const input = document.getElementById('config-upload-file');
   const status = document.getElementById('config-backup-status');
+  const preview = document.getElementById('config-import-preview');
   const file = input?.files?.[0];
   if (!file) { toast('Choose a JSON config file first', 'err'); return; }
   try {
     const data = JSON.parse(await file.text());
+    const patch = patchFromUploadedConfig(data);
+    preview.textContent = configImportSummary(data, patch);
+    preview.style.display = 'block';
+    status.textContent = 'preview ready';
+    if (!confirm(`Apply this configuration?\n\n${preview.textContent}`)) {
+      status.textContent = 'previewed — not applied';
+      return;
+    }
     await applyUploadedConfig(data);
     status.textContent = 'applied';
     toast('Configuration uploaded and applied');
@@ -2085,6 +2598,19 @@ document.getElementById('btn-reset').addEventListener('click', () => {
 });
 
 document.getElementById('btn-reload').addEventListener('click', () => location.reload());
+
+document.getElementById('disconnect-failsafe-select').addEventListener('change', e => {
+  state.disconnect_failsafe = e.target.value === 'hold_last' ? 'hold_last' : 'safe_stop';
+});
+document.getElementById('btn-disconnect-failsafe-save').addEventListener('click', async () => {
+  const selected = document.getElementById('disconnect-failsafe-select').value === 'hold_last' ? 'hold_last' : 'safe_stop';
+  if (selected === 'hold_last' && !confirm('DANGER: hold-last keeps the last sent controller value active after disconnect/timeout. Enable only for controlled setup or bench use?')) return;
+  try {
+    state.disconnect_failsafe = selected;
+    await apiPostJSON('/api/config', { disconnect_failsafe: selected });
+    toast(selected === 'hold_last' ? 'Disconnect override: HOLD LAST' : 'Disconnect failsafe: safe stop');
+  } catch (e) { toast('Failsafe save failed: ' + e.message, 'err'); }
+});
 
 // ---- Pairing wiring ----------------------------------------------------
 document.getElementById('btn-pair').addEventListener('click', async () => {
@@ -2180,6 +2706,7 @@ document.getElementById('btn-battery-save').addEventListener('click', async () =
 
 // ---- /api/status polling -----------------------------------------------
 function applyStatus(s) {
+  state.lastStatus = s || {};
   state.pairingActive = (s.pairing_state === 'ACCEPT');
   document.getElementById('pair-state').textContent = s.pairing_state || '—';
   document.getElementById('btn-pair').disabled = state.pairingActive;
@@ -2217,6 +2744,21 @@ function applyStatus(s) {
   document.getElementById('battery-state').textContent = battState ? battStateLabel : '—';
   document.getElementById('battery-warn-mv').textContent = battWarnMv ? `${(battWarnMv/1000).toFixed(2)} V (${battWarnPct}%)` : '—';
   document.getElementById('battery-cutoff-mv').textContent = battCutoffMv ? `${(battCutoffMv/1000).toFixed(2)} V (${battCutoffPct}%)` : '—';
+  const gaugeFill = document.getElementById('battery-gauge-fill');
+  const gaugeLabel = document.getElementById('battery-gauge-label');
+  const gaugeState = document.getElementById('battery-gauge-state');
+  const battCls = battState === 3 ? 'bad' : (battState === 2 ? 'warn' : (battState === 1 ? 'good' : ''));
+  if (gaugeFill) {
+    gaugeFill.style.width = battMv ? `${Math.max(0, Math.min(100, battPct))}%` : '0%';
+    gaugeFill.className = `battery-fill ${battCls}`.trim();
+  }
+  if (gaugeLabel) gaugeLabel.textContent = battMv ? `Battery ${battPct}% · ${(battMv/1000).toFixed(2)} V / ${battCells}S` : 'Battery Loading…';
+  if (gaugeState) {
+    gaugeState.textContent = battState === 3 ? '✕ LOW' : (battState === 2 ? '▲ WARN' : (battState === 1 ? '● GOOD' : '● Loading…'));
+    gaugeState.className = battCls ? battCls : '';
+  }
+  renderLiveOutputStrip();
+  updateOutputHeaderStates();
   // Only refresh the inputs when the user has no unsaved edit. The 1s status poll
   // would otherwise snap cell count / cutoff back to whatever the firmware last
   // reported, making it impossible to type a new value before clicking Save.
@@ -2241,7 +2783,9 @@ function applyStatus(s) {
       && String(cutoffInput.value) !== String(battCutoffPct)) {
     cutoffInput.value = String(battCutoffPct);
   }
-  document.getElementById('board-rev').textContent = 'v2 (compile-time)';
+  const boardText = s.board_rev ? `v${s.board_rev}` : (s.board_rev_override ? `v${s.board_rev_override} override` : 'v2 (compile-time)');
+  document.getElementById('board-rev').textContent = boardText;
+  document.getElementById('fw-board').textContent = boardText;
   renderPairedMacs(s.paired_macs || []);
   // Drive the BLE header and visible connected MAC from polled status truth
   // so a newly paired controller appears without a manual page reload.
@@ -2272,6 +2816,12 @@ async function loadConfig() {
       state.max_paired = j.max_paired;
       const inp = document.getElementById('max-paired-input');
       if (inp) inp.value = String(j.max_paired);
+    }
+    if (j.sw1 && typeof j.sw1 === 'object') state.sw1 = normalizeSw1Config(j.sw1);
+    if (j.disconnect_failsafe === 'hold_last' || j.disconnect_failsafe === 'safe_stop') {
+      state.disconnect_failsafe = j.disconnect_failsafe;
+      const fs = document.getElementById('disconnect-failsafe-select');
+      if (fs) fs.value = state.disconnect_failsafe;
     }
     for (const k of Object.keys(j.outputs || {})) {
       if (state.outputs[k]) state.outputs[k] = j.outputs[k];

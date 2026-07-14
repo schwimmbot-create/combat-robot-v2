@@ -68,24 +68,38 @@ void DriveMotor::setSpeed(uint16_t speed, byte direction, byte orientation){
     }
 
 
+    speed = constrain(speed, (uint16_t)0, (uint16_t)255);
+    _speed = speed;
+    _direction = direction;
+
     if(direction == STOP){
         ESP_LOGD(TAG, "Motor Stopped");
         // v2.0.14 ledcWrite returns void; use the explicit channel
         // (not the pin number, which was the v1.3 hack).
-        ledcWrite(_fwd_channel, 0);
-        ledcWrite(_rev_channel, 0);
+        _fwd_duty = 0;
+        _rev_duty = 0;
+        ledcWrite(_fwd_channel, _fwd_duty);
+        ledcWrite(_rev_channel, _rev_duty);
     }
     else if( direction == FORWARD){
         ESP_LOGD(TAG, "Forward: %d", speed);
-        ledcWrite(_fwd_channel, 255);
-        ledcWrite(_rev_channel, 255-speed);
+        _fwd_duty = 255;
+        _rev_duty = 255 - speed;
+        ledcWrite(_fwd_channel, _fwd_duty);
+        ledcWrite(_rev_channel, _rev_duty);
     }
     else if( direction == REVERSE ){
         ESP_LOGD(TAG, "Reverse: %d", speed);
-        ledcWrite(_fwd_channel, 255-speed);
-        ledcWrite(_rev_channel, 255);
+        _fwd_duty = 255 - speed;
+        _rev_duty = 255;
+        ledcWrite(_fwd_channel, _fwd_duty);
+        ledcWrite(_rev_channel, _rev_duty);
     }
 
+}
+
+DriveMotorIntent DriveMotor::getIntent() const {
+    return DriveMotorIntent{_speed, _direction, _fwd_duty, _rev_duty, _pwm_frequency_hz};
 }
 
 

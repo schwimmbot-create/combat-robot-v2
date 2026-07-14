@@ -21,6 +21,7 @@ class Drive{
         void stop();
         void stopLeft();
         void stopRight();
+        DriveMotorIntent getMotorIntent(bool left_motor) const;
 
 
     private:

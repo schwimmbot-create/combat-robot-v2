@@ -1,0 +1,6 @@
+{
+  "name": "robot_board",
+  "version": "0.1.0",
+  "description": "Beginner-friendly, safety-oriented Arduino API for Combat Robot Controller v2",
+  "build": { "srcDir": "src", "includeDir": "include" }
+}

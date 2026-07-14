@@ -137,6 +137,10 @@ typedef struct {
     oc_output_id_t steering_output;
     oc_source_id_t precision_source;
     uint8_t precision_scale_pct;
+    bool precision_latching; // false = active while held; true = toggle on press
+    // Per-side drivetrain calibration. 100 = unchanged; lower slows that side.
+    uint8_t left_speed_pct;
+    uint8_t right_speed_pct;
     oc_source_id_t brake_source;
     oc_source_id_t invert_steering_source;
 } oc_drive_setup_t;
@@ -157,7 +161,8 @@ typedef enum {
     OC_PURPOSE_DIGITAL_OUTPUT = 4,
     OC_PURPOSE_DIGITAL_INPUT  = 5,
     OC_PURPOSE_PWM_ACCESSORY  = 6,
-    OC_PURPOSE__COUNT         = 7,
+    OC_PURPOSE_RGB_LIGHTING   = 7,
+    OC_PURPOSE__COUNT         = 8,
 } oc_purpose_t;
 
 typedef enum {
@@ -178,7 +183,9 @@ typedef enum {
     OC_PROTO_ONESHOT           = 14,
     OC_PROTO_GPIO              = 15,
     OC_PROTO_PWM_DUTY          = 16,
-    OC_PROTO__COUNT            = 17,
+    OC_PROTO_RGB               = 17,
+    OC_PROTO_RGBW              = 18,
+    OC_PROTO__COUNT            = 19,
 } oc_protocol_t;
 
 typedef enum {
@@ -189,8 +196,20 @@ typedef enum {
     OC_SEM_DIGITAL_OUTPUT    = 4,
     OC_SEM_DIGITAL_INPUT     = 5,
     OC_SEM_PWM_ACCESSORY     = 6,
-    OC_SEM__COUNT            = 7,
+    OC_SEM_RGB_LIGHTING      = 7,
+    OC_SEM__COUNT            = 8,
 } oc_semantics_t;
+
+typedef enum {
+    OC_RGB_PATTERN_SOLID = 0,
+    OC_RGB_PATTERN_BLINK = 1,
+    OC_RGB_PATTERN_BREATHE = 2,
+    OC_RGB_PATTERN_RAINBOW = 3,
+    OC_RGB_PATTERN_CHASE = 4,
+    OC_RGB_PATTERN_BATTERY = 5,
+    OC_RGB_PATTERN_CONTROLLER = 6,
+    OC_RGB_PATTERN__COUNT = 7,
+} oc_rgb_pattern_t;
 
 typedef enum {
     OC_FAILSAFE_SAFE_STATE = 0,
@@ -203,6 +222,23 @@ typedef enum {
     OC_POWER_DISABLE = 2,
     OC_POWER_REDUCE  = 3,
 } oc_power_override_t;
+
+typedef enum {
+    OC_SW1_ACTION_NONE = 0,
+    OC_SW1_ACTION_PAIRING = 1,
+    OC_SW1_ACTION_CLEAR_PAIR = 2,
+    OC_SW1_ACTION_CANCEL_PAIRING = 3,
+    OC_SW1_ACTION_RESET_OUTPUTS = 4,
+    OC_SW1_ACTION_BATTERY_STATUS = 5,
+    OC_SW1_ACTION__COUNT = 6,
+} oc_sw1_action_t;
+
+typedef struct {
+    oc_sw1_action_t short_action;
+    oc_sw1_action_t double_action;
+    oc_sw1_action_t hold_action;
+    uint16_t hold_ms;
+} oc_sw1_config_t;
 
 typedef enum {
     OC_WEAPON_ARMING_AND_DEADMAN = 0,
@@ -239,6 +275,8 @@ typedef enum {
 
 #define OC_DISPLAY_NAME_MAX_LEN 16
 
+typedef enum { OC_RAMP_LINEAR = 0, OC_RAMP_S_CURVE } oc_ramp_curve_t;
+
 // Per-output config blob. Defaults are filled in at boot via
 // output_config_reset_defaults() so unknown NVS state still yields
 // a usable robot.
@@ -264,7 +302,10 @@ typedef struct {
     oc_weapon_safety_mode_t weapon_mode;
     oc_source_id_t  arming_source;
     oc_source_id_t  deadman_source;
-    uint16_t        ramp_ms;
+    uint16_t        ramp_ms;         // acceleration time, 0 = instant
+    uint16_t        deceleration_ms; // deceleration time, 0 = instant
+    oc_ramp_curve_t ramp_curve;
+    uint8_t         ramp_smoothing_pct; // 0..100 blend from linear to smoothstep
     oc_esc_arm_mode_t esc_arm_mode;
     oc_source_id_t  esc_arm_source;
     uint16_t        esc_arm_hold_ms;
@@ -285,6 +326,13 @@ typedef struct {
     uint8_t         digital_custom_pct;
     uint16_t        pwm_frequency_hz;
     uint8_t         pwm_duty_pct;
+    oc_rgb_pattern_t rgb_pattern;
+    uint8_t         rgb_r;
+    uint8_t         rgb_g;
+    uint8_t         rgb_b;
+    uint8_t         rgb_w;
+    uint8_t         rgb_brightness_pct;
+    uint16_t        rgb_led_count;
 } oc_output_cfg_t;
 
 // Wire format (JSON) sent to and received from the web UI. The C
@@ -301,13 +349,15 @@ typedef struct {
 // bound matches the BLE array size. Stored as its own small key so old
 // cfg_v1 blobs remain valid.
 #define OC_NVS_KEY_MAX_PAIRED   "max_paired_v1"
+#define OC_NVS_KEY_SW1_CONFIG   "sw1_cfg_v1"
+#define OC_NVS_KEY_DISCONNECT_FAILSAFE "disc_fs_v1"
 #define OC_MAX_PAIRED_DEFAULT   1
 #define OC_MAX_PAIRED_CAP       4
 
 // JSON output buffer sizing. Config is larger under schema v2 because each
 // output includes purpose/protocol/calibration/safety/power metadata. 4KB
 // covers the full config and source-list JSON with headroom on ESP32-C3.
-#define OC_JSON_BUF_SIZE        4096
+#define OC_JSON_BUF_SIZE        6144
 #define OC_SOURCE_NAME_MAX_LEN  12
 
 // Lifecycle ----------------------------------------------------------------
@@ -355,6 +405,12 @@ bool output_config_drive_axis_from_str(const char *s, oc_drive_axis_t *out);
 // from web_config after output_config_init()).
 uint8_t output_config_get_max_paired(void);
 esp_err_t output_config_set_max_paired(uint8_t n);
+const oc_sw1_config_t *output_config_get_sw1_config(void);
+esp_err_t output_config_set_sw1_config(const oc_sw1_config_t *cfg);
+const char *output_config_sw1_action_name(oc_sw1_action_t action);
+bool output_config_sw1_action_from_str(const char *s, oc_sw1_action_t *out);
+bool output_config_get_disconnect_failsafe_hold_last(void);
+esp_err_t output_config_set_disconnect_failsafe_hold_last(bool hold_last);
 
 // Commit current in-RAM state to NVS. Setters already commit; this
 // is mostly for the "Reset + save defaults" workflow to be explicit.
@@ -396,9 +452,11 @@ const char *output_config_output_id_str(oc_output_id_t id);
 
 // Resolve per-channel battery power policy for runtime gating. Returns
 // true when the channel should remain active for the current battery state.
-// Per-channel overrides win over purpose defaults. OC_POWER_REDUCE currently
-// resolves to active; future runtime code can scale output where supported.
+// Per-channel overrides win over purpose defaults. OC_POWER_REDUCE remains
+// active and is exposed via output_config_channel_power_action() so runtime
+// code can scale supported outputs.
 bool output_config_channel_allowed(oc_output_id_t id, uint8_t battery_state);
+oc_power_override_t output_config_channel_power_action(oc_output_id_t id, uint8_t battery_state);
 
 #ifdef __cplusplus
 }

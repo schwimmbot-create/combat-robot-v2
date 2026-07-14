@@ -156,6 +156,11 @@ void TaskManager::managerTask(void* pvParameters) {
                         throttle = self->applyDriveModifiersToThrottle(throttle, driveSetup, currentCs);
                         steering = self->applyDriveModifiersToSteering(steering, driveSetup, currentCs);
                         const bool useLeftMotor = driveSetup->drive_motor_output == OC_OUT_M1;
+                        const oc_output_id_t motorId = useLeftMotor ? OC_OUT_M1 : OC_OUT_M2;
+                        const oc_output_cfg_t* motorCfg = useLeftMotor ? m1Cfg : m2Cfg;
+                        if (motorCfg->direction == OC_DIR_REVERSED) throttle = (int16_t)-throttle;
+                        throttle = self->applyMotionRamp(motorId, throttle, motorCfg->ramp_ms, motorCfg->deceleration_ms);
+                        throttle = self->applyPowerScale(motorId, throttle);
                         const bool allowed = useLeftMotor ? driveLeftAllowed : driveRightAllowed;
                         self->drive.single_motor_drive(useLeftMotor, throttle, self->currentOrientation, allowed);
                         if (useLeftMotor) self->drive.stopRight(); else self->drive.stopLeft();
@@ -169,17 +174,43 @@ void TaskManager::managerTask(void* pvParameters) {
                         int16_t steering = self->readDriveAxis(driveSetup->steering_axis, currentCs);
                         throttle = self->applyDriveModifiersToThrottle(throttle, driveSetup, currentCs);
                         steering = self->applyDriveModifiersToSteering(steering, driveSetup, currentCs);
-                        self->drive.combined_direction(steering, throttle, self->currentOrientation,
-                                                       driveLeftAllowed, driveRightAllowed);
+                        // Preserve full yaw authority: as steering approaches full
+                        // scale, suppress forward throttle rather than clipping one
+                        // side and turning the robot into a slow pivot.
+                        const int16_t drive = (int16_t)(((int32_t)throttle * (512 - abs(steering))) / 512);
+                        int16_t left = constrain((int32_t)drive + steering, -512, 511);
+                        int16_t right = constrain((int32_t)drive - steering, -512, 511);
+                        left = (int16_t)(((int32_t)left * driveSetup->left_speed_pct) / 100);
+                        right = (int16_t)(((int32_t)right * driveSetup->right_speed_pct) / 100);
+                        const oc_output_cfg_t* leftCfg = output_config_get(OC_OUT_M1);
+                        const oc_output_cfg_t* rightCfg = output_config_get(OC_OUT_M2);
+                        if (leftCfg->direction == OC_DIR_REVERSED) left = (int16_t)-left;
+                        if (rightCfg->direction == OC_DIR_REVERSED) right = (int16_t)-right;
+                        left = self->applyMotionRamp(OC_OUT_M1, left, leftCfg->ramp_ms, leftCfg->deceleration_ms);
+                        right = self->applyMotionRamp(OC_OUT_M2, right, rightCfg->ramp_ms, rightCfg->deceleration_ms);
+                        left = self->applyPowerScale(OC_OUT_M1, left);
+                        right = self->applyPowerScale(OC_OUT_M2, right);
+                        self->drive.two_stick_drive(left, right, self->currentOrientation,
+                                                    driveLeftAllowed, driveRightAllowed);
                         self->_driveThrottle = throttle;
                         self->_driveSteering = steering;
-                        self->_driveLeftCommand = constrain((int32_t)throttle + steering, -512, 511);
-                        self->_driveRightCommand = constrain((int32_t)throttle - steering, -512, 511);
+                        self->_driveLeftCommand = left;
+                        self->_driveRightCommand = right;
                     } else {
                         int16_t left = self->readDriveAxis(driveSetup->left_axis, currentCs);
                         int16_t right = self->readDriveAxis(driveSetup->right_axis, currentCs);
                         left = self->applyDriveModifiersToThrottle(left, driveSetup, currentCs);
                         right = self->applyDriveModifiersToThrottle(right, driveSetup, currentCs);
+                        left = (int16_t)(((int32_t)left * driveSetup->left_speed_pct) / 100);
+                        right = (int16_t)(((int32_t)right * driveSetup->right_speed_pct) / 100);
+                        const oc_output_cfg_t* leftCfg = output_config_get(OC_OUT_M1);
+                        const oc_output_cfg_t* rightCfg = output_config_get(OC_OUT_M2);
+                        if (leftCfg->direction == OC_DIR_REVERSED) left = (int16_t)-left;
+                        if (rightCfg->direction == OC_DIR_REVERSED) right = (int16_t)-right;
+                        left = self->applyMotionRamp(OC_OUT_M1, left, leftCfg->ramp_ms, leftCfg->deceleration_ms);
+                        right = self->applyMotionRamp(OC_OUT_M2, right, rightCfg->ramp_ms, rightCfg->deceleration_ms);
+                        left = self->applyPowerScale(OC_OUT_M1, left);
+                        right = self->applyPowerScale(OC_OUT_M2, right);
                         self->drive.two_stick_drive(left, right, self->currentOrientation,
                                                     driveLeftAllowed, driveRightAllowed);
                         self->_driveLeftCommand = left;
@@ -208,11 +239,13 @@ void TaskManager::managerTask(void* pvParameters) {
                 self->lastUpdateTime = xTaskGetTickCount() * portTICK_PERIOD_MS;
             }
             else {
-                ControllerState emptyCs{0, 0, 0, 0, 0, 0, 0, 0};
-                self->updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse, emptyCs, false);
-                self->updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse, emptyCs, false);
-                self->_m1Latched = false; self->_m2Latched = false; self->_m1PrevManualActive = false; self->_m2PrevManualActive = false;
-                self->stopAllMotors();
+                if (!output_config_get_disconnect_failsafe_hold_last()) {
+                    ControllerState emptyCs{0, 0, 0, 0, 0, 0, 0, 0};
+                    self->updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse, emptyCs, false);
+                    self->updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse, emptyCs, false);
+                    self->_m1Latched = false; self->_m2Latched = false; self->_m1PrevManualActive = false; self->_m2PrevManualActive = false;
+                    self->stopAllMotors();
+                }
             }
             // clear the flag so we don't reapply next loop
             self->pendingUpdate = false;
@@ -221,15 +254,19 @@ void TaskManager::managerTask(void* pvParameters) {
         //If we've timed out or lost connection, stop motors 
         if ((xTaskGetTickCount() * portTICK_PERIOD_MS - self->lastUpdateTime) >= self->_controllerTimeout ||
         self->_isConnected == false){
-            ControllerState emptyCs{0, 0, 0, 0, 0, 0, 0, 0};
-            self->updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse, emptyCs, false);
-            self->updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse, emptyCs, false);
-            self->_m1Latched = false; self->_m2Latched = false; self->_m1PrevManualActive = false; self->_m2PrevManualActive = false;
-            self->stopAllMotors();
+            if (!output_config_get_disconnect_failsafe_hold_last()) {
+                ControllerState emptyCs{0, 0, 0, 0, 0, 0, 0, 0};
+                self->updateAuxOutput(OC_OUT_S1, PIN_SERVO1, self->_s1Pulse, emptyCs, false);
+                self->updateAuxOutput(OC_OUT_S2, PIN_SERVO2, self->_s2Pulse, emptyCs, false);
+                self->_m1Latched = false; self->_m2Latched = false; self->_m1PrevManualActive = false; self->_m2PrevManualActive = false;
+                self->stopAllMotors();
+            }
             self->ledStrip.setColor(0, 0, 255, 0);        // Blue LEDs indicate the controller has timed out
         } 
 
 
+        const oc_sw1_config_t* sw1Cfg = output_config_get_sw1_config();
+        self->buttons.setHoldTimeMs(sw1Cfg ? sw1Cfg->hold_ms : 5000);
         ButtonPress buttonVal = self->buttons.checkForPress();
   
         switch(buttonVal){
@@ -238,9 +275,15 @@ void TaskManager::managerTask(void* pvParameters) {
 
             case BUTTON_SHORT: {
             ESP_LOGI(TAG,"Button: Short Press");
-            self->led.enqueuePattern("---", false, 255);
+            self->handleSw1Action(sw1Cfg ? sw1Cfg->short_action : OC_SW1_ACTION_PAIRING);
             }
                 
+            break;
+
+            case BUTTON_DOUBLE: {
+            ESP_LOGI(TAG,"Button: Double Press");
+            self->handleSw1Action(sw1Cfg ? sw1Cfg->double_action : OC_SW1_ACTION_NONE);
+            }
             break;
 
             case BUTTON_LONG:
@@ -249,13 +292,8 @@ void TaskManager::managerTask(void* pvParameters) {
             break;
 
             case BUTTON_HOLD_5S: {
-            // SW1 held for >= 5 seconds. Clear the whitelist (which
-            // disconnects the active controller and ends by entering
-            // pairing) so a fresh controller can be paired. The
-            // existing LED1 indicator task and HTML/WS auto-reflect
-            // are already wired to react to that state transition.
-            ESP_LOGI(TAG, "Button: Hold 5s — clear whitelist and pair");
-            ble_gamepad_clear_paired_macs();
+            ESP_LOGI(TAG, "Button: configured hold action");
+            self->handleSw1Action(sw1Cfg ? sw1Cfg->hold_action : OC_SW1_ACTION_CLEAR_PAIR);
             }
             break;
 
@@ -296,6 +334,37 @@ void TaskManager::stopAllMotors(){
         _s1Pulse.safeState(PULSE_ESC_BIDIRECTIONAL);
         _s2Pulse.safeState(PULSE_ESC_BIDIRECTIONAL);
         motorsStopped = true;
+    }
+    _precisionLatched = false;
+    _precisionPrevPressed = false;
+    for (unsigned i = 0; i < OC_OUT__COUNT; ++i) {
+        _rampedOutput[i] = 0;
+        _rampUpdatedMs[i] = 0;
+    }
+}
+
+void TaskManager::handleSw1Action(oc_sw1_action_t action){
+    switch (action) {
+        case OC_SW1_ACTION_NONE:
+            break;
+        case OC_SW1_ACTION_PAIRING:
+            ble_gamepad_set_pairing_state(PAIRING_STATE_ACCEPT);
+            break;
+        case OC_SW1_ACTION_CLEAR_PAIR:
+            ble_gamepad_clear_paired_macs();
+            break;
+        case OC_SW1_ACTION_CANCEL_PAIRING:
+            ble_gamepad_set_pairing_state(PAIRING_STATE_IDLE);
+            break;
+        case OC_SW1_ACTION_RESET_OUTPUTS:
+            output_config_reset_defaults();
+            output_config_commit();
+            break;
+        case OC_SW1_ACTION_BATTERY_STATUS:
+            led.enqueuePattern(batteryState == BATTERY_LOW ? "..." : (batteryState == BATTERY_WARN ? ".-." : "-"), false, 255);
+            break;
+        default:
+            break;
     }
 }
 
@@ -371,8 +440,32 @@ int16_t TaskManager::getDriveSteering() const { return _driveSteering; }
 int16_t TaskManager::getDriveLeftCommand() const { return _driveLeftCommand; }
 int16_t TaskManager::getDriveRightCommand() const { return _driveRightCommand; }
 
+DriveMotorIntent TaskManager::getMotorIntent(oc_output_id_t id) const {
+    return drive.getMotorIntent(id != OC_OUT_M2);
+}
+
+const char* TaskManager::getOutputBlockedReason(oc_output_id_t id) const {
+    const oc_output_cfg_t* cfg = output_config_get(id);
+    if (!cfg || cfg->purpose == OC_PURPOSE_DISABLED ||
+        ((id == OC_OUT_M1 || id == OC_OUT_M2) && cfg->motor_mode == OC_MOTOR_MODE_DISABLED)) return "disabled";
+    if (!output_config_channel_allowed(id, PowerFunctions::getLastBatteryState())) return "low_battery";
+    if (!_isConnected) return "disconnect";
+    if ((id == OC_OUT_S1 || id == OC_OUT_S2) && cfg->purpose == OC_PURPOSE_ESC) {
+        const char* phase = getEscArmPhaseName(id);
+        if (strcmp(phase, "armed") != 0 && strcmp(phase, "manual") != 0) return "arming";
+    }
+    if (cfg->weapon_safety && cfg->deadman_source >= OC_SRC_BTN_A && cfg->deadman_source <= OC_SRC_BTN_HOME) {
+        uint16_t mask = (uint16_t)(1u << (cfg->deadman_source - OC_SRC_BTN_A));
+        if ((_buttonsInput & mask) == 0) return "deadman";
+    }
+    if ((id == OC_OUT_S1 || id == OC_OUT_S2) && cfg->primary == OC_SRC_NONE &&
+        cfg->purpose != OC_PURPOSE_PWM_ACCESSORY && cfg->purpose != OC_PURPOSE_RGB_LIGHTING) return "no_source";
+    return "none";
+}
+
 static int16_t map_trigger_pair_to_axis(int16_t forward, int16_t reverse) {
     int32_t diff = (int32_t)forward - (int32_t)reverse;
+    if (diff == 0) return 0;
     diff = constrain(diff, -1023, 1023);
     return (int16_t)map(diff, -1023, 1023, -512, 511);
 }
@@ -405,23 +498,90 @@ bool TaskManager::driveModifierActive(oc_source_id_t src, const ControllerState&
     return src != OC_SRC_NONE && readConfigSource(src, cs) != 0;
 }
 
-int16_t TaskManager::applyDriveModifiersToThrottle(int16_t throttle, const oc_drive_setup_t* setup, const ControllerState& cs) const {
+bool TaskManager::precisionModifierActive(const oc_drive_setup_t* setup, const ControllerState& cs) {
+    if (!setup || setup->precision_source == OC_SRC_NONE) {
+        _precisionLatched = false;
+        _precisionPrevPressed = false;
+        return false;
+    }
+    bool pressed = driveModifierActive(setup->precision_source, cs);
+    if (!setup->precision_latching) {
+        _precisionPrevPressed = pressed;
+        return pressed;
+    }
+    if (pressed && !_precisionPrevPressed) _precisionLatched = !_precisionLatched;
+    _precisionPrevPressed = pressed;
+    return _precisionLatched;
+}
+
+int16_t TaskManager::applyDriveModifiersToThrottle(int16_t throttle, const oc_drive_setup_t* setup, const ControllerState& cs) {
     if (!setup) return throttle;
     if (driveModifierActive(setup->brake_source, cs)) return 0;
-    if (driveModifierActive(setup->precision_source, cs)) {
+    if (precisionModifierActive(setup, cs)) {
         throttle = (int16_t)((int32_t)throttle * setup->precision_scale_pct / 100);
     }
     return throttle;
 }
 
-int16_t TaskManager::applyDriveModifiersToSteering(int16_t steering, const oc_drive_setup_t* setup, const ControllerState& cs) const {
+int16_t TaskManager::applyDriveModifiersToSteering(int16_t steering, const oc_drive_setup_t* setup, const ControllerState& cs) {
     if (!setup) return steering;
     if (driveModifierActive(setup->brake_source, cs)) return 0;
-    if (driveModifierActive(setup->precision_source, cs)) {
+    if (precisionModifierActive(setup, cs)) {
         steering = (int16_t)((int32_t)steering * setup->precision_scale_pct / 100);
     }
     if (driveModifierActive(setup->invert_steering_source, cs)) steering = (int16_t)-steering;
     return steering;
+}
+
+int16_t TaskManager::applyPowerScale(oc_output_id_t id, int16_t value) const {
+    if (ENABLE_LOW_BATTERY_SHUTDOWN &&
+        output_config_channel_power_action(id, (uint8_t)batteryState) == OC_POWER_REDUCE) {
+        value = (int16_t)((int32_t)value * 50 / 100);
+    }
+    return constrain(value, -512, 511);
+}
+
+uint16_t TaskManager::applyPowerScaleUnsigned(oc_output_id_t id, uint16_t value) const {
+    if (ENABLE_LOW_BATTERY_SHUTDOWN &&
+        output_config_channel_power_action(id, (uint8_t)batteryState) == OC_POWER_REDUCE) {
+        value = (uint16_t)((uint32_t)value * 50 / 100);
+    }
+    return value;
+}
+
+int16_t TaskManager::applyMotionRamp(oc_output_id_t id, int16_t target, uint16_t accelerationMs, uint16_t decelerationMs) {
+    if ((unsigned)id >= OC_OUT__COUNT) return target;
+    const uint32_t now = millis();
+    uint32_t& last = _rampUpdatedMs[id];
+    int16_t& current = _rampedOutput[id];
+    if (last == 0) last = now;
+    if (accelerationMs == 0 && decelerationMs == 0) {
+        current = target;
+        return current;
+    }
+    const uint32_t elapsed = max((uint32_t)1, now - last);
+    last = now;
+    // A sign reversal must decelerate through zero before accelerating away.
+    int16_t effectiveTarget = target;
+    bool reversing = current != 0 && target != 0 && ((current < 0) != (target < 0));
+    if (reversing) effectiveTarget = 0;
+    bool accelerating = !reversing && abs(effectiveTarget) > abs(current);
+    uint16_t duration = accelerating ? accelerationMs : decelerationMs;
+    if (duration == 0) current = effectiveTarget;
+    else {
+        int32_t step = max((int32_t)1, (int32_t)(512u * elapsed / duration));
+        const oc_output_cfg_t* cfg = output_config_get(id);
+        if (cfg && cfg->ramp_curve == OC_RAMP_S_CURVE && cfg->ramp_smoothing_pct > 0) {
+            // Bell-shaped velocity: gentle at both ends and fastest near mid-travel.
+            float progress = min(1.0f, (float)abs(current) / 512.0f);
+            float curveFactor = 0.30f + 1.40f * (4.0f * progress * (1.0f - progress));
+            float blend = (float)cfg->ramp_smoothing_pct / 100.0f;
+            step = max((int32_t)1, (int32_t)(step * ((1.0f - blend) + blend * curveFactor)));
+        }
+        if (effectiveTarget > current) current = (int16_t)min((int32_t)effectiveTarget, (int32_t)current + step);
+        else if (effectiveTarget < current) current = (int16_t)max((int32_t)effectiveTarget, (int32_t)current - step);
+    }
+    return current;
 }
 
 bool TaskManager::outputReservedForDriveSteering(oc_output_id_t id) const {
@@ -440,6 +600,8 @@ void TaskManager::updateSteeringServo(oc_output_id_t id, int16_t steering, const
         return;
     }
     int16_t value = cfg && cfg->direction == OC_DIR_REVERSED ? (int16_t)-steering : steering;
+    value = applyMotionRamp(id, value, cfg->ramp_ms, cfg->deceleration_ms);
+    value = applyPowerScale(id, value);
     value = constrain(value, -512, 511);
     uint16_t pulseUs;
     if (cfg && cfg->servo_mode == OC_SERVO_UNI) {
@@ -496,6 +658,8 @@ int16_t TaskManager::manualMotorCommand(oc_output_id_t id, const oc_output_cfg_t
     }
 
     if (cfg->direction == OC_DIR_REVERSED) command = -command;
+    command = applyMotionRamp(id, command, cfg->ramp_ms, cfg->deceleration_ms);
+    command = applyPowerScale(id, command);
     return constrain(command, -512, 511);
 }
 
@@ -730,6 +894,18 @@ void TaskManager::updateAuxOutput(oc_output_id_t id, uint8_t pin, PulseOutput& p
         updateDigitalOutput(id, pin, cs, connected);
         return;
     }
+    if (cfg->purpose == OC_PURPOSE_RGB_LIGHTING &&
+        (cfg->protocol == OC_PROTO_RGB || cfg->protocol == OC_PROTO_RGBW)) {
+        // RGB/RGBW lighting is a first-class S1/S2 configuration role.
+        // Current S1/S2 firmware does not bit-bang addressable LEDs through
+        // the servo PWM path, so keep the signal pin safe/low rather than
+        // emitting servo pulses on a configured lighting channel.
+        pinMode(pin, OUTPUT);
+        digitalWrite(pin, LOW);
+        if (id == OC_OUT_S1) { _s1DigitalLogical = false; _s1DigitalPhysicalHigh = false; }
+        if (id == OC_OUT_S2) { _s2DigitalLogical = false; _s2DigitalPhysicalHigh = false; }
+        return;
+    }
     if (cfg->purpose == OC_PURPOSE_SERVO || cfg->purpose == OC_PURPOSE_ESC) {
         updatePulseOutput(id, pulse, cs, connected);
         return;
@@ -764,15 +940,28 @@ void TaskManager::updatePulseOutput(oc_output_id_t id, PulseOutput& pulse, const
     }
 
     if (cfg->purpose == OC_PURPOSE_SERVO) {
-        uint16_t input = readConfigSourceMagnitude(cfg->primary, cs);
-        uint16_t pulseUs = pulse_output_map_range(input, 0, 1023, protocol.min_us, protocol.max_us);
+        uint16_t pulseUs;
+        if (cfg->servo_mode == OC_SERVO_BI) {
+            int16_t value = constrain(readConfigSource(cfg->primary, cs), -512, 511);
+            if (cfg->direction == OC_DIR_REVERSED) value = -value;
+            value = applyMotionRamp(id, value, cfg->ramp_ms, cfg->deceleration_ms);
+            value = applyPowerScale(id, value);
+            pulseUs = pulse_output_map_range((uint16_t)(value + 512), 0, 1023, protocol.min_us, protocol.max_us);
+        } else {
+            uint16_t input = applyPowerScaleUnsigned(id, readConfigSourceMagnitude(cfg->primary, cs));
+            int16_t ramped = applyMotionRamp(id, (int16_t)(input / 2), cfg->ramp_ms, cfg->deceleration_ms);
+            pulseUs = pulse_output_map_range((uint16_t)constrain(ramped * 2, 0, 1023), 0, 1023, protocol.min_us, protocol.max_us);
+        }
         pulse.writePulseUs(pulseUs);
         return;
     }
 
-    uint16_t forward = readConfigSourceMagnitude(cfg->primary, cs);
-    uint16_t reverse = readConfigSourceMagnitude(cfg->secondary, cs);
-    pulse.writeEsc(forward, reverse, semantics);
+    uint16_t forward = applyPowerScaleUnsigned(id, readConfigSourceMagnitude(cfg->primary, cs));
+    uint16_t reverse = applyPowerScaleUnsigned(id, readConfigSourceMagnitude(cfg->secondary, cs));
+    int16_t target = (int16_t)constrain(((int32_t)forward - (int32_t)reverse) / 2, -512, 511);
+    int16_t ramped = applyMotionRamp(id, target, cfg->ramp_ms, cfg->deceleration_ms);
+    pulse.writeEsc((uint16_t)max(0, (int)ramped * 2),
+                   (uint16_t)max(0, (int)-ramped * 2), semantics);
 }
 
 void TaskManager::updateDigitalOutput(oc_output_id_t id, uint8_t pin, const ControllerState& cs, bool connected) {

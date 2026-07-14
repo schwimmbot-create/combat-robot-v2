@@ -6,6 +6,10 @@
 
 static const char* TAG = "Drive";
 
+static inline int16_t zero_small_drive_command(int16_t value) {
+    return abs(value) <= 1 ? 0 : value;
+}
+
 
 Drive::Drive(): leftMotor(DRIVE_MOTOR1_1_PIN, DRIVE_MOTOR1_2_PIN,
                           DRIVE_MOTOR1_FWD_PWM_CHANNEL,
@@ -32,6 +36,10 @@ void Drive::begin(){
 void Drive::setMotorPwmFrequency(bool left_motor, uint16_t frequency_hz){
     if (left_motor) leftMotor.setPwmFrequency(frequency_hz);
     else rightMotor.setPwmFrequency(frequency_hz);
+}
+
+DriveMotorIntent Drive::getMotorIntent(bool left_motor) const {
+    return left_motor ? leftMotor.getIntent() : rightMotor.getIntent();
 }
 
 /**
@@ -102,6 +110,8 @@ void Drive::combined_direction(int joystick_x, int joystick_y, byte orientation,
         leftMotorSpeed = y_input_mapped - x_input_mapped;
         rightMotorSpeed = y_input_mapped + x_input_mapped;
     }
+    leftMotorSpeed = zero_small_drive_command(leftMotorSpeed);
+    rightMotorSpeed = zero_small_drive_command(rightMotorSpeed);
 
     //Convert back to 0 to Max PWM Value range for out drive motor input
     //Set direction based on positive or negative
@@ -109,14 +119,16 @@ void Drive::combined_direction(int joystick_x, int joystick_y, byte orientation,
     int right_speed = constrain(abs(rightMotorSpeed), 0, maxPwmVal);
 
     if (left_enabled) {
-        if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE, orientation);}
+        if(left_speed == 0){leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);}
+        else if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE, orientation);}
         else{leftMotor.setSpeed(left_speed, FORWARD, orientation);}
     } else {
         leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
     }
 
     if (right_enabled) {
-        if(rightMotorSpeed < 0){rightMotor.setSpeed(right_speed, REVERSE, orientation);}
+        if(right_speed == 0){rightMotor.setSpeed(0, STOP, RIGHTSIDE_UP);}
+        else if(rightMotorSpeed < 0){rightMotor.setSpeed(right_speed, REVERSE, orientation);}
         else{rightMotor.setSpeed(right_speed, FORWARD, orientation);}
     } else {
         rightMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
@@ -147,6 +159,8 @@ void Drive::two_stick_drive(int left_input, int right_input, byte orientation, b
         leftMotorSpeed = rightMotorSpeed;
         rightMotorSpeed = temp;
     }
+    leftMotorSpeed = zero_small_drive_command(leftMotorSpeed);
+    rightMotorSpeed = zero_small_drive_command(rightMotorSpeed);
 
     //Convert back to 0 to Max PWM Value range for out drive motor input
     //Set direction based on positive or negative
@@ -154,14 +168,16 @@ void Drive::two_stick_drive(int left_input, int right_input, byte orientation, b
     int right_speed = constrain(abs(rightMotorSpeed), 0, maxPwmVal);
 
     if (left_enabled) {
-        if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE, orientation);}
+        if(left_speed == 0){leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);}
+        else if(leftMotorSpeed < 0){leftMotor.setSpeed(left_speed, REVERSE, orientation);}
         else{leftMotor.setSpeed(left_speed, FORWARD, orientation);}
     } else {
         leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
     }
 
     if (right_enabled) {
-        if(rightMotorSpeed < 0){rightMotor.setSpeed(right_speed, REVERSE, orientation);}
+        if(right_speed == 0){rightMotor.setSpeed(0, STOP, RIGHTSIDE_UP);}
+        else if(rightMotorSpeed < 0){rightMotor.setSpeed(right_speed, REVERSE, orientation);}
         else{rightMotor.setSpeed(right_speed, FORWARD, orientation);}
     } else {
         rightMotor.setSpeed(0, STOP, RIGHTSIDE_UP);
@@ -172,6 +188,7 @@ void Drive::two_stick_drive(int left_input, int right_input, byte orientation, b
 
 void Drive::single_motor_drive(bool left_motor, int input, byte orientation, bool enabled){
     int motorSpeed = map(input, _minForwardInput, _maxForwardInput, -maxPwmVal, maxPwmVal);
+    motorSpeed = zero_small_drive_command(motorSpeed);
     int speed = constrain(abs(motorSpeed), 0, maxPwmVal);
     if (!enabled || speed == 0) {
         if (left_motor) leftMotor.setSpeed(0, STOP, RIGHTSIDE_UP);

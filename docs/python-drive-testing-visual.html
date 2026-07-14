@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Combat Robot Python Drive Testing Visual</title>
+<style>
+:root {
+  --ivory:#FAF9F5; --white:#FFFFFF; --slate:#141413; --clay:#D97757; --olive:#788C5D;
+  --rust:#B04A3F; --oat:#E3DACC; --gray-150:#F0EEE6; --gray-300:#D1CFC5;
+  --gray-500:#87867F; --gray-700:#3D3D3A; --border:1.5px solid var(--gray-300);
+  --radius-panel:12px; --radius-row:8px; --radius-pill:999px;
+  --serif:ui-serif, Georgia, "Times New Roman", serif;
+  --sans:system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0} body{background:var(--ivory);color:var(--gray-700);font-family:var(--sans);line-height:1.55;padding:44px 24px 80px}.page{max-width:1120px;margin:0 auto}.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gray-500);margin-bottom:8px}h1,h2,h3{font-family:var(--serif);font-weight:500;color:var(--slate);letter-spacing:-.01em}h1{font-size:42px;line-height:1.05;margin-bottom:14px;max-width:850px}p.lead{font-size:18px;max-width:850px;color:var(--gray-700);margin-bottom:28px}.grid{display:grid;gap:18px}.stats{grid-template-columns:repeat(4,1fr);margin:28px 0}.card{background:var(--white);border:var(--border);border-radius:var(--radius-panel);padding:18px}.stat .num{font-family:var(--serif);font-size:32px;color:var(--slate)}.stat .lbl,.pill,.tag{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--gray-500)}.pill{display:inline-flex;padding:4px 10px;background:var(--oat);border-radius:var(--radius-pill);color:var(--gray-700);margin:3px 4px 3px 0}.pill.ok{background:rgba(120,140,93,.16);color:var(--olive)}.pill.hot{background:rgba(217,119,87,.14);color:var(--clay)}.pill.bad{background:rgba(176,74,63,.12);color:var(--rust)}.section{margin-top:48px}.diagram{background:var(--white);border:var(--border);border-radius:var(--radius-panel);padding:18px;overflow-x:auto}.diagram svg{min-width:980px;width:100%;height:auto}.node rect{fill:#fff;stroke:var(--gray-300);stroke-width:1.5}.node.hot rect{fill:rgba(217,119,87,.10);stroke:var(--clay)}.node.ok rect{fill:rgba(120,140,93,.12);stroke:var(--olive)}.node.dark rect{fill:var(--slate);stroke:var(--slate)}.node text{font-family:var(--mono);font-size:12px;fill:var(--gray-700)}.node.dark text{fill:#f7f3e8}.node .sub{font-size:10px;fill:var(--gray-500)}.edge{stroke:var(--gray-500);stroke-width:1.6;fill:none;marker-end:url(#arrow)}.edge.ok{stroke:var(--olive)}.edge.hot{stroke:var(--clay)}.edge.bad{stroke:var(--rust);stroke-dasharray:5 5}.lbl{font-family:var(--mono);font-size:10px;fill:var(--gray-500)}.cols{grid-template-columns:1.05fr .95fr}.matrix{display:grid;grid-template-columns:1.2fr 1fr 1.2fr;gap:10px}.row{display:contents}.cell{background:var(--white);border:var(--border);padding:11px 12px;font-size:13px}.head{background:var(--gray-150);font-family:var(--mono);font-size:11px;text-transform:uppercase;color:var(--gray-500)}code,.code{font-family:var(--mono)}.code{background:var(--slate);color:#E8E6DF;border-radius:var(--radius-panel);padding:16px;overflow-x:auto;font-size:12px}.code .ok{color:#B8C79C}.code .hot{color:#F0A27F}.callout{border-left:4px solid var(--clay);background:rgba(217,119,87,.07);border-radius:var(--radius-row);padding:14px 16px;margin-top:14px}ul{padding-left:18px}.small{font-size:13px;color:var(--gray-500)}@media(max-width:850px){.stats,.cols{grid-template-columns:1fr}.matrix{grid-template-columns:1fr}.row{display:block;margin-bottom:10px}.cell{display:block}.head{display:none}h1{font-size:32px}}
+</style>
+</head>
+<body>
+<div class="page">
+  <div class="eyebrow">Combat Robot Controller v2 · Python Drive Testing</div>
+  <h1>What the Python robot drive testing looks like</h1>
+  <p class="lead">The current Python bench is a hardware-in-the-loop test harness: it drives a mock 8BitDo controller, pushes config through the robot API, reads serial status from the real robot controller, and asserts that firmware intent matches expected drive, motor, servo, power, and failsafe behavior.</p>
+
+  <div class="grid stats">
+    <div class="card stat"><div class="num">396</div><div class="lbl">software tests passing</div></div>
+    <div class="card stat"><div class="num">PASS</div><div class="lbl">PlatformIO build + upload</div></div>
+    <div class="card stat"><div class="num">PASS</div><div class="lbl">hardware bench e2e</div></div>
+    <div class="card stat"><div class="num">90%</div><div class="lbl">logic confidence without scope</div></div>
+  </div>
+
+  <div class="section">
+    <h2>Current Python bench loop</h2>
+    <p class="small">This is what <code>tools/bench_e2e.py</code> does today.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1040 430" role="img" aria-label="Python test harness flow">
+        <defs><marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1 L8 5 L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+        <g class="node hot"><rect x="28" y="48" width="170" height="62" rx="10"/><text x="113" y="74" text-anchor="middle">Python bench</text><text class="sub" x="113" y="94" text-anchor="middle">tools/bench_e2e.py</text></g>
+        <g class="node"><rect x="270" y="26" width="170" height="62" rx="10"/><text x="355" y="52" text-anchor="middle">Mock controller</text><text class="sub" x="355" y="72" text-anchor="middle">/dev/ttyACM0</text></g>
+        <g class="node"><rect x="270" y="118" width="170" height="62" rx="10"/><text x="355" y="144" text-anchor="middle">Robot API</text><text class="sub" x="355" y="164" text-anchor="middle">192.168.4.1</text></g>
+        <g class="node dark"><rect x="520" y="70" width="180" height="78" rx="10"/><text x="610" y="98" text-anchor="middle">ESP32-C3 robot</text><text class="sub" x="610" y="120" text-anchor="middle">real firmware</text></g>
+        <g class="node"><rect x="776" y="26" width="208" height="62" rx="10"/><text x="880" y="52" text-anchor="middle">Serial status</text><text class="sub" x="880" y="72" text-anchor="middle">axes / drive / motors</text></g>
+        <g class="node ok"><rect x="776" y="118" width="208" height="62" rx="10"/><text x="880" y="144" text-anchor="middle">Assertions</text><text class="sub" x="880" y="164" text-anchor="middle">PASS / FAIL</text></g>
+        <path class="edge hot" d="M198 70 C225 58 240 57 270 57"/><text class="lbl" x="220" y="48">SET HID</text>
+        <path class="edge hot" d="M198 90 C230 130 238 146 270 149"/><text class="lbl" x="214" y="136">POST config</text>
+        <path class="edge" d="M440 57 C480 60 492 75 520 93"/><text class="lbl" x="458" y="54">BLE frames</text>
+        <path class="edge" d="M440 149 C478 143 492 130 520 121"/><text class="lbl" x="452" y="151">API patch</text>
+        <path class="edge" d="M700 94 C738 76 750 62 776 57"/><text class="lbl" x="720" y="60">status cmd</text>
+        <path class="edge ok" d="M880 88 L880 118"/><text class="lbl" x="894" y="106">parse</text>
+        <path class="edge ok" d="M776 150 C675 210 332 215 115 112"/><text class="lbl" x="440" y="214">next test case</text>
+        <g class="node ok"><rect x="94" y="278" width="190" height="56" rx="10"/><text x="189" y="301" text-anchor="middle">Drive checks</text><text class="sub" x="189" y="320" text-anchor="middle">arcade / tank / servo</text></g>
+        <g class="node ok"><rect x="316" y="278" width="190" height="56" rx="10"/><text x="411" y="301" text-anchor="middle">Motor intent</text><text class="sub" x="411" y="320" text-anchor="middle">M1/M2 speed + duty</text></g>
+        <g class="node ok"><rect x="538" y="278" width="190" height="56" rx="10"/><text x="633" y="301" text-anchor="middle">Servo / ESC</text><text class="sub" x="633" y="320" text-anchor="middle">pulse_us / arm phase</text></g>
+        <g class="node ok"><rect x="760" y="278" width="190" height="56" rx="10"/><text x="855" y="301" text-anchor="middle">Safety</text><text class="sub" x="855" y="320" text-anchor="middle">WARN / LOW / failsafe</text></g>
+        <path class="edge ok" d="M880 180 C820 245 780 270 760 286"/>
+        <path class="edge ok" d="M830 180 C740 236 670 265 640 278"/>
+        <path class="edge ok" d="M800 180 C670 235 500 270 412 278"/>
+        <path class="edge ok" d="M780 180 C610 230 300 270 190 278"/>
+      </svg>
+    </div>
+  </div>
+
+  <div class="section grid cols">
+    <div class="card">
+      <h2>What Python asserts now</h2>
+      <p><span class="pill ok">implemented</span><span class="pill hot">hardware-in-loop</span></p>
+      <ul>
+        <li>Controller decoding: sticks, triggers, buttons, D-pad.</li>
+        <li>Drive mixer: arcade, tank, D-pad virtual axes, precision, brake.</li>
+        <li>Motor intent: <code>M1/M2 speed, dir, fwd_duty, rev_duty, freq</code>.</li>
+        <li>Manual motor modes: momentary and latching.</li>
+        <li>Servo/ESC pulse intent: S1/S2 <code>pulse_us</code>, duty, arming phase.</li>
+        <li>Battery power behavior: GOOD full, WARN reduced, LOW disabled.</li>
+        <li>Failsafe: disconnect stops drive motors.</li>
+      </ul>
+      <div class="callout"><strong>Important:</strong> this does not measure voltage/waveforms with a scope. It proves the firmware's internal decision and output intent on real hardware.</div>
+    </div>
+    <div class="card">
+      <h2>What a test case looks like</h2>
+      <pre class="code"><span class="hot">inject</span> RT=50%, LX=left
+<span class="hot">expect</span> drive_throttle &gt; 200
+<span class="hot">expect</span> drive_steering &lt; -450
+<span class="hot">expect</span> M1/M2 different speeds
+
+status:
+  drive={left:-253,right:511}
+  motors={
+    M1:{speed:125,dir:forward},
+    M2:{speed:255,dir:reverse}
+  }
+
+<span class="ok">PASS</span> drive left stick steering mixes M1/M2</pre>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>Physical-drive extension: the visual part</h2>
+    <p class="small">The next layer is not just Python assertions. Python drives the exact same input script while a human/video confirms physical movement on a stand or marked floor.</p>
+    <div class="diagram">
+      <svg viewBox="0 0 1040 520" role="img" aria-label="Physical robot drive test stations">
+        <defs><marker id="arrow2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M2 1 L8 5 L2 9" fill="none" stroke="context-stroke" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
+        <style>.edge2{stroke:var(--gray-500);stroke-width:1.6;fill:none;marker-end:url(#arrow2)}.edge2.ok{stroke:var(--olive)}.wheel{fill:#fff;stroke:var(--slate);stroke-width:2}.bot{fill:rgba(217,119,87,.10);stroke:var(--clay);stroke-width:2}.floor{fill:var(--gray-150);stroke:var(--gray-300);stroke-width:1.5}.servo{fill:rgba(120,140,93,.15);stroke:var(--olive);stroke-width:2}</style>
+        <g class="node hot"><rect x="38" y="34" width="190" height="56" rx="10"/><text x="133" y="58" text-anchor="middle">Python script</text><text class="sub" x="133" y="77" text-anchor="middle">inject timed inputs</text></g>
+        <path class="edge2 ok" d="M228 62 L315 62"/><text class="lbl" x="248" y="51">same commands</text>
+        <g class="node"><rect x="315" y="34" width="210" height="56" rx="10"/><text x="420" y="58" text-anchor="middle">Serial telemetry</text><text class="sub" x="420" y="77" text-anchor="middle">firmware intent log</text></g>
+        <path class="edge2 ok" d="M525 62 L610 62"/>
+        <g class="node ok"><rect x="610" y="34" width="230" height="56" rx="10"/><text x="725" y="58" text-anchor="middle">Human/video check</text><text class="sub" x="725" y="77" text-anchor="middle">did it physically move right?</text></g>
+
+        <rect class="floor" x="60" y="150" width="260" height="240" rx="16"/>
+        <text class="lbl" x="80" y="178">2-wheel differential</text>
+        <rect class="bot" x="135" y="218" width="110" height="82" rx="14"/>
+        <circle class="wheel" cx="120" cy="238" r="18"/><circle class="wheel" cx="120" cy="280" r="18"/><circle class="wheel" cx="260" cy="238" r="18"/><circle class="wheel" cx="260" cy="280" r="18"/>
+        <path class="edge2 ok" d="M190 210 L190 185"/><text class="lbl" x="204" y="198">forward</text>
+        <path class="edge2" d="M160 318 C130 348 110 340 102 310"/><text class="lbl" x="90" y="356">turn left</text>
+
+        <rect class="floor" x="390" y="150" width="260" height="240" rx="16"/>
+        <text class="lbl" x="410" y="178">4-wheel skid</text>
+        <rect class="bot" x="466" y="218" width="108" height="82" rx="14"/>
+        <circle class="wheel" cx="450" cy="226" r="16"/><circle class="wheel" cx="450" cy="292" r="16"/><circle class="wheel" cx="590" cy="226" r="16"/><circle class="wheel" cx="590" cy="292" r="16"/>
+        <path class="edge2 ok" d="M450 205 L450 184"/><path class="edge2 ok" d="M590 205 L590 184"/>
+        <text class="lbl" x="474" y="352">front/rear on each side agree</text>
+
+        <rect class="floor" x="720" y="150" width="260" height="240" rx="16"/>
+        <text class="lbl" x="740" y="178">servo-steer</text>
+        <rect class="bot" x="797" y="228" width="105" height="72" rx="14"/>
+        <rect class="servo" x="828" y="205" width="45" height="20" rx="5"/>
+        <circle class="wheel" cx="782" cy="244" r="15"/><circle class="wheel" cx="918" cy="244" r="15"/><circle class="wheel" cx="790" cy="292" r="15"/><circle class="wheel" cx="910" cy="292" r="15"/>
+        <path class="edge2 ok" d="M850 204 C820 188 805 188 785 205"/><text class="lbl" x="780" y="352">servo left/center/right marks</text>
+
+        <g class="node ok"><rect x="120" y="438" width="800" height="50" rx="10"/><text x="520" y="458" text-anchor="middle">Pass condition: telemetry intent and physical movement agree</text><text class="sub" x="520" y="476" text-anchor="middle">If not, fix config/wiring before changing firmware math</text></g>
+      </svg>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>How the physical Python script should feel</h2>
+    <div class="matrix">
+      <div class="cell head">Python step</div><div class="cell head">Telemetry expected</div><div class="cell head">Human/video expected</div>
+      <div class="cell"><code>forward 1s</code></div><div class="cell">M1/M2 nonzero, same logical drive direction</div><div class="cell">robot would move straight forward</div>
+      <div class="cell"><code>left turn 1s</code></div><div class="cell">left/right commands differ or oppose</div><div class="cell">robot yaws/arcs left</div>
+      <div class="cell"><code>brake</code></div><div class="cell">drive left/right = 0, M1/M2 stop</div><div class="cell">all wheels stop</div>
+      <div class="cell"><code>WARN override</code></div><div class="cell">drive command approximately half</div><div class="cell">wheel speed visibly reduced</div>
+      <div class="cell"><code>disconnect</code></div><div class="cell">M1/M2 stop</div><div class="cell">robot stops safely</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

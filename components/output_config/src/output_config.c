@@ -101,6 +101,7 @@ static const char *const kPurposeNames[OC_PURPOSE__COUNT] = {
     "digital_output",
     "digital_input",
     "pwm_accessory",
+    "rgb_lighting",
 };
 
 static const char *const kProtocolNames[OC_PROTO__COUNT] = {
@@ -121,6 +122,8 @@ static const char *const kProtocolNames[OC_PROTO__COUNT] = {
     "oneshot",
     "gpio",
     "pwm_duty",
+    "rgb",
+    "rgbw",
 };
 
 static const char *const kSemanticsNames[OC_SEM__COUNT] = {
@@ -131,6 +134,17 @@ static const char *const kSemanticsNames[OC_SEM__COUNT] = {
     "digital_output",
     "digital_input",
     "pwm_accessory",
+    "rgb_lighting",
+};
+
+static const char *const kRgbPatternNames[OC_RGB_PATTERN__COUNT] = {
+    "solid",
+    "blink",
+    "breathe",
+    "rainbow",
+    "chase",
+    "battery",
+    "controller",
 };
 
 static const char *const kFailsafeNames[] = {
@@ -149,6 +163,15 @@ static const char *const kPowerNames[] = {
     "allow",
     "disable",
     "reduce",
+};
+
+static const char *const kSw1ActionNames[OC_SW1_ACTION__COUNT] = {
+    "none",
+    "pairing",
+    "clear_pair",
+    "cancel_pairing",
+    "reset_outputs",
+    "battery_status",
 };
 
 static const char *const kEscArmModeNames[OC_ESC_ARM__COUNT] = {
@@ -195,7 +218,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .semantics = OC_SEM_NONE, .min_pulse_us = 0, .center_pulse_us = 0, .max_pulse_us = 0,
         .frame_hz = 0, .neutral_deadzone_pct = 0, .weapon_safety = false,
         .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
-        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0, .deceleration_ms = 0, .ramp_curve = OC_RAMP_LINEAR, .ramp_smoothing_pct = 50,
         .esc_arm_mode = OC_ESC_ARM_MANUAL, .esc_arm_source = OC_SRC_NONE, .esc_arm_hold_ms = 2000,
         .esc_arm_low_us = 1000, .esc_arm_high_us = 2000, .esc_arm_low_ms = 1000,
         .esc_arm_high_ms = 1000, .esc_arm_final_low_ms = 1000,
@@ -203,6 +226,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
         .digital_custom_pct = 50, .pwm_frequency_hz = 20000, .pwm_duty_pct = 0,
+        .rgb_pattern = OC_RGB_PATTERN_SOLID, .rgb_r = 255, .rgb_g = 107, .rgb_b = 53, .rgb_w = 0, .rgb_brightness_pct = 40, .rgb_led_count = 1,
     },
     [OC_OUT_M2] = {
         .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
@@ -211,7 +235,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .semantics = OC_SEM_NONE, .min_pulse_us = 0, .center_pulse_us = 0, .max_pulse_us = 0,
         .frame_hz = 0, .neutral_deadzone_pct = 0, .weapon_safety = false,
         .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
-        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0, .deceleration_ms = 0, .ramp_curve = OC_RAMP_LINEAR, .ramp_smoothing_pct = 50,
         .esc_arm_mode = OC_ESC_ARM_MANUAL, .esc_arm_source = OC_SRC_NONE, .esc_arm_hold_ms = 2000,
         .esc_arm_low_us = 1000, .esc_arm_high_us = 2000, .esc_arm_low_ms = 1000,
         .esc_arm_high_ms = 1000, .esc_arm_final_low_ms = 1000,
@@ -219,6 +243,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
         .digital_custom_pct = 50, .pwm_frequency_hz = 20000, .pwm_duty_pct = 0,
+        .rgb_pattern = OC_RGB_PATTERN_SOLID, .rgb_r = 255, .rgb_g = 107, .rgb_b = 53, .rgb_w = 0, .rgb_brightness_pct = 40, .rgb_led_count = 1,
     },
     [OC_OUT_S1] = {
         .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
@@ -227,7 +252,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .semantics = OC_SEM_POSITION_SERVO, .min_pulse_us = 1000, .center_pulse_us = 1500, .max_pulse_us = 2000,
         .frame_hz = 50, .neutral_deadzone_pct = 5, .weapon_safety = false,
         .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
-        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0, .deceleration_ms = 0, .ramp_curve = OC_RAMP_LINEAR, .ramp_smoothing_pct = 50,
         .esc_arm_mode = OC_ESC_ARM_MANUAL, .esc_arm_source = OC_SRC_NONE, .esc_arm_hold_ms = 2000,
         .esc_arm_low_us = 1000, .esc_arm_high_us = 2000, .esc_arm_low_ms = 1000,
         .esc_arm_high_ms = 1000, .esc_arm_final_low_ms = 1000,
@@ -235,6 +260,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
         .digital_custom_pct = 50, .pwm_frequency_hz = 0, .pwm_duty_pct = 0,
+        .rgb_pattern = OC_RGB_PATTERN_SOLID, .rgb_r = 255, .rgb_g = 107, .rgb_b = 53, .rgb_w = 0, .rgb_brightness_pct = 40, .rgb_led_count = 1,
     },
     [OC_OUT_S2] = {
         .direction = OC_DIR_NORMAL, .servo_mode = OC_SERVO_BI, .deadzone_pct = 10,
@@ -243,7 +269,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .semantics = OC_SEM_POSITION_SERVO, .min_pulse_us = 1000, .center_pulse_us = 1500, .max_pulse_us = 2000,
         .frame_hz = 50, .neutral_deadzone_pct = 5, .weapon_safety = false,
         .failsafe = OC_FAILSAFE_SAFE_STATE, .weapon_mode = OC_WEAPON_ARMING_AND_DEADMAN,
-        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0,
+        .arming_source = OC_SRC_NONE, .deadman_source = OC_SRC_NONE, .ramp_ms = 0, .deceleration_ms = 0, .ramp_curve = OC_RAMP_LINEAR, .ramp_smoothing_pct = 50,
         .esc_arm_mode = OC_ESC_ARM_MANUAL, .esc_arm_source = OC_SRC_NONE, .esc_arm_hold_ms = 2000,
         .esc_arm_low_us = 1000, .esc_arm_high_us = 2000, .esc_arm_low_ms = 1000,
         .esc_arm_high_ms = 1000, .esc_arm_final_low_ms = 1000,
@@ -251,6 +277,7 @@ static const oc_output_cfg_t kDefaults[OC_OUT__COUNT] = {
         .active_high = true, .default_state = false, .digital_mode = OC_DIGITAL_MODE_DIRECT,
         .digital_preset = OC_DIGITAL_PRESET_DIRECT, .digital_on_threshold = 1, .digital_off_threshold = 0,
         .digital_custom_pct = 50, .pwm_frequency_hz = 0, .pwm_duty_pct = 0,
+        .rgb_pattern = OC_RGB_PATTERN_SOLID, .rgb_r = 255, .rgb_g = 107, .rgb_b = 53, .rgb_w = 0, .rgb_brightness_pct = 40, .rgb_led_count = 1,
     },
 };
 
@@ -267,10 +294,20 @@ static oc_drive_setup_t s_drive_setup = {
     .steering_output = OC_OUT_S1,
     .precision_source = OC_SRC_NONE,
     .precision_scale_pct = 50,
+    .precision_latching = false,
+    .left_speed_pct = 100,
+    .right_speed_pct = 100,
     .brake_source = OC_SRC_NONE,
     .invert_steering_source = OC_SRC_NONE,
 };
 static uint8_t s_max_paired = OC_MAX_PAIRED_DEFAULT;
+static oc_sw1_config_t s_sw1_config = {
+    .short_action = OC_SW1_ACTION_PAIRING,
+    .double_action = OC_SW1_ACTION_NONE,
+    .hold_action = OC_SW1_ACTION_CLEAR_PAIR,
+    .hold_ms = 5000,
+};
+static bool s_disconnect_failsafe_hold_last = false;
 static bool s_loaded = false;
 
 // ---- Small helpers -------------------------------------------------------
@@ -311,6 +348,7 @@ static bool drive_setup_is_sane(const oc_drive_setup_t *setup) {
     if ((unsigned)setup->brake_source >= OC_SRC__COUNT) return false;
     if ((unsigned)setup->invert_steering_source >= OC_SRC__COUNT) return false;
     if (setup->precision_scale_pct > 100) return false;
+    if (setup->left_speed_pct > 100 || setup->right_speed_pct > 100) return false;
     if (setup->method == OC_DRIVE_METHOD_NONE) return true;
     if (setup->layout == OC_DRIVE_LAYOUT_DIFFERENTIAL) {
         if (setup->method == OC_DRIVE_METHOD_TANK) {
@@ -345,6 +383,9 @@ static oc_drive_setup_t drive_setup_for_legacy_mode(oc_drive_mode_t mode) {
         .steering_output = OC_OUT_S1,
         .precision_source = OC_SRC_NONE,
         .precision_scale_pct = 50,
+    .precision_latching = false,
+    .left_speed_pct = 100,
+    .right_speed_pct = 100,
         .brake_source = OC_SRC_NONE,
         .invert_steering_source = OC_SRC_NONE,
     };
@@ -382,6 +423,8 @@ static esp_err_t save_all(void) {
     if (err == ESP_OK) err = nvs_set_u8(h, OC_NVS_KEY_DRIVE_MODE, (uint8_t)s_drive_mode);
     if (err == ESP_OK) err = nvs_set_blob(h, OC_NVS_KEY_DRIVE_SETUP, &s_drive_setup, sizeof(s_drive_setup));
     if (err == ESP_OK) err = nvs_set_u8(h, OC_NVS_KEY_MAX_PAIRED, s_max_paired);
+    if (err == ESP_OK) err = nvs_set_blob(h, OC_NVS_KEY_SW1_CONFIG, &s_sw1_config, sizeof(s_sw1_config));
+    if (err == ESP_OK) err = nvs_set_u8(h, OC_NVS_KEY_DISCONNECT_FAILSAFE, s_disconnect_failsafe_hold_last ? 1 : 0);
     if (err == ESP_OK) err = nvs_commit(h);
     nvs_close(h);
     if (err != ESP_OK) {
@@ -432,6 +475,8 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
         if ((unsigned)c->power_warn > OC_POWER_REDUCE) return false;
         if ((unsigned)c->power_low > OC_POWER_REDUCE) return false;
         if (c->neutral_deadzone_pct > 50) return false;
+        if (c->ramp_ms > 10000 || c->deceleration_ms > 10000) return false;
+        if (c->ramp_curve > OC_RAMP_S_CURVE || c->ramp_smoothing_pct > 100) return false;
         if (!digital_thresholds_are_sane(c)) return false;
         if ((i == OC_OUT_M1 || i == OC_OUT_M2) &&
             (c->purpose != OC_PURPOSE_DRIVE || c->protocol != OC_PROTO_NONE)) return false;
@@ -439,6 +484,9 @@ static bool cfg_blob_is_sane(const oc_output_cfg_t *cfg) {
             (c->motor_mode == OC_MOTOR_MODE_MOMENTARY || c->motor_mode == OC_MOTOR_MODE_LATCHING) &&
             !source_is_digital_only(c->primary)) return false;
         if (c->pwm_duty_pct > 100) return false;
+        if ((unsigned)c->rgb_pattern >= OC_RGB_PATTERN__COUNT) return false;
+        if (c->rgb_brightness_pct > 100) return false;
+        if (c->rgb_led_count < 1 || c->rgb_led_count > 300) return false;
         if ((i == OC_OUT_M1 || i == OC_OUT_M2) && (c->pwm_frequency_hz < 1000 || c->pwm_frequency_hz > 40000)) return false;
         if (!(i == OC_OUT_M1 || i == OC_OUT_M2) && c->pwm_frequency_hz > 40000) return false;
         if (c->esc_arm_hold_ms > 10000 || c->esc_arm_low_ms > 10000 || c->esc_arm_high_ms > 10000 || c->esc_arm_final_low_ms > 10000) return false;
@@ -458,6 +506,11 @@ void output_config_reset_defaults(void) {
     s_drive_mode = OC_DRIVE_TANK_SPLIT;
     s_drive_setup = drive_setup_for_legacy_mode(OC_DRIVE_TANK_SPLIT);
     s_max_paired = OC_MAX_PAIRED_DEFAULT;
+    s_sw1_config.short_action = OC_SW1_ACTION_PAIRING;
+    s_sw1_config.double_action = OC_SW1_ACTION_NONE;
+    s_sw1_config.hold_action = OC_SW1_ACTION_CLEAR_PAIR;
+    s_sw1_config.hold_ms = 5000;
+    s_disconnect_failsafe_hold_last = false;
 }
 
 esp_err_t output_config_init(void) {
@@ -527,6 +580,26 @@ esp_err_t output_config_init(void) {
         if (mp_err == ESP_OK && mp >= 1 && mp <= OC_MAX_PAIRED_CAP) {
             s_max_paired = mp;
         }
+    }
+    if (nvs_open(OC_NVS_NAMESPACE, NVS_READONLY, &h) == ESP_OK) {
+        oc_sw1_config_t sw1;
+        size_t sw1_len = sizeof(sw1);
+        esp_err_t sw1_err = nvs_get_blob(h, OC_NVS_KEY_SW1_CONFIG, &sw1, &sw1_len);
+        nvs_close(h);
+        if (sw1_err == ESP_OK && sw1_len == sizeof(sw1) &&
+            sw1.short_action < OC_SW1_ACTION__COUNT &&
+            sw1.double_action < OC_SW1_ACTION__COUNT &&
+            sw1.hold_action < OC_SW1_ACTION__COUNT &&
+            sw1.hold_ms >= 1000 && sw1.hold_ms <= 10000) {
+            s_sw1_config = sw1;
+        }
+    }
+    s_disconnect_failsafe_hold_last = false;
+    if (nvs_open(OC_NVS_NAMESPACE, NVS_READONLY, &h) == ESP_OK) {
+        uint8_t hold = 0;
+        esp_err_t fs_err = nvs_get_u8(h, OC_NVS_KEY_DISCONNECT_FAILSAFE, &hold);
+        nvs_close(h);
+        if (fs_err == ESP_OK) s_disconnect_failsafe_hold_last = hold != 0;
     }
     s_loaded = true;
     return ESP_OK;
@@ -658,6 +731,41 @@ esp_err_t output_config_set_max_paired(uint8_t n) {
     return save_all();
 }
 
+const oc_sw1_config_t *output_config_get_sw1_config(void) {
+    return &s_sw1_config;
+}
+
+esp_err_t output_config_set_sw1_config(const oc_sw1_config_t *cfg) {
+    if (!cfg) return ESP_ERR_INVALID_ARG;
+    if (cfg->short_action >= OC_SW1_ACTION__COUNT ||
+        cfg->double_action >= OC_SW1_ACTION__COUNT ||
+        cfg->hold_action >= OC_SW1_ACTION__COUNT ||
+        cfg->hold_ms < 1000 || cfg->hold_ms > 10000) return ESP_ERR_INVALID_ARG;
+    s_sw1_config = *cfg;
+    return save_all();
+}
+
+const char *output_config_sw1_action_name(oc_sw1_action_t action) {
+    if ((unsigned)action >= OC_SW1_ACTION__COUNT) return "none";
+    return kSw1ActionNames[action];
+}
+
+bool output_config_sw1_action_from_str(const char *s, oc_sw1_action_t *out) {
+    int v;
+    if (!table_lookup(s, kSw1ActionNames, OC_SW1_ACTION__COUNT, &v)) return false;
+    *out = (oc_sw1_action_t)v;
+    return true;
+}
+
+bool output_config_get_disconnect_failsafe_hold_last(void) {
+    return s_disconnect_failsafe_hold_last;
+}
+
+esp_err_t output_config_set_disconnect_failsafe_hold_last(bool hold_last) {
+    s_disconnect_failsafe_hold_last = hold_last;
+    return save_all();
+}
+
 esp_err_t output_config_commit(void) {
     return save_all();
 }
@@ -754,6 +862,12 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
     ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[s_drive_setup.precision_source]);
     ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"precision_scale_pct\":");
     ok &= json_append_int(out_buf, out_buf_len, &used, s_drive_setup.precision_scale_pct);
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"precision_latching\":");
+    ok &= json_append_raw(out_buf, out_buf_len, &used, s_drive_setup.precision_latching ? "true" : "false");
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"left_speed_pct\":");
+    ok &= json_append_int(out_buf, out_buf_len, &used, s_drive_setup.left_speed_pct);
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"right_speed_pct\":");
+    ok &= json_append_int(out_buf, out_buf_len, &used, s_drive_setup.right_speed_pct);
     ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"brake_source\":");
     ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kSourceNames[s_drive_setup.brake_source]);
     ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"invert_steering_source\":");
@@ -761,6 +875,22 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
     ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
     ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"max_paired\":");
     ok &= json_append_int(out_buf, out_buf_len, &used, s_max_paired);
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"disconnect_failsafe\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used,
+                                   s_disconnect_failsafe_hold_last ? "hold_last" : "safe_stop");
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"sw1\":{");
+    ok &= json_append_raw(out_buf, out_buf_len, &used, "\"short_action\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used,
+                                   output_config_sw1_action_name(s_sw1_config.short_action));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"double_action\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used,
+                                   output_config_sw1_action_name(s_sw1_config.double_action));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"hold_action\":");
+    ok &= json_append_quoted_token(out_buf, out_buf_len, &used,
+                                   output_config_sw1_action_name(s_sw1_config.hold_action));
+    ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"hold_ms\":");
+    ok &= json_append_int(out_buf, out_buf_len, &used, s_sw1_config.hold_ms);
+    ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
     ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"outputs\":{");
     for (int i = 0; i < OC_OUT__COUNT && ok; i++) {
         if (i > 0) ok &= json_append_raw(out_buf, out_buf_len, &used, ",");
@@ -790,6 +920,14 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
                                         kSourceNames[c->secondary]);
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"motor_mode\":");
         ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kMotorModeNames[c->motor_mode]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"acceleration_ms\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->ramp_ms);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"deceleration_ms\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->deceleration_ms);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"ramp_curve\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, c->ramp_curve == OC_RAMP_S_CURVE ? "s_curve" : "linear");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"ramp_smoothing_pct\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->ramp_smoothing_pct);
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"purpose\":");
         ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kPurposeNames[c->purpose]);
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"protocol\":");
@@ -867,6 +1005,22 @@ int output_config_to_json(char *out_buf, size_t out_buf_len) {
         ok &= json_append_int(out_buf, out_buf_len, &used, c->pwm_frequency_hz);
         ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"duty_pct\":");
         ok &= json_append_int(out_buf, out_buf_len, &used, c->pwm_duty_pct);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"rgb\":{");
+        ok &= json_append_raw(out_buf, out_buf_len, &used, "\"pattern\":");
+        ok &= json_append_quoted_token(out_buf, out_buf_len, &used, kRgbPatternNames[c->rgb_pattern]);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"r\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->rgb_r);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"g\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->rgb_g);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"b\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->rgb_b);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"w\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->rgb_w);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"brightness_pct\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->rgb_brightness_pct);
+        ok &= json_append_raw(out_buf, out_buf_len, &used, ",\"led_count\":");
+        ok &= json_append_int(out_buf, out_buf_len, &used, c->rgb_led_count);
         ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
         ok &= json_append_raw(out_buf, out_buf_len, &used, "}");
     }
@@ -1074,6 +1228,13 @@ static bool motor_mode_from_str(const char *s, oc_motor_mode_t *out) {
     return true;
 }
 
+static bool rgb_pattern_from_str(const char *s, oc_rgb_pattern_t *out) {
+    int v;
+    if (!table_lookup(s, kRgbPatternNames, OC_RGB_PATTERN__COUNT, &v)) return false;
+    *out = (oc_rgb_pattern_t)v;
+    return true;
+}
+
 static bool purpose_protocol_is_valid(oc_purpose_t purpose, oc_protocol_t protocol) {
     switch (purpose) {
         case OC_PURPOSE_DISABLED: return protocol == OC_PROTO_NONE;
@@ -1091,6 +1252,7 @@ static bool purpose_protocol_is_valid(oc_purpose_t purpose, oc_protocol_t protoc
         case OC_PURPOSE_DIGITAL_OUTPUT:
         case OC_PURPOSE_DIGITAL_INPUT: return protocol == OC_PROTO_GPIO;
         case OC_PURPOSE_PWM_ACCESSORY: return protocol == OC_PROTO_PWM_DUTY;
+        case OC_PURPOSE_RGB_LIGHTING: return protocol == OC_PROTO_RGB || protocol == OC_PROTO_RGBW;
         default: return false;
     }
 }
@@ -1128,6 +1290,14 @@ bool output_config_channel_allowed(oc_output_id_t id, uint8_t battery_state) {
     }
 }
 
+oc_power_override_t output_config_channel_power_action(oc_output_id_t id, uint8_t battery_state) {
+    const oc_output_cfg_t *cfg = output_config_get(id);
+    if (!cfg) return OC_POWER_DISABLE;
+    oc_power_override_t action = output_config_effective_power(cfg, battery_state);
+    if (action != OC_POWER_DEFAULT) return action;
+    return output_config_default_allowed_for_state(cfg, battery_state) ? OC_POWER_ALLOW : OC_POWER_DISABLE;
+}
+
 static bool apply_patch_one(oc_output_id_t id, const char *body) {
     bool dirty = false;
     const char *p = body;
@@ -1158,9 +1328,12 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
         if (strcmp(key, "deadzone") == 0 || strcmp(key, "min_pulse_us") == 0 ||
             strcmp(key, "center_pulse_us") == 0 || strcmp(key, "max_pulse_us") == 0 ||
             strcmp(key, "frame_hz") == 0 || strcmp(key, "neutral_deadzone") == 0 ||
-            strcmp(key, "ramp_ms") == 0 || strcmp(key, "pwm_frequency_hz") == 0 ||
+            strcmp(key, "ramp_ms") == 0 || strcmp(key, "acceleration_ms") == 0 ||
+            strcmp(key, "deceleration_ms") == 0 || strcmp(key, "ramp_smoothing_pct") == 0 || strcmp(key, "pwm_frequency_hz") == 0 ||
             strcmp(key, "pwm_duty_pct") == 0 || strcmp(key, "digital_on_threshold") == 0 ||
             strcmp(key, "digital_off_threshold") == 0 || strcmp(key, "digital_custom_pct") == 0 ||
+            strcmp(key, "rgb_r") == 0 || strcmp(key, "rgb_g") == 0 || strcmp(key, "rgb_b") == 0 ||
+            strcmp(key, "rgb_w") == 0 || strcmp(key, "rgb_brightness_pct") == 0 || strcmp(key, "rgb_led_count") == 0 ||
             strcmp(key, "esc_arm_hold_ms") == 0 || strcmp(key, "esc_arm_low_us") == 0 ||
             strcmp(key, "esc_arm_high_us") == 0 || strcmp(key, "esc_arm_low_ms") == 0 ||
             strcmp(key, "esc_arm_high_ms") == 0 || strcmp(key, "esc_arm_final_low_ms") == 0) {
@@ -1188,8 +1361,15 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             } else if (strcmp(key, "neutral_deadzone") == 0) {
                 if (d > 50) return false;
                 if (s_cfg[id].neutral_deadzone_pct != (uint8_t)d) { s_cfg[id].neutral_deadzone_pct = (uint8_t)d; dirty = true; }
-            } else if (strcmp(key, "ramp_ms") == 0) {
+            } else if (strcmp(key, "ramp_ms") == 0 || strcmp(key, "acceleration_ms") == 0) {
+                if (d > 10000) return false;
                 if (s_cfg[id].ramp_ms != (uint16_t)d) { s_cfg[id].ramp_ms = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "deceleration_ms") == 0) {
+                if (d > 10000) return false;
+                if (s_cfg[id].deceleration_ms != (uint16_t)d) { s_cfg[id].deceleration_ms = (uint16_t)d; dirty = true; }
+            } else if (strcmp(key, "ramp_smoothing_pct") == 0) {
+                if (d > 100) return false;
+                s_cfg[id].ramp_smoothing_pct = (uint8_t)d; dirty = true;
             } else if (strcmp(key, "pwm_frequency_hz") == 0) {
                 if ((id == OC_OUT_M1 || id == OC_OUT_M2) && (d < 1000 || d > 40000)) return false;
                 if (s_cfg[id].pwm_frequency_hz != (uint16_t)d) { s_cfg[id].pwm_frequency_hz = (uint16_t)d; dirty = true; }
@@ -1223,6 +1403,24 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
             } else if (strcmp(key, "digital_custom_pct") == 0) {
                 if (d > 100) return false;
                 if (s_cfg[id].digital_custom_pct != (uint8_t)d) { s_cfg[id].digital_custom_pct = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "rgb_r") == 0) {
+                if (d > 255) return false;
+                if (s_cfg[id].rgb_r != (uint8_t)d) { s_cfg[id].rgb_r = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "rgb_g") == 0) {
+                if (d > 255) return false;
+                if (s_cfg[id].rgb_g != (uint8_t)d) { s_cfg[id].rgb_g = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "rgb_b") == 0) {
+                if (d > 255) return false;
+                if (s_cfg[id].rgb_b != (uint8_t)d) { s_cfg[id].rgb_b = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "rgb_w") == 0) {
+                if (d > 255) return false;
+                if (s_cfg[id].rgb_w != (uint8_t)d) { s_cfg[id].rgb_w = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "rgb_brightness_pct") == 0) {
+                if (d > 100) return false;
+                if (s_cfg[id].rgb_brightness_pct != (uint8_t)d) { s_cfg[id].rgb_brightness_pct = (uint8_t)d; dirty = true; }
+            } else if (strcmp(key, "rgb_led_count") == 0) {
+                if (d < 1 || d > 300) return false;
+                if (s_cfg[id].rgb_led_count != (uint16_t)d) { s_cfg[id].rgb_led_count = (uint16_t)d; dirty = true; }
             }
         } else if (strcmp(key, "weapon_safety") == 0 || strcmp(key, "active_high") == 0 ||
                    strcmp(key, "default_state") == 0) {
@@ -1336,6 +1534,15 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
                     (mode == OC_MOTOR_MODE_MOMENTARY || mode == OC_MOTOR_MODE_LATCHING) &&
                     !source_is_digital_only(s_cfg[id].primary)) return false;
                 if (s_cfg[id].motor_mode != mode) { s_cfg[id].motor_mode = mode; dirty = true; }
+            } else if (strcmp(key, "ramp_curve") == 0) {
+                if (strcmp(value, "linear") == 0) s_cfg[id].ramp_curve = OC_RAMP_LINEAR;
+                else if (strcmp(value, "s_curve") == 0) s_cfg[id].ramp_curve = OC_RAMP_S_CURVE;
+                else return false;
+                dirty = true;
+            } else if (strcmp(key, "rgb_pattern") == 0) {
+                oc_rgb_pattern_t pattern;
+                if (!rgb_pattern_from_str(value, &pattern)) return false;
+                if (s_cfg[id].rgb_pattern != pattern) { s_cfg[id].rgb_pattern = pattern; dirty = true; }
             } else {
                 // Unknown string key: accept silently for forward-compat.
             }
@@ -1349,6 +1556,50 @@ static bool apply_patch_one(oc_output_id_t id, const char *body) {
     return !dirty ? true : true; // dirty is informational; we always report apply ok
 }
 
+
+
+static bool apply_sw1_patch(const char *body) {
+    oc_sw1_config_t next = s_sw1_config;
+    const char *p = body;
+    if (*p != '{') return false;
+    p++;
+    while (*p && *p != '}') {
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == '}') break;
+        if (*p != '"') return false;
+        const char *key_start = ++p;
+        while (*p && *p != '"') { if (*p == '\\' && p[1]) p++; p++; }
+        if (*p != '"') return false;
+        size_t klen = (size_t)(p - key_start);
+        char key[24] = {0};
+        if (klen >= sizeof(key)) return false;
+        memcpy(key, key_start, klen);
+        p++;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p != ':') return false;
+        p++;
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (strcmp(key, "hold_ms") == 0 || strcmp(key, "long_hold_ms") == 0) {
+            int v;
+            if (!parse_bare_int_value(&p, &v)) return false;
+            if (v < 1000 || v > 10000) return false;
+            next.hold_ms = (uint16_t)v;
+        } else {
+            char value[24] = {0};
+            oc_sw1_action_t action;
+            if (!parse_bare_string_value(&p, value, sizeof(value))) return false;
+            if (!output_config_sw1_action_from_str(value, &action)) return false;
+            if (strcmp(key, "short_action") == 0) next.short_action = action;
+            else if (strcmp(key, "double_action") == 0) next.double_action = action;
+            else if (strcmp(key, "hold_action") == 0 || strcmp(key, "long_action") == 0) next.hold_action = action;
+        }
+        while (*p && isspace((unsigned char)*p)) p++;
+        if (*p == ',') p++;
+    }
+    if (next.short_action >= OC_SW1_ACTION__COUNT || next.double_action >= OC_SW1_ACTION__COUNT || next.hold_action >= OC_SW1_ACTION__COUNT) return false;
+    s_sw1_config = next;
+    return true;
+}
 
 static bool apply_drive_patch(const char *body) {
     oc_drive_setup_t next = s_drive_setup;
@@ -1374,11 +1625,17 @@ static bool apply_drive_patch(const char *body) {
         if (*p != ':') return false;
         p++;
         while (*p && isspace((unsigned char)*p)) p++;
-        if (strcmp(key, "precision_scale_pct") == 0) {
+        if (strcmp(key, "precision_latching") == 0) {
+            if (!parse_bare_bool_value(&p, &next.precision_latching)) return false;
+        } else if (strcmp(key, "precision_scale_pct") == 0 ||
+            strcmp(key, "left_speed_pct") == 0 ||
+            strcmp(key, "right_speed_pct") == 0) {
             int v;
             if (!parse_bare_int_value(&p, &v)) return false;
             if (v < 0 || v > 100) return false;
-            next.precision_scale_pct = (uint8_t)v;
+            if (strcmp(key, "precision_scale_pct") == 0) next.precision_scale_pct = (uint8_t)v;
+            else if (strcmp(key, "left_speed_pct") == 0) next.left_speed_pct = (uint8_t)v;
+            else next.right_speed_pct = (uint8_t)v;
         } else {
             char value[24] = {0};
             if (!parse_bare_string_value(&p, value, sizeof(value))) return false;
@@ -1472,6 +1729,16 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
             if (*p == ',') p++;
             continue;
         }
+        if (strcmp(key, "disconnect_failsafe") == 0) {
+            char value[24] = {0};
+            if (!parse_bare_string_value(&p, value, sizeof(value))) return ESP_ERR_INVALID_ARG;
+            if (strcmp(value, "safe_stop") == 0) s_disconnect_failsafe_hold_last = false;
+            else if (strcmp(value, "hold_last") == 0) s_disconnect_failsafe_hold_last = true;
+            else return ESP_ERR_INVALID_ARG;
+            while (*p && isspace((unsigned char)*p)) p++;
+            if (*p == ',') p++;
+            continue;
+        }
 
         // remember body start, find matching closing brace (simple depth count)
         if (*p != '{') return ESP_ERR_INVALID_ARG;
@@ -1492,6 +1759,8 @@ esp_err_t output_config_apply_json_patch(const char *json_patch) {
         }
         if (strcmp(key, "drive") == 0) {
             if (!apply_drive_patch(body)) return ESP_ERR_INVALID_ARG;
+        } else if (strcmp(key, "sw1") == 0) {
+            if (!apply_sw1_patch(body)) return ESP_ERR_INVALID_ARG;
         } else {
             oc_output_id_t id;
             if (output_config_id_from_str(key, &id)) {

@@ -14,6 +14,7 @@ public:
     Buttons(int modeButtonPin);
     void begin();
     ButtonPress checkForPress();
+    void setHoldTimeMs(uint16_t holdMs);
 
 private:
     static void buttonTask(void* pvParams);
@@ -29,6 +30,9 @@ private:
     bool       pressed          = false;
     bool       longEventSent    = false;
     bool       hold5sEventSent  = false;
+    bool       shortPending     = false;
+    TickType_t shortPendingTick = 0;
+    uint16_t   holdTimeMs       = HOLD_5S_TIME;
 
     volatile ButtonPress lastEvent = BUTTON_NONE;
 };

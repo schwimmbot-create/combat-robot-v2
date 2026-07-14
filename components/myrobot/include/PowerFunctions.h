@@ -20,6 +20,12 @@ public:
     static uint16_t battery_warn_millivolts(uint8_t cell_count, uint8_t warn_percent);
     static uint8_t battery_percent_from_millivolts(uint16_t millivolts, uint8_t cell_count);
 
+#ifdef BENCH_HID_PUBLIC
+    static void benchSetBatteryOverride(uint8_t state, uint8_t percent);
+    static void benchClearBatteryOverride();
+    static bool benchBatteryOverrideEnabled();
+#endif
+
 private:
     static void batteryMonitorTask(void* pvParameters);
     float readBatteryVoltage();

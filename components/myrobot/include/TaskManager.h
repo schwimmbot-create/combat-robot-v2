@@ -32,11 +32,15 @@ public:
     int16_t getDriveSteering() const;
     int16_t getDriveLeftCommand() const;
     int16_t getDriveRightCommand() const;
+    DriveMotorIntent getMotorIntent(oc_output_id_t id) const;
+    const char* getOutputBlockedReason(oc_output_id_t id) const;
+    bool isControllerConnected() const { return _isConnected; }
 
 
 private:
     static void managerTask(void* pvParameters);
     void processButtons(const ControllerState& cs);
+    void handleSw1Action(oc_sw1_action_t action);
     void adjustLedForBattery();
     void updateAuxOutput(oc_output_id_t id, uint8_t pin, PulseOutput& pulse, const ControllerState& cs, bool connected);
     void updateDigitalOutput(oc_output_id_t id, uint8_t pin, const ControllerState& cs, bool connected);
@@ -49,10 +53,14 @@ private:
     PulseEscSemantics escSemanticsFromConfig(const oc_output_cfg_t* cfg) const;
     int16_t readDriveAxis(oc_drive_axis_t axis, const ControllerState& cs) const;
     bool driveModifierActive(oc_source_id_t src, const ControllerState& cs) const;
+    bool precisionModifierActive(const oc_drive_setup_t* setup, const ControllerState& cs);
     bool manualMotorSourceActive(const oc_output_cfg_t* cfg, const ControllerState& cs) const;
     int16_t manualMotorCommand(oc_output_id_t id, const oc_output_cfg_t* cfg, const ControllerState& cs, bool connected, bool allowed);
-    int16_t applyDriveModifiersToThrottle(int16_t throttle, const oc_drive_setup_t* setup, const ControllerState& cs) const;
-    int16_t applyDriveModifiersToSteering(int16_t steering, const oc_drive_setup_t* setup, const ControllerState& cs) const;
+    int16_t applyDriveModifiersToThrottle(int16_t throttle, const oc_drive_setup_t* setup, const ControllerState& cs);
+    int16_t applyDriveModifiersToSteering(int16_t steering, const oc_drive_setup_t* setup, const ControllerState& cs);
+    int16_t applyPowerScale(oc_output_id_t id, int16_t value) const;
+    uint16_t applyPowerScaleUnsigned(oc_output_id_t id, uint16_t value) const;
+    int16_t applyMotionRamp(oc_output_id_t id, int16_t target, uint16_t accelerationMs, uint16_t decelerationMs);
     void updateSteeringServo(oc_output_id_t id, int16_t steering, const ControllerState& cs, bool connected);
     bool outputReservedForDriveSteering(oc_output_id_t id) const;
     bool updateEscArming(oc_output_id_t id, PulseOutput& pulse, const oc_output_cfg_t* cfg, const ControllerState& cs, const PulseProtocol& protocol);
@@ -116,6 +124,10 @@ private:
     bool _m2Latched = false;
     bool _m1PrevManualActive = false;
     bool _m2PrevManualActive = false;
+    bool _precisionLatched = false;
+    bool _precisionPrevPressed = false;
+    int16_t _rampedOutput[OC_OUT__COUNT] = {0, 0, 0, 0};
+    uint32_t _rampUpdatedMs[OC_OUT__COUNT] = {0, 0, 0, 0};
 
     EscArmState _s1EscArm;
     EscArmState _s2EscArm;

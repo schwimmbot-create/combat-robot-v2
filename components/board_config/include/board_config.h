@@ -94,6 +94,11 @@ extern "C" {
     #define PIN_MODE_BUTTON           5    // GPIO5  -> SW1 / MODE_BUTTON
     #define PIN_DEBUG_LED             10   // GPIO10 -> LED1 (debug)
     #define PIN_NEOPIXEL              8    // GPIO8  -> WS2812 LED (also I2C SCL!)
+    // H1 is the v2 spare header pin on GPIO2. The schematic explicitly
+    // requires it be pulled HIGH at boot; firmware must never drive it low
+    // during startup. It shares the nominal SDA net, but this firmware does
+    // not initialize an I2C bus.
+    #define PIN_HEADER_H1             2
 
     // I2C bus (shared: IMU on SDA/SCL, but also NEOPIXEL on same pins?)
     // NOTE: v2 schematic likely has a pin conflict here - verify

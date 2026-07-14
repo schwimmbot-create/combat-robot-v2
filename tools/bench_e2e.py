@@ -28,7 +28,12 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
-from typing import Callable, Iterable
+from typing import Any, Callable, Iterable
+
+from drive_sim.assertions import ArcsLeft, ArcsRight, EndsStopped, MovesForward
+from drive_sim.board_data import load_board_data
+from drive_sim.firmware_runner import TimedStatus, simulate_status_samples
+from drive_sim.render import render_report
 
 try:
     import serial  # type: ignore
@@ -82,6 +87,16 @@ class RobotStatus:
     drive_steering: int
     drive_left: int
     drive_right: int
+    m1_speed: int
+    m1_dir: str
+    m1_fwd_duty: int
+    m1_rev_duty: int
+    m1_freq: int
+    m2_speed: int
+    m2_dir: str
+    m2_fwd_duty: int
+    m2_rev_duty: int
+    m2_freq: int
     paired: list[str]
 
 
@@ -99,6 +114,8 @@ STATUS_RE = re.compile(
     r"throttle_axis:(?P<drive_throttle_axis>\w+),steering_axis:(?P<drive_steering_axis>\w+),"
     r"throttle:(?P<drive_throttle>-?\d+),steering:(?P<drive_steering>-?\d+),"
     r"left:(?P<drive_left>-?\d+),right:(?P<drive_right>-?\d+)\} "
+    r"motors=\{M1:\{speed:(?P<m1_speed>\d+),dir:(?P<m1_dir>\w+),fwd_duty:(?P<m1_fwd_duty>\d+),rev_duty:(?P<m1_rev_duty>\d+),freq:(?P<m1_freq>\d+)\},"
+    r"M2:\{speed:(?P<m2_speed>\d+),dir:(?P<m2_dir>\w+),fwd_duty:(?P<m2_fwd_duty>\d+),rev_duty:(?P<m2_rev_duty>\d+),freq:(?P<m2_freq>\d+)\}\} "
     r"paired=\[(?P<paired>[^\]]*)\]"
 )
 
@@ -216,12 +233,22 @@ def parse_status(text: str) -> RobotStatus:
         drive_steering=int(m.group("drive_steering")),
         drive_left=int(m.group("drive_left")),
         drive_right=int(m.group("drive_right")),
+        m1_speed=int(m.group("m1_speed")),
+        m1_dir=m.group("m1_dir"),
+        m1_fwd_duty=int(m.group("m1_fwd_duty")),
+        m1_rev_duty=int(m.group("m1_rev_duty")),
+        m1_freq=int(m.group("m1_freq")),
+        m2_speed=int(m.group("m2_speed")),
+        m2_dir=m.group("m2_dir"),
+        m2_fwd_duty=int(m.group("m2_fwd_duty")),
+        m2_rev_duty=int(m.group("m2_rev_duty")),
+        m2_freq=int(m.group("m2_freq")),
         paired=paired,
     )
 
 
-def robot_status(robot: SerialCli) -> RobotStatus:
-    out = robot.command("status", seconds=1.0)
+def robot_status(robot: SerialCli, seconds: float = 1.0) -> RobotStatus:
+    out = robot.command("status", seconds=seconds)
     return parse_status(out)
 
 
@@ -315,6 +342,33 @@ class RobotApi:
 
     def post_json(self, path: str, body: dict) -> dict:
         return self.request("POST", path, body=body)
+
+
+def set_bench_battery(api: RobotApi, state: str, pct: int | None = None) -> None:
+    query = {"state": state}
+    if pct is not None:
+        query["pct"] = str(pct)
+    resp = api.post("/api/bench/battery", query)
+    if resp.get("ok") is not True or resp.get("override") is not True:
+        raise BenchError(f"bench battery override {state} failed: {resp}")
+    status = api.get("/api/status")
+    expected = {"good": 1, "warn": 2, "low": 3}[state]
+    if status.get("battery_state") != expected:
+        raise BenchError(f"bench battery state echo mismatch for {state}: {status}")
+    print(f"PASS bench battery override {state}")
+
+
+def clear_bench_battery(api: RobotApi) -> None:
+    resp = api.post("/api/bench/battery", {"clear": "1"})
+    if resp.get("ok") is not True or resp.get("override") is not False:
+        raise BenchError(f"bench battery clear failed: {resp}")
+    print("PASS bench battery override clear")
+
+
+def patch_output_power(api: RobotApi, output: str, *, good: str = "default", warn: str = "default", low: str = "default") -> None:
+    resp = api.post_json("/api/config", {output: {"power_good": good, "power_warn": warn, "power_low": low}})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API power patch {output} failed: {resp}")
 
 
 def pack_8bitdo_hex(*, hat: int = 8, lx: int = 127, ly: int = 127, rx: int = 127, ry: int = 127,
@@ -602,15 +656,21 @@ def restore_default_drive(api: RobotApi) -> None:
 
 
 def configure_manual_m1(api: RobotApi, *, mode: str, primary: str = "A", duty: int = 100, freq: int = 20000) -> None:
+    # Avoid transient validation failures when switching between analog-capable
+    # proportional mode and digital-only momentary/latching modes. The firmware
+    # validates after each parsed key, so move through a safe disabled/NONE state.
+    safe = api.post_json("/api/config", {"M1": {"motor_mode": "disabled", "primary": "NONE"}})
+    if safe.get("ok") is not True:
+        raise BenchError(f"API configure manual M1 safe transition failed: {safe}")
     resp = api.post_json("/api/config", {
         "M1": {
             "display_name": "Motor 1",
             "direction": "normal",
             "servo_mode": "bi",
             "deadzone": 10,
+            "motor_mode": mode,
             "primary": primary,
             "secondary": "NONE",
-            "motor_mode": mode,
             "purpose": "drive",
             "protocol": "none",
             "semantics": "none",
@@ -725,7 +785,7 @@ def verify_composable_drive_setup(api: RobotApi, robot: SerialCli) -> None:
     base = assert_status_field(
         robot,
         "drive RT/LT trigger throttle -> forward arcade",
-        lambda s: s.rt == 512 and s.lt == 0 and s.drive_throttle > 200 and abs(s.drive_steering) <= 4 and s.drive_left > 200 and s.drive_right > 200,
+        lambda s: s.rt == 512 and s.lt == 0 and s.drive_throttle > 200 and abs(s.drive_steering) <= 4 and s.drive_left > 200 and s.drive_right > 200 and s.m1_speed > 0 and s.m2_speed > 0 and s.m1_fwd_duty != s.m1_rev_duty and s.m2_fwd_duty != s.m2_rev_duty,
     )
 
     resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=128, l2=0, lx=0)})
@@ -819,6 +879,262 @@ def verify_composable_drive_setup(api: RobotApi, robot: SerialCli) -> None:
     restore_s1_servo(api)
     print("PASS composable drive setup trigger/dpad/modifier/servo-steering coverage")
 
+
+def verify_s1_servo_pulse_range(api: RobotApi, robot: SerialCli) -> None:
+    resp = api.post_json("/api/config", {
+        "S1": {
+            "display_name": "S1 Range",
+            "direction": "normal",
+            "servo_mode": "bi",
+            "deadzone": 0,
+            "primary": "LX",
+            "secondary": "NONE",
+            "purpose": "servo",
+            "protocol": "rc_servo_pwm",
+            "semantics": "position_servo",
+            "weapon_safety": False,
+            "failsafe": "safe_state",
+            "min_pulse_us": 1000,
+            "center_pulse_us": 1500,
+            "max_pulse_us": 2000,
+            "frame_hz": 50,
+            "power_good": "default",
+            "power_warn": "default",
+            "power_low": "default",
+        }
+    })
+    if resp.get("ok") is not True:
+        raise BenchError(f"API config S1 servo pulse range failed: {resp}")
+    for label, lx, predicate in [
+        ("S1 servo LX min -> min pulse", 0, lambda s: 990 <= s.s1_pulse_us <= 1020),
+        ("S1 servo LX center -> center pulse", 127, lambda s: 1480 <= s.s1_pulse_us <= 1520),
+        ("S1 servo LX max -> max pulse", 255, lambda s: 1980 <= s.s1_pulse_us <= 2010),
+    ]:
+        resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(lx=lx)})
+        if resp.get("ok") is not True:
+            raise BenchError(f"API bench {label} failed: {resp}")
+        assert_status_field(robot, label, predicate)
+    restore_s1_servo(api)
+    print("PASS S1 servo pulse min/center/max coverage")
+
+
+def verify_power_behavior_runtime(api: RobotApi, robot: SerialCli) -> None:
+    try:
+        clear_bench_battery(api)
+    except BenchError:
+        pass
+    configure_drive(api, {
+        "layout": "differential",
+        "method": "arcade",
+        "throttle_axis": "RT_MINUS_LT",
+        "steering_axis": "LX",
+        "precision_source": "NONE",
+        "precision_scale_pct": 50,
+        "brake_source": "NONE",
+        "invert_steering_source": "NONE",
+    })
+    patch_output_power(api, "M1", warn="reduce", low="disable")
+    patch_output_power(api, "M2", warn="reduce", low="disable")
+    try:
+        set_bench_battery(api, "good")
+        resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=192, lx=127)})
+        if resp.get("ok") is not True:
+            raise BenchError(f"API bench power GOOD drive failed: {resp}")
+        good = assert_status_field(
+            robot,
+            "power GOOD allows full drive",
+            lambda s: s.drive_left > 300 and s.drive_right > 300 and s.m1_speed > 150 and s.m2_speed > 150,
+        )
+
+        set_bench_battery(api, "warn")
+        resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=192, lx=127)})
+        if resp.get("ok") is not True:
+            raise BenchError(f"API bench power WARN drive failed: {resp}")
+        assert_status_field(
+            robot,
+            "power WARN reduces drive to about half",
+            lambda s, baseline=good.drive_left: 120 <= s.drive_left < baseline and 120 <= s.drive_right < baseline and s.m1_speed < good.m1_speed and s.m2_speed < good.m2_speed,
+        )
+
+        set_bench_battery(api, "low")
+        resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=192, lx=127)})
+        if resp.get("ok") is not True:
+            raise BenchError(f"API bench power LOW drive failed: {resp}")
+        assert_status_field(
+            robot,
+            "power LOW disables drive",
+            lambda s: s.drive_left == 0 and s.drive_right == 0 and s.m1_speed == 0 and s.m2_speed == 0 and s.m1_dir == "stop" and s.m2_dir == "stop",
+        )
+    finally:
+        patch_output_power(api, "M1")
+        patch_output_power(api, "M2")
+        clear_bench_battery(api)
+        restore_default_drive(api)
+    print("PASS power behavior WARN reduce / LOW disable runtime coverage")
+
+
+def verify_disconnect_failsafe(api: RobotApi, robot: SerialCli) -> None:
+    configure_drive(api, {
+        "layout": "differential",
+        "method": "arcade",
+        "throttle_axis": "RT_MINUS_LT",
+        "steering_axis": "LX",
+        "precision_source": "NONE",
+        "precision_scale_pct": 50,
+        "brake_source": "NONE",
+        "invert_steering_source": "NONE",
+    })
+    resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex(r2=192, lx=127)})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench before disconnect failsafe failed: {resp}")
+    assert_status_field(robot, "failsafe precondition drive moving", lambda s: s.m1_speed > 0 and s.m2_speed > 0)
+    robot.command("disconnect", seconds=0.8)
+    assert_status_field(
+        robot,
+        "disconnect failsafe stops drive motors",
+        lambda s: s.drive_left == 0 and s.drive_right == 0 and s.m1_speed == 0 and s.m2_speed == 0,
+        timeout=4.0,
+    )
+    print("PASS disconnect failsafe stops drive motors")
+
+
+def collect_drive_sim_samples(api: RobotApi, robot: SerialCli, *, hid_hex: str, duration_s: float, start_t_s: float) -> list[TimedStatus]:
+    resp = api.post("/api/bench/hid", {"hex": hid_hex})
+    if resp.get("ok") is not True:
+        raise BenchError(f"API bench hid for drive-sim failed: {resp}")
+    samples: list[TimedStatus] = []
+    end = time.monotonic() + duration_s
+    while time.monotonic() < end or not samples:
+        now = time.monotonic()
+        try:
+            samples.append(TimedStatus(now - start_t_s, robot_status(robot, seconds=0.15)))
+        except BenchError:
+            if not samples:
+                raise
+        time.sleep(0.05)
+    return samples
+
+
+def run_drive_sim_scenario(
+    api: RobotApi,
+    robot: SerialCli,
+    *,
+    board,
+    name: str,
+    kind: Any,
+    active_hid: str,
+    active_duration_s: float,
+    assertions,
+    description: str,
+):
+    start = time.monotonic()
+    samples = collect_drive_sim_samples(api, robot, hid_hex=active_hid, duration_s=active_duration_s, start_t_s=start)
+    samples.extend(collect_drive_sim_samples(api, robot, hid_hex=pack_8bitdo_hex(), duration_s=0.25, start_t_s=start))
+    result = simulate_status_samples(
+        name=name,
+        kind=kind,
+        samples=samples,
+        assertions=assertions,
+        board=board,
+        description=description,
+    )
+    if not result.passed:
+        details = "; ".join(f"{r.name}={r.passed} ({r.detail})" for r in result.assertion_results)
+        raise BenchError(f"drive-sim scenario {name} failed: {details}")
+    print(f"PASS drive-sim {name}: {result.trajectory.metrics()}")
+    return result
+
+
+def run_drive_sim_tests(api: RobotApi, robot: SerialCli, *, board_rev: int, out_path: str) -> None:
+    board = load_board_data(board_rev)
+    print(f"INFO drive-sim board: {board.summary}")
+    status = api.get("/api/bench/hid/status")
+    if status.get("runtime_enabled") is not True:
+        enabled = api.post("/api/bench/hid/enable")
+        if enabled.get("ok") is not True:
+            raise BenchError(f"API bench enable failed for drive-sim: {enabled}")
+
+    results = []
+    try:
+        configure_drive(api, {
+            "layout": "differential",
+            "method": "arcade",
+            "throttle_axis": "RT_MINUS_LT",
+            "steering_axis": "LX",
+            "precision_source": "NONE",
+            "precision_scale_pct": 50,
+            "brake_source": "NONE",
+            "invert_steering_source": "NONE",
+        })
+        diff_kind = "four_wheel_skid" if board.num_drive_motors >= 4 else "differential"
+        results.append(run_drive_sim_scenario(
+            api, robot, board=board,
+            name=f"board{board.rev}_firmware_arcade_forward",
+            kind=diff_kind,
+            active_hid=pack_8bitdo_hex(r2=192, lx=127),
+            active_duration_s=0.8,
+            assertions=[MovesForward(), EndsStopped()],
+            description=f"{board.summary}: live firmware arcade RT throttle should simulate forward motion.",
+        ))
+        results.append(run_drive_sim_scenario(
+            api, robot, board=board,
+            name=f"board{board.rev}_firmware_arcade_left_arc",
+            kind=diff_kind,
+            active_hid=pack_8bitdo_hex(r2=128, lx=80),
+            active_duration_s=0.55,
+            assertions=[ArcsLeft(min_distance_m=0.03), EndsStopped()],
+            description=f"{board.summary}: live firmware arcade steering-left should simulate a left arc.",
+        ))
+        results.append(run_drive_sim_scenario(
+            api, robot, board=board,
+            name=f"board{board.rev}_firmware_arcade_right_arc",
+            kind=diff_kind,
+            active_hid=pack_8bitdo_hex(r2=128, lx=174),
+            active_duration_s=0.55,
+            assertions=[ArcsRight(min_distance_m=0.03), EndsStopped()],
+            description=f"{board.summary}: live firmware arcade steering-right should simulate a right arc.",
+        ))
+
+        restore_s1_servo(api)
+        configure_drive(api, {
+            "layout": "servo_steering",
+            "method": "servo_steering",
+            "drive_motor_output": "M1",
+            "steering_output": "S1",
+            "throttle_axis": "RT_MINUS_LT",
+            "steering_axis": "LX",
+            "precision_source": "NONE",
+            "precision_scale_pct": 50,
+            "brake_source": "NONE",
+            "invert_steering_source": "NONE",
+        })
+        results.append(run_drive_sim_scenario(
+            api, robot, board=board,
+            name=f"board{board.rev}_firmware_servo_steer_left_arc",
+            kind="servo_steer",
+            active_hid=pack_8bitdo_hex(r2=128, lx=0),
+            active_duration_s=0.55,
+            assertions=[ArcsLeft(), EndsStopped()],
+            description=f"{board.summary}: live firmware servo-steering low S1 pulse should simulate a left arc.",
+        ))
+        results.append(run_drive_sim_scenario(
+            api, robot, board=board,
+            name=f"board{board.rev}_firmware_servo_steer_right_arc",
+            kind="servo_steer",
+            active_hid=pack_8bitdo_hex(r2=128, lx=255),
+            active_duration_s=0.55,
+            assertions=[ArcsRight(), EndsStopped()],
+            description=f"{board.summary}: live firmware servo-steering high S1 pulse should simulate a right arc.",
+        ))
+    finally:
+        api.post("/api/bench/hid", {"hex": pack_8bitdo_hex()})
+        restore_default_drive(api)
+        restore_s1_servo(api)
+
+    report = render_report(results, out_path)
+    print(f"PASS drive-sim report: {report}")
+
+
 def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
     status = api.get("/api/status")
     if status.get("wifi_ap_mode") is not True or status.get("wifi_ip") != "192.168.4.1":
@@ -869,6 +1185,9 @@ def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
 
     verify_composable_drive_setup(api, robot)
     verify_manual_motor_outputs(api, robot)
+    verify_s1_servo_pulse_range(api, robot)
+    verify_power_behavior_runtime(api, robot)
+    verify_disconnect_failsafe(api, robot)
 
     configure_s1_digital(api, primary="A", active_high=True)
     resp = api.post("/api/bench/hid", {"hex": pack_8bitdo_hex()})
@@ -931,6 +1250,35 @@ def run_api_tests(api: RobotApi, robot: SerialCli, mock: SerialCli) -> None:
     ensure_connected(robot)
 
 
+def verify_ota_update(api_base: str, firmware: Path, timeout: float) -> None:
+    """Upload a built binary through the public OTA endpoint and verify reboot."""
+    if not firmware.is_file() or firmware.stat().st_size == 0:
+        raise BenchError(f"OTA firmware missing or empty: {firmware}")
+    boundary = "----combatRobotBenchOTA"
+    payload = firmware.read_bytes()
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"update\"; filename=\"{firmware.name}\"\r\n"
+            "Content-Type: application/octet-stream\r\n\r\n").encode() + payload + f"\r\n--{boundary}--\r\n".encode()
+    req = urllib.request.Request(api_base + "/api/ota", data=body, method="POST",
+        headers={"Content-Type": f"multipart/form-data; boundary={boundary}", "Content-Length": str(len(body))})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout + 30) as response:
+            result = json.loads(response.read().decode())
+    except (urllib.error.URLError, urllib.error.HTTPError, ValueError) as exc:
+        raise BenchError(f"OTA upload request failed: {exc}") from exc
+    if result.get("ok") is not True:
+        raise BenchError(f"OTA endpoint rejected firmware: {result}")
+    deadline = time.monotonic() + 25
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(api_base + "/api/status", timeout=timeout) as response:
+                json.loads(response.read().decode())
+                print("PASS OTA upload and post-reboot API liveness")
+                return
+        except (urllib.error.URLError, urllib.error.HTTPError, ValueError):
+            time.sleep(1)
+    raise BenchError("OTA accepted firmware but board did not return through /api/status")
+
+
 def run(args: argparse.Namespace) -> None:
     ports = Ports(args.robot_port, args.mock_port) if args.robot_port and args.mock_port else discover_ports(
         args.robot_serial, args.mock_serial
@@ -978,10 +1326,18 @@ def run(args: argparse.Namespace) -> None:
         expect_mock_ok(mock, "RESET")
         assert_status_field(robot, "reset returns neutral", lambda s: s.ly == 0 and s.rt == 0 and s.buttons == 0 and s.dpad == 0)
 
-        if args.skip_api:
+        if args.drive_sim_only:
+            if args.skip_api:
+                raise BenchError("--drive-sim-only requires WiFi/API access; remove --skip-api")
+            run_drive_sim_tests(RobotApi(args.api_base, timeout=args.api_timeout), robot, board_rev=args.board_rev, out_path=args.drive_sim_out)
+        elif args.skip_api:
             print("SKIP WiFi API tests (--skip-api)")
         else:
             run_api_tests(RobotApi(args.api_base, timeout=args.api_timeout), robot, mock)
+            if args.ota_bin:
+                verify_ota_update(args.api_base, Path(args.ota_bin), args.api_timeout)
+            if args.drive_sim:
+                run_drive_sim_tests(RobotApi(args.api_base, timeout=args.api_timeout), robot, board_rev=args.board_rev, out_path=args.drive_sim_out)
 
         print("BENCH_E2E PASS")
     finally:
@@ -998,6 +1354,11 @@ def main(argv: Iterable[str] | None = None) -> int:
     p.add_argument("--api-base", default="http://192.168.4.1", help="Robot WiFi API base URL")
     p.add_argument("--api-timeout", type=float, default=5.0, help="HTTP timeout in seconds")
     p.add_argument("--skip-api", action="store_true", help="Skip WiFi/API checks when not connected to the robot AP")
+    p.add_argument("--ota-bin", help="Built firmware.bin to upload via /api/ota after normal API checks")
+    p.add_argument("--drive-sim", action="store_true", help="After normal API bench tests, run virtual drive-sim scenarios from live firmware telemetry")
+    p.add_argument("--drive-sim-only", action="store_true", help="Run only liveness/link setup plus live-telemetry virtual drive-sim scenarios")
+    p.add_argument("--drive-sim-out", default="artifacts/drive-sim/bench-live.html", help="HTML output path for --drive-sim report")
+    p.add_argument("--board-rev", type=int, default=2, choices=[2, 3], help="BOARD_REV metadata to use for drive simulation")
     args = p.parse_args(list(argv) if argv is not None else None)
     try:
         run(args)

@@ -58,6 +58,8 @@ static AsyncWebSocket *ws = nullptr;
 static DNSServer       dnsServer;     // captive-portal DNS, only active in AP mode
 static bool wifi_ap_mode = false;
 static char ap_password[32] = AP_DEFAULT_PASSWORD;
+// The HTTP response must flush before restarting after a successful OTA.
+static uint32_t ota_restart_at_ms = 0;
 
 // Gamepad live state for the WebSocket streamer. Updated each loop tick
 // when a client is connected.
@@ -84,6 +86,10 @@ static void mac_to_cstr(const ble_mac_t *m, char *buf, size_t len);
 extern "C" __attribute__((weak)) void main_notify_connected(bool /*connected*/) {}
 extern "C" __attribute__((weak)) bool main_get_digital_output_logical(int /*output_id*/) { return false; }
 extern "C" __attribute__((weak)) bool main_get_digital_output_physical_high(int /*output_id*/) { return false; }
+extern "C" __attribute__((weak)) int main_build_runtime_output_json(char *buf, size_t len) {
+    if (!buf || len < 3) return -1;
+    return snprintf(buf, len, "{\"outputs\":{},\"drive\":{}}");
+}
 
 static void on_ble_connection_change(bool connected, const ble_mac_t *mac) {
     // Mirror connect/disconnect to the LED1 pairing indicator. Keeping
@@ -307,13 +313,13 @@ static void send_json_status(AsyncWebServerRequest *req) {
     json += "\"battery_cutoff_mv\":" + String(s.battery_cutoff_mv) + ",";
     json += "\"battery_warn_mv\":" + String(s.battery_warn_mv) + ",";
     json += "\"outputs\":{";
-    json += "\"S1\":{";
-    json += "\"logical\":" + String(main_get_digital_output_logical(OC_OUT_S1) ? "true" : "false") + ",";
-    json += "\"physical_high\":" + String(main_get_digital_output_physical_high(OC_OUT_S1) ? "true" : "false") + "},";
-    json += "\"S2\":{";
-    json += "\"logical\":" + String(main_get_digital_output_logical(OC_OUT_S2) ? "true" : "false") + ",";
-    json += "\"physical_high\":" + String(main_get_digital_output_physical_high(OC_OUT_S2) ? "true" : "false") + "}";
-    json += "},";
+    json += "\"S1\":{\"logical\":" + String(main_get_digital_output_logical(OC_OUT_S1) ? "true" : "false") + ",\"physical_high\":" + String(main_get_digital_output_physical_high(OC_OUT_S1) ? "true" : "false") + "},";
+    json += "\"S2\":{\"logical\":" + String(main_get_digital_output_logical(OC_OUT_S2) ? "true" : "false") + ",\"physical_high\":" + String(main_get_digital_output_physical_high(OC_OUT_S2) ? "true" : "false") + "}},";
+    static char runtime_json[2048];
+    int runtime_n = main_build_runtime_output_json(runtime_json, sizeof(runtime_json));
+    json += "\"runtime\":";
+    json += runtime_n > 0 ? String(runtime_json) : String("{\"outputs\":{},\"drive\":{}}");
+    json += ",";
     json += "\"firmware_version\":\"" + String(s.firmware_version) + "\"";
     json += "}";
 
@@ -583,6 +589,55 @@ static void register_routes(void) {
         NULL
     );
 
+    server->on("/api/bench/battery", HTTP_POST,
+        [](AsyncWebServerRequest *req) {
+#ifndef BENCH_HID_PUBLIC
+            req->send(404, "application/json", "{\"err\":\"disabled\"}");
+            return;
+#else
+            if (req->hasParam("clear")) {
+                PowerFunctions::benchClearBatteryOverride();
+                req->send(200, "application/json", "{\"ok\":true,\"override\":false}");
+                return;
+            }
+            if (!req->hasParam("state")) {
+                req->send(400, "application/json", "{\"err\":\"missing state\"}");
+                return;
+            }
+            String stateName = req->getParam("state")->value();
+            stateName.toLowerCase();
+            uint8_t state = BATTERY_GOOD;
+            uint8_t percent = 100;
+            if (stateName == "good" || stateName == "1") {
+                state = BATTERY_GOOD;
+                percent = 100;
+            } else if (stateName == "warn" || stateName == "warning" || stateName == "2") {
+                state = BATTERY_WARN;
+                percent = battery_config_get_warn_percent();
+            } else if (stateName == "low" || stateName == "3") {
+                state = BATTERY_LOW;
+                percent = battery_config_get_cutoff_percent();
+            } else {
+                req->send(400, "application/json", "{\"err\":\"bad state\"}");
+                return;
+            }
+            if (req->hasParam("pct")) {
+                int pct = req->getParam("pct")->value().toInt();
+                if (pct < 0 || pct > 100) {
+                    req->send(400, "application/json", "{\"err\":\"bad pct\"}");
+                    return;
+                }
+                percent = (uint8_t)pct;
+            }
+            PowerFunctions::benchSetBatteryOverride(state, percent);
+            req->send(200, "application/json",
+                      String("{\"ok\":true,\"override\":true,\"state\":") + state +
+                      ",\"pct\":" + percent + "}");
+#endif
+        },
+        NULL
+    );
+
     // Bench HID injection. Disabled in production builds: requires both
     // BENCH_HID_HTTP build flag and an NVS runtime flag.
     server->on("/api/bench/hid", HTTP_POST,
@@ -682,8 +737,9 @@ static void register_routes(void) {
             req->send(ok ? 200 : 500, "application/json",
                       ok ? "{\"ok\":true}" : "{\"ok\":false,\"err\":\"update\"}");
             if (ok) {
-                delay(500);
-                ESP.restart();
+                // Do not block/restart inside AsyncWebServer's request callback:
+                // that can tear down the TCP response before the client receives it.
+                ota_restart_at_ms = millis() + 1000;
             }
         },
         [](AsyncWebServerRequest *req, const String &filename, size_t index,
@@ -807,6 +863,10 @@ esp_err_t web_config_init(void) {
 }
 
 void web_config_loop(void) {
+    if (ota_restart_at_ms && (int32_t)(millis() - ota_restart_at_ms) >= 0) {
+        ota_restart_at_ms = 0;
+        ESP.restart();
+    }
     // Drain captive-portal DNS requests whenever we're in AP mode.
     if (wifi_ap_mode) {
         dnsServer.processNextRequest();

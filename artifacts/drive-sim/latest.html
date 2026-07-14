@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Virtual Drive Simulator Report</title>
+<style>
+:root{--ivory:#FAF9F5;--white:#fff;--slate:#141413;--clay:#D97757;--olive:#788C5D;--rust:#B04A3F;--oat:#E3DACC;--gray-150:#F0EEE6;--gray-300:#D1CFC5;--gray-500:#87867F;--gray-700:#3D3D3A;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--serif:ui-serif,Georgia,serif;--sans:system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--ivory);color:var(--gray-700);font-family:var(--sans);padding:42px 24px 80px}.page{max-width:1120px;margin:0 auto}.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gray-500)}h1,h2{font-family:var(--serif);font-weight:500;color:var(--slate);letter-spacing:-.01em}h1{font-size:42px;margin:.2em 0 .15em}.summary{font-size:18px;margin-bottom:28px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:18px}.card{background:var(--white);border:1.5px solid var(--gray-300);border-radius:14px;padding:16px}.card-head{display:flex;justify-content:space-between;gap:12px;align-items:start}h2{font-size:21px;margin:0}.kind{font-family:var(--mono);font-size:11px;text-transform:uppercase;color:var(--gray-500);margin:3px 0 12px}.badge{font-family:var(--mono);font-size:11px;border-radius:999px;padding:4px 9px}.badge.pass{background:rgba(120,140,93,.17);color:var(--olive)}.badge.fail{background:rgba(176,74,63,.15);color:var(--rust)}.plot{width:100%;height:auto;margin:8px 0 10px}.plot rect{fill:var(--gray-150);stroke:var(--gray-300)}.plot polyline{fill:none;stroke:var(--clay);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.plot .start{fill:var(--olive)}.plot .end{fill:var(--clay)}.plot .heading{stroke:var(--clay);stroke-width:2}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}.metrics div{background:var(--gray-150);border-radius:9px;padding:8px}.metrics strong{display:block;color:var(--slate);font-family:var(--serif);font-size:21px;font-weight:500}.metrics span{font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--gray-500)}.checks{list-style:none;padding:0;margin:10px 0 0}.checks li{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--gray-150);padding:8px 0;font-size:13px}.checks code{font-family:var(--mono);font-size:11px;color:var(--gray-500)}.checks .ok span{color:var(--olive)}.checks .bad span{color:var(--rust)}
+</style>
+</head>
+<body><div class="page"><div class="eyebrow">Combat Robot Controller v2</div><h1>Virtual Drive Simulator Report</h1><p class="summary">10/10 scenarios passed. These are kinematic drive-logic checks, not full physics simulations.</p><div class="grid">
+        <section class="card">
+          <div class="card-head"><h2>2wheel_forward_then_stop</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">differential</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="2wheel_forward_then_stop trajectory">
+      <defs><marker id="arrow-2wheel_forward_then_stop" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="20.0,90.0 24.8,90.0 29.6,90.0 34.4,90.0 39.2,90.0 44.0,90.0 48.8,90.0 53.6,90.0 58.4,90.0 63.2,90.0 68.0,90.0 72.8,90.0 77.6,90.0 82.4,90.0 87.2,90.0 92.0,90.0 96.8,90.0 101.6,90.0 106.4,90.0 111.2,90.0 116.0,90.0 120.8,90.0 125.6,90.0 130.4,90.0 135.2,90.0 140.0,90.0 144.8,90.0 149.6,90.0 154.4,90.0 159.2,90.0 164.0,90.0 168.8,90.0 173.6,90.0 178.4,90.0 183.2,90.0 188.0,90.0 192.8,90.0 197.6,90.0 202.4,90.0 207.2,90.0 212.0,90.0 216.8,90.0 221.6,90.0 226.4,90.0 231.2,90.0 236.0,90.0 240.8,90.0 245.6,90.0 250.4,90.0 255.2,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0" />
+      <circle class="start" cx="20.0" cy="90.0" r="4" />
+      <circle class="end" cx="260.0" cy="90.0" r="4" />
+      <line class="heading" x1="260.0" y1="90.0" x2="278.0" y2="90.0" marker-end="url(#arrow-2wheel_forward_then_stop)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.70m</strong><span>forward</span></div>
+            <div><strong>0.0°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>moves forward</span><code>forward=0.700m heading_delta=0.0deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>2wheel_reverse_then_stop</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">differential</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="2wheel_reverse_then_stop trajectory">
+      <defs><marker id="arrow-2wheel_reverse_then_stop" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="260.0,90.0 255.2,90.0 250.4,90.0 245.6,90.0 240.8,90.0 236.0,90.0 231.2,90.0 226.4,90.0 221.6,90.0 216.8,90.0 212.0,90.0 207.2,90.0 202.4,90.0 197.6,90.0 192.8,90.0 188.0,90.0 183.2,90.0 178.4,90.0 173.6,90.0 168.8,90.0 164.0,90.0 159.2,90.0 154.4,90.0 149.6,90.0 144.8,90.0 140.0,90.0 135.2,90.0 130.4,90.0 125.6,90.0 120.8,90.0 116.0,90.0 111.2,90.0 106.4,90.0 101.6,90.0 96.8,90.0 92.0,90.0 87.2,90.0 82.4,90.0 77.6,90.0 72.8,90.0 68.0,90.0 63.2,90.0 58.4,90.0 53.6,90.0 48.8,90.0 44.0,90.0 39.2,90.0 34.4,90.0 29.6,90.0 24.8,90.0 20.0,90.0 20.0,90.0 20.0,90.0 20.0,90.0 20.0,90.0 20.0,90.0 20.0,90.0 20.0,90.0 20.0,90.0 20.0,90.0 20.0,90.0" />
+      <circle class="start" cx="260.0" cy="90.0" r="4" />
+      <circle class="end" cx="20.0" cy="90.0" r="4" />
+      <line class="heading" x1="20.0" y1="90.0" x2="38.0" y2="90.0" marker-end="url(#arrow-2wheel_reverse_then_stop)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>-0.70m</strong><span>forward</span></div>
+            <div><strong>0.0°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>moves backward</span><code>forward=-0.700m heading_delta=0.0deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>2wheel_left_spin</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">differential</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="2wheel_left_spin trajectory">
+      <defs><marker id="arrow-2wheel_left_spin" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0" />
+      <circle class="start" cx="140.0" cy="90.0" r="4" />
+      <circle class="end" cx="140.0" cy="90.0" r="4" />
+      <line class="heading" x1="140.0" y1="90.0" x2="128.7" y2="76.0" marker-end="url(#arrow-2wheel_left_spin)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.00m</strong><span>forward</span></div>
+            <div><strong>128.9°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>turns left</span><code>heading_delta=128.9deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>2wheel_right_spin</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">differential</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="2wheel_right_spin trajectory">
+      <defs><marker id="arrow-2wheel_right_spin" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0" />
+      <circle class="start" cx="140.0" cy="90.0" r="4" />
+      <circle class="end" cx="140.0" cy="90.0" r="4" />
+      <line class="heading" x1="140.0" y1="90.0" x2="128.7" y2="104.0" marker-end="url(#arrow-2wheel_right_spin)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.00m</strong><span>forward</span></div>
+            <div><strong>-128.9°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>turns right</span><code>heading_delta=-128.9deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>4wheel_skid_left_arc</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">four_wheel_skid</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="4wheel_skid_left_arc trajectory">
+      <defs><marker id="arrow-4wheel_skid_left_arc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="55.9,160.0 65.4,159.7 74.9,158.9 84.3,157.6 93.6,155.8 102.8,153.4 111.9,150.6 120.8,147.2 129.4,143.4 137.9,139.1 146.1,134.3 154.0,129.1 161.6,123.4 168.9,117.3 175.9,110.9 182.5,104.0 188.6,96.8 194.4,89.3 199.8,81.4 204.7,73.3 209.1,64.9 213.1,56.3 216.6,47.5 219.6,38.4 222.1,29.3 224.1,20.0 224.1,20.0 224.1,20.0 224.1,20.0 224.1,20.0 224.1,20.0 224.1,20.0 224.1,20.0 224.1,20.0 224.1,20.0 224.1,20.0" />
+      <circle class="start" cx="55.9" cy="160.0" r="4" />
+      <circle class="end" cx="224.1" cy="20.0" r="4" />
+      <line class="heading" x1="224.1" y1="20.0" x2="227.3" y2="2.3" marker-end="url(#arrow-4wheel_skid_left_arc)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.18m</strong><span>forward</span></div>
+            <div><strong>79.6°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>arcs left</span><code>abs_forward=0.177m heading_delta=79.6deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>4wheel_skid_right_arc</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">four_wheel_skid</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="4wheel_skid_right_arc trajectory">
+      <defs><marker id="arrow-4wheel_skid_right_arc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="55.9,20.0 65.4,20.3 74.9,21.1 84.3,22.4 93.6,24.2 102.8,26.6 111.9,29.4 120.8,32.8 129.4,36.6 137.9,40.9 146.1,45.7 154.0,50.9 161.6,56.6 168.9,62.7 175.9,69.1 182.5,76.0 188.6,83.2 194.4,90.7 199.8,98.6 204.7,106.7 209.1,115.1 213.1,123.7 216.6,132.5 219.6,141.6 222.1,150.7 224.1,160.0 224.1,160.0 224.1,160.0 224.1,160.0 224.1,160.0 224.1,160.0 224.1,160.0 224.1,160.0 224.1,160.0 224.1,160.0 224.1,160.0" />
+      <circle class="start" cx="55.9" cy="20.0" r="4" />
+      <circle class="end" cx="224.1" cy="160.0" r="4" />
+      <line class="heading" x1="224.1" y1="160.0" x2="227.3" y2="177.7" marker-end="url(#arrow-4wheel_skid_right_arc)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.18m</strong><span>forward</span></div>
+            <div><strong>-79.6°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>arcs right</span><code>abs_forward=0.177m heading_delta=-79.6deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>servo_steer_forward_center</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">servo_steer</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="servo_steer_forward_center trajectory">
+      <defs><marker id="arrow-servo_steer_forward_center" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="20.0,90.0 24.8,90.0 29.6,90.0 34.4,90.0 39.2,90.0 44.0,90.0 48.8,90.0 53.6,90.0 58.4,90.0 63.2,90.0 68.0,90.0 72.8,90.0 77.6,90.0 82.4,90.0 87.2,90.0 92.0,90.0 96.8,90.0 101.6,90.0 106.4,90.0 111.2,90.0 116.0,90.0 120.8,90.0 125.6,90.0 130.4,90.0 135.2,90.0 140.0,90.0 144.8,90.0 149.6,90.0 154.4,90.0 159.2,90.0 164.0,90.0 168.8,90.0 173.6,90.0 178.4,90.0 183.2,90.0 188.0,90.0 192.8,90.0 197.6,90.0 202.4,90.0 207.2,90.0 212.0,90.0 216.8,90.0 221.6,90.0 226.4,90.0 231.2,90.0 236.0,90.0 240.8,90.0 245.6,90.0 250.4,90.0 255.2,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0 260.0,90.0" />
+      <circle class="start" cx="20.0" cy="90.0" r="4" />
+      <circle class="end" cx="260.0" cy="90.0" r="4" />
+      <line class="heading" x1="260.0" y1="90.0" x2="278.0" y2="90.0" marker-end="url(#arrow-servo_steer_forward_center)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.70m</strong><span>forward</span></div>
+            <div><strong>0.0°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>moves forward</span><code>forward=0.700m heading_delta=0.0deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>servo_steer_left_arc</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">servo_steer</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="servo_steer_left_arc trajectory">
+      <defs><marker id="arrow-servo_steer_left_arc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="75.4,160.0 80.8,159.9 86.1,159.6 91.4,159.0 96.7,158.2 102.0,157.2 107.2,156.0 112.3,154.6 117.4,153.0 122.4,151.1 127.4,149.1 132.2,146.9 136.9,144.4 141.6,141.8 146.1,138.9 150.5,135.9 154.8,132.7 159.0,129.4 163.0,125.8 166.8,122.1 170.5,118.3 174.0,114.2 177.4,110.1 180.6,105.8 183.6,101.4 186.4,96.9 189.1,92.2 191.5,87.5 193.7,82.6 195.8,77.7 197.6,72.7 199.2,67.6 200.7,62.4 201.9,57.2 202.8,52.0 203.6,46.7 204.1,41.3 204.5,36.0 204.6,30.7 204.4,25.3 204.1,20.0 204.1,20.0 204.1,20.0 204.1,20.0 204.1,20.0 204.1,20.0 204.1,20.0 204.1,20.0 204.1,20.0 204.1,20.0 204.1,20.0" />
+      <circle class="start" cx="75.4" cy="160.0" r="4" />
+      <circle class="end" cx="204.1" cy="20.0" r="4" />
+      <line class="heading" x1="204.1" y1="20.0" x2="202.6" y2="2.1" marker-end="url(#arrow-servo_steer_left_arc)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.31m</strong><span>forward</span></div>
+            <div><strong>94.8°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>arcs left</span><code>abs_forward=0.313m heading_delta=94.8deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>servo_steer_right_arc</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">servo_steer</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="servo_steer_right_arc trajectory">
+      <defs><marker id="arrow-servo_steer_right_arc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="75.4,20.0 80.8,20.1 86.1,20.4 91.4,21.0 96.7,21.8 102.0,22.8 107.2,24.0 112.3,25.4 117.4,27.0 122.4,28.9 127.4,30.9 132.2,33.1 136.9,35.6 141.6,38.2 146.1,41.1 150.5,44.1 154.8,47.3 159.0,50.6 163.0,54.2 166.8,57.9 170.5,61.7 174.0,65.8 177.4,69.9 180.6,74.2 183.6,78.6 186.4,83.1 189.1,87.8 191.5,92.5 193.7,97.4 195.8,102.3 197.6,107.3 199.2,112.4 200.7,117.6 201.9,122.8 202.8,128.0 203.6,133.3 204.1,138.7 204.5,144.0 204.6,149.3 204.4,154.7 204.1,160.0 204.1,160.0 204.1,160.0 204.1,160.0 204.1,160.0 204.1,160.0 204.1,160.0 204.1,160.0 204.1,160.0 204.1,160.0 204.1,160.0" />
+      <circle class="start" cx="75.4" cy="20.0" r="4" />
+      <circle class="end" cx="204.1" cy="160.0" r="4" />
+      <line class="heading" x1="204.1" y1="160.0" x2="202.6" y2="177.9" marker-end="url(#arrow-servo_steer_right_arc)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.31m</strong><span>forward</span></div>
+            <div><strong>-94.8°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>arcs right</span><code>abs_forward=0.313m heading_delta=-94.8deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>servo_steer_without_throttle_holds_position</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">servo_steer</div>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="servo_steer_without_throttle_holds_position trajectory">
+      <defs><marker id="arrow-servo_steer_without_throttle_holds_position" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0 140.0,90.0" />
+      <circle class="start" cx="140.0" cy="90.0" r="4" />
+      <circle class="end" cx="140.0" cy="90.0" r="4" />
+      <line class="heading" x1="140.0" y1="90.0" x2="158.0" y2="90.0" marker-end="url(#arrow-servo_steer_without_throttle_holds_position)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.00m</strong><span>forward</span></div>
+            <div><strong>0.0°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>holds still</span><code>displacement=0.000m heading_delta=0.0deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        </div></div></body></html>

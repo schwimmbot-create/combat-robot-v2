@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Virtual Drive Simulator Report</title>
+<style>
+:root{--ivory:#FAF9F5;--white:#fff;--slate:#141413;--clay:#D97757;--olive:#788C5D;--rust:#B04A3F;--oat:#E3DACC;--gray-150:#F0EEE6;--gray-300:#D1CFC5;--gray-500:#87867F;--gray-700:#3D3D3A;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--serif:ui-serif,Georgia,serif;--sans:system-ui,-apple-system,"Segoe UI",sans-serif}
+*{box-sizing:border-box}body{margin:0;background:var(--ivory);color:var(--gray-700);font-family:var(--sans);padding:42px 24px 80px}.page{max-width:1120px;margin:0 auto}.eyebrow{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--gray-500)}h1,h2{font-family:var(--serif);font-weight:500;color:var(--slate);letter-spacing:-.01em}h1{font-size:42px;margin:.2em 0 .15em}.summary{font-size:18px;margin-bottom:28px}.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:18px}.card{background:var(--white);border:1.5px solid var(--gray-300);border-radius:14px;padding:16px}.card-head{display:flex;justify-content:space-between;gap:12px;align-items:start}h2{font-size:21px;margin:0}.kind{font-family:var(--mono);font-size:11px;text-transform:uppercase;color:var(--gray-500);margin:3px 0 8px}.desc{font-size:12.5px;color:var(--gray-500);min-height:38px;margin:0 0 10px}.badge{font-family:var(--mono);font-size:11px;border-radius:999px;padding:4px 9px}.badge.pass{background:rgba(120,140,93,.17);color:var(--olive)}.badge.fail{background:rgba(176,74,63,.15);color:var(--rust)}.plot{width:100%;height:auto;margin:8px 0 10px}.plot rect{fill:var(--gray-150);stroke:var(--gray-300)}.plot polyline{fill:none;stroke:var(--clay);stroke-width:3;stroke-linecap:round;stroke-linejoin:round}.plot .start{fill:var(--olive)}.plot .end{fill:var(--clay)}.plot .heading{stroke:var(--clay);stroke-width:2}.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:10px 0}.metrics div{background:var(--gray-150);border-radius:9px;padding:8px}.metrics strong{display:block;color:var(--slate);font-family:var(--serif);font-size:21px;font-weight:500}.metrics span{font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--gray-500)}.checks{list-style:none;padding:0;margin:10px 0 0}.checks li{display:flex;justify-content:space-between;gap:8px;border-top:1px solid var(--gray-150);padding:8px 0;font-size:13px}.checks code{font-family:var(--mono);font-size:11px;color:var(--gray-500)}.checks .ok span{color:var(--olive)}.checks .bad span{color:var(--rust)}
+</style>
+</head>
+<body><div class="page"><div class="eyebrow">Combat Robot Controller v2</div><h1>Virtual Drive Simulator Report</h1><p class="summary">5/5 scenarios passed. These are kinematic drive-logic checks, not full physics simulations.</p><div class="grid">
+        <section class="card">
+          <div class="card-head"><h2>board2_firmware_arcade_forward</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">differential</div>
+          <p class="desc">BOARD_REV=2 Generic Robot Controller v2 (v2 (current production)), 2 drive motors: live firmware arcade RT throttle should simulate forward motion.</p>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="board2_firmware_arcade_forward trajectory">
+      <defs><marker id="arrow-board2_firmware_arcade_forward" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="20.0,90.0 20.0,90.0 79.1,90.0 138.2,90.0 200.9,90.0 260.0,90.0 260.0,90.0" />
+      <circle class="start" cx="20.0" cy="90.0" r="4" />
+      <circle class="end" cx="260.0" cy="90.0" r="4" />
+      <line class="heading" x1="260.0" y1="90.0" x2="278.0" y2="90.0" marker-end="url(#arrow-board2_firmware_arcade_forward)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.61m</strong><span>forward</span></div>
+            <div><strong>0.0°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>moves forward</span><code>forward=0.615m heading_delta=0.0deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>board2_firmware_arcade_left_arc</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">differential</div>
+          <p class="desc">BOARD_REV=2 Generic Robot Controller v2 (v2 (current production)), 2 drive motors: live firmware arcade steering-left should simulate a left arc.</p>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="board2_firmware_arcade_left_arc trajectory">
+      <defs><marker id="arrow-board2_firmware_arcade_left_arc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="101.5,160.0 101.5,160.0 158.4,135.1 178.5,73.7 147.3,20.0 147.3,20.0" />
+      <circle class="start" cx="101.5" cy="160.0" r="4" />
+      <circle class="end" cx="147.3" cy="20.0" r="4" />
+      <line class="heading" x1="147.3" y1="20.0" x2="132.8" y2="9.4" marker-end="url(#arrow-board2_firmware_arcade_left_arc)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.07m</strong><span>forward</span></div>
+            <div><strong>143.8°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>arcs left</span><code>abs_forward=0.074m heading_delta=143.8deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>board2_firmware_arcade_right_arc</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">differential</div>
+          <p class="desc">BOARD_REV=2 Generic Robot Controller v2 (v2 (current production)), 2 drive motors: live firmware arcade steering-right should simulate a right arc.</p>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="board2_firmware_arcade_right_arc trajectory">
+      <defs><marker id="arrow-board2_firmware_arcade_right_arc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="101.5,20.0 101.5,20.0 158.4,44.9 178.5,106.2 147.5,160.0 147.5,160.0" />
+      <circle class="start" cx="101.5" cy="20.0" r="4" />
+      <circle class="end" cx="147.5" cy="160.0" r="4" />
+      <line class="heading" x1="147.5" y1="160.0" x2="133.1" y2="170.7" marker-end="url(#arrow-board2_firmware_arcade_right_arc)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.07m</strong><span>forward</span></div>
+            <div><strong>-143.6°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>arcs right</span><code>abs_forward=0.075m heading_delta=-143.6deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>board2_firmware_servo_steer_left_arc</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">servo_steer</div>
+          <p class="desc">BOARD_REV=2 Generic Robot Controller v2 (v2 (current production)), 2 drive motors: live firmware servo-steering low S1 pulse should simulate a left arc.</p>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="board2_firmware_servo_steer_left_arc trajectory">
+      <defs><marker id="arrow-board2_firmware_servo_steer_left_arc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="20.0,152.6 20.0,152.6 111.1,138.0 196.2,93.6 260.0,27.4 260.0,27.4" />
+      <circle class="start" cx="20.0" cy="152.6" r="4" />
+      <circle class="end" cx="260.0" cy="27.4" r="4" />
+      <line class="heading" x1="260.0" y1="27.4" x2="270.3" y2="12.7" marker-end="url(#arrow-board2_firmware_servo_steer_left_arc)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.26m</strong><span>forward</span></div>
+            <div><strong>55.1°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>arcs left</span><code>abs_forward=0.261m heading_delta=55.1deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        
+        <section class="card">
+          <div class="card-head"><h2>board2_firmware_servo_steer_right_arc</h2><span class="badge pass">PASS</span></div>
+          <div class="kind">servo_steer</div>
+          <p class="desc">BOARD_REV=2 Generic Robot Controller v2 (v2 (current production)), 2 drive motors: live firmware servo-steering high S1 pulse should simulate a right arc.</p>
+          
+    <svg class="plot" viewBox="0 0 280 180" role="img" aria-label="board2_firmware_servo_steer_right_arc trajectory">
+      <defs><marker id="arrow-board2_firmware_servo_steer_right_arc" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto"><path d="M2 1 L8 5 L2 9" fill="none" stroke="#D97757" stroke-width="1.5" stroke-linecap="round"/></marker></defs>
+      <rect x="1" y="1" width="278" height="178" rx="12" />
+      <polyline points="20.0,25.9 20.0,25.9 111.0,40.6 197.1,86.6 260.0,154.1 260.0,154.1" />
+      <circle class="start" cx="20.0" cy="25.9" r="4" />
+      <circle class="end" cx="260.0" cy="154.1" r="4" />
+      <line class="heading" x1="260.0" y1="154.1" x2="270.0" y2="169.0" marker-end="url(#arrow-board2_firmware_servo_steer_right_arc)" />
+    </svg>
+    
+          <div class="metrics">
+            <div><strong>0.26m</strong><span>forward</span></div>
+            <div><strong>-56.2°</strong><span>heading</span></div>
+            <div><strong>0.00</strong><span>final m/s</span></div>
+          </div>
+          <ul class="checks"><li class='ok'><span>arcs right</span><code>abs_forward=0.262m heading_delta=-56.2deg</code></li><li class='ok'><span>ends stopped</span><code>final_speed=0.000m/s</code></li></ul>
+        </section>
+        </div></div></body></html>
